@@ -1,23 +1,16 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
+# v0 sandbox internal files
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+.snowflake/
+.design-cache/
+.v0-trash/
+.vercel/
 
-# Environment & local secrets
-.env
-.env.local
+# Environment variables
+.env*.local
 
-# Virtual environments
-venv/
-env/
-ENV/
-
-# IDE & Editor caches
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS files
+# Common ignores
+node_modules
+.next/
 .DS_Store
-Thumbs.db

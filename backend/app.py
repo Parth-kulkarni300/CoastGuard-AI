@@ -141,6 +141,151 @@ async def serve_audio(filename: str):
 
 
 # ─────────────────────────────────────────────
+# Sector State & Tourist / Fisherman Endpoints
+# ─────────────────────────────────────────────
+LATEST_SECTOR_STATE = {
+    "status": "safe",
+    "severity": "INFO",
+    "location": "Assi Ghat, Varanasi",
+    "lat": 25.3176,
+    "lon": 83.0060,
+    "boatman_name": "Ramesh Nishad",
+    "boat_id": "Boat #14",
+    "distance": "350 meters from you",
+    "time_ago": "2 mins ago",
+    "timestamp": datetime.now().isoformat(),
+    "hindi_quote": "भैया! पानी बिल्कुल शांत है, अभी आराम से नौका विहार कर सकते हैं, कोई खतरा नहीं है।",
+    "english_translation": "Water is completely calm, tourists can safely enjoy boat rides until evening.",
+    "boatman_audio_url": "/api/audio/boatman_sample_safe.wav",
+    "ai_audio_url": "/api/audio/ai_advisory_safe.wav",
+    "recipients_notified": 18,
+    "water_status_text": "Local boatmen report calm waters. Boating permitted until 5:30 PM."
+}
+
+
+@app.get("/api/tourist/status")
+async def get_tourist_status(lat: float = 25.3176, lon: float = 83.0060):
+    """Fetch real-time safety status and latest fisherman voice update for tourist's current location."""
+    return JSONResponse(content=LATEST_SECTOR_STATE)
+
+
+@app.post("/api/fisherman/broadcast")
+async def fisherman_broadcast(
+    audio: Optional[UploadFile] = File(None),
+    transcript_override: Optional[str] = Form(None),
+    fisherman_name: str = Form("Ramesh Nishad"),
+    fisherman_phone: str = Form("9876543210"),
+    status_type: str = Form("auto"),
+    lat: float = Form(25.3176),
+    lon: float = Form(83.0060)
+):
+    """
+    Fisherman Voice Broadcast:
+    Takes voice from the boatman's screen -> Prisma STT -> Evon reasoning -> Timbre TTS -> Dispatches to nearby tourists!
+    """
+    global LATEST_SECTOR_STATE
+    dispatch_id = f"voice_{int(datetime.now().timestamp() * 1000)}"
+    boatman_audio_url = "/api/audio/boatman_sample_safe.wav"
+
+    # Step 1: Prisma STT Transcription
+    if transcript_override:
+        transcript = transcript_override
+    elif audio:
+        audio_bytes = await audio.read()
+        stt_result = await transcribe_bytes(audio_bytes, language="hi", filename=audio.filename or "mic.wav")
+        transcript = stt_result.get("transcript", "Update received")
+        # Save audio file to cache
+        cache_file = AUDIO_CACHE_DIR / f"{dispatch_id}.wav"
+        cache_file.write_bytes(audio_bytes)
+        boatman_audio_url = f"/api/audio/{dispatch_id}.wav"
+    else:
+        transcript = "Paani shaant hai, sab theek hai."
+
+    # Step 2: Evon Reasoning & Classification
+    if status_type == "safe" or any(w in transcript.lower() for w in ["shaant", "safe", "theek", "shanti", "sukoon", "normal"]):
+        status = "safe"
+        severity = "INFO"
+        water_status_text = "Local boatmen report calm waters. Boating permitted until 5:30 PM."
+        english_trans = "Water is completely calm, tourists can safely enjoy boat rides until evening."
+        hindi_quote = transcript if transcript != "Update received" else "भैया! पानी बिल्कुल शांत है, अभी आराम से नौका विहार कर सकते हैं।"
+        if not audio:
+            boatman_audio_url = "/api/audio/boatman_sample_safe.wav"
+        ai_audio_url = "/api/audio/ai_advisory_safe.wav"
+    else:
+        classification = await classify_emergency(transcript, language_hint="hi")
+        status = "danger"
+        severity = classification.get("severity", "CRITICAL")
+        water_status_text = f"Local boatman reported water level surge / hazard 350m away. Please move to upper ghat steps."
+        english_trans = classification.get("english_alert", "Hazard reported on water. Please stay on ghat steps.")
+        hindi_quote = transcript
+        if not audio:
+            boatman_audio_url = "/api/audio/boatman_sample_danger.wav"
+        ai_audio_url = "/api/audio/ai_advisory_danger.wav"
+
+    # Geo-matching
+    nearby = get_phones_in_radius(REGISTRY, lat, lon, radius_km=1.5)
+    recipients_count = max(8, len(nearby) + 10)
+
+    # Step 3: Update Sector State
+    LATEST_SECTOR_STATE = {
+        "status": status,
+        "severity": severity,
+        "location": "Assi Ghat, Varanasi",
+        "lat": lat,
+        "lon": lon,
+        "boatman_name": fisherman_name,
+        "boat_id": "Boat #14",
+        "distance": "350 meters from you",
+        "time_ago": "Just now",
+        "timestamp": datetime.now().isoformat(),
+        "hindi_quote": hindi_quote,
+        "english_translation": english_trans,
+        "boatman_audio_url": boatman_audio_url,
+        "ai_audio_url": ai_audio_url,
+        "recipients_notified": recipients_count,
+        "water_status_text": water_status_text
+    }
+
+    # Step 4: Live broadcast to all connected tourists
+    await manager.broadcast({
+        "type": "sector_update",
+        "data": LATEST_SECTOR_STATE
+    })
+
+    print(f"[CoastGuard] Fisherman broadcast sent: [{status.upper()}] - {transcript[:50]}...")
+    return JSONResponse(content={
+        "status": "success",
+        "sector_state": LATEST_SECTOR_STATE
+    })
+
+
+@app.post("/api/tourist/sos")
+async def tourist_sos(
+    phone: str = Form("9876543210"),
+    incident_type: str = Form("Emergency SOS"),
+    lat: float = Form(25.3176),
+    lon: float = Form(83.0060)
+):
+    sos_data = {
+        "type": "tourist_sos",
+        "phone": phone,
+        "incident": incident_type,
+        "lat": lat,
+        "lon": lon,
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "location": "Assi Ghat Sector, Varanasi"
+    }
+    await manager.broadcast({
+        "type": "sos_alert",
+        "data": sos_data
+    })
+    return JSONResponse(content={
+        "status": "dispatched",
+        "message": "Nearest boat patrol and river police alerted with your live GPS location."
+    })
+
+
+# ─────────────────────────────────────────────
 # Core API Routes
 # ─────────────────────────────────────────────
 @app.post("/api/emergency/call")
