@@ -657,9 +657,33 @@ function TouristDashboard({
   const [waterStatusText, setWaterStatusText] = useState(
     'Local boatmen report calm waters. Boating permitted until 5:30 PM.'
   )
+  const [selectedLang, setSelectedLang] = useState<'en' | 'hi' | 'ta' | 'bn'>('hi')
   const [boatmanAudioUrl, setBoatmanAudioUrl] = useState('/api/audio/boatman_sample_safe.wav')
   const [boatmanRawAudioUrl, setBoatmanRawAudioUrl] = useState('')
   const [aiAudioUrl, setAiAudioUrl] = useState('/api/audio/ai_advisory_safe.wav')
+
+  const REGIONAL_TRANSLATIONS: Record<'en' | 'hi' | 'ta' | 'bn', { safe: string; danger: string; label: string }> = {
+    hi: {
+      safe: 'जलस्तर सामान्य है और मौसम शांत है। शाम तक नौका विहार सुरक्षित है।',
+      danger: 'सावधान! जलस्तर में अचानक वृद्धि की सूचना। कृपया तुरंत घाट से दूर सुरक्षित स्थान पर जाएं।',
+      label: 'हिंदी'
+    },
+    en: {
+      safe: 'Water is completely calm, tourists can safely enjoy boat rides until evening.',
+      danger: 'Hazard reported: sudden water surge. Evacuate river bank and move to higher ground immediately.',
+      label: 'English'
+    },
+    ta: {
+      safe: 'நீர்மட்டம் சாதாரணமாக உள்ளது. மாலை வரை படகு சவாரி பாதுகாப்பானது.',
+      danger: 'எச்சரிக்கை! திடீர் நீர்வரத்து. உடனடியாக பாதுகாப்பான உயரமான இடத்திற்கு செல்லவும்.',
+      label: 'தமிழ்'
+    },
+    bn: {
+      safe: 'নদীর জল সম্পূর্ণ শান্ত, পর্যটকরা নিরাপদে নৌকাবিহার উপভোগ করতে পারেন।',
+      danger: 'বিপদ সতর্কতা: দ্রুত জলবৃদ্ধি। অবিলম্বে নদীর তীর ত্যাগ করে উঁচু স্থানে যান।',
+      label: 'বাংলা'
+    }
+  }
 
   const boatmanAudioRef = useRef<HTMLAudioElement | null>(null)
   const rawAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -794,11 +818,12 @@ function TouristDashboard({
       setPlayingRaw(false)
     }
 
+    const ttsUrl = `/api/tourist/tts?lang=${selectedLang}&status=${status}`
     if (!aiAudioRef.current) {
-      aiAudioRef.current = new Audio(aiAudioUrl)
+      aiAudioRef.current = new Audio(ttsUrl)
       aiAudioRef.current.onended = () => setPlayingAi(false)
     } else {
-      aiAudioRef.current.src = aiAudioUrl
+      aiAudioRef.current.src = ttsUrl
     }
 
     if (playingAi) {
@@ -821,11 +846,20 @@ function TouristDashboard({
               📍 {location.placeName} ({location.lat.toFixed(4)}° N, {location.lon.toFixed(4)}° E)
             </strong>
           </div>
-          <select className="language-select" aria-label="Language">
-            <option>English</option>
-            <option>हिंदी (Hindi)</option>
-            <option>தமிழ் (Tamil)</option>
-            <option>বাংলা (Bengali)</option>
+          <select
+            className="language-select"
+            aria-label="Language"
+            value={selectedLang}
+            onChange={(e) => {
+              const newLang = e.target.value as 'en' | 'hi' | 'ta' | 'bn'
+              setSelectedLang(newLang)
+              setTranslation(REGIONAL_TRANSLATIONS[newLang][status === 'safe' ? 'safe' : 'danger'])
+            }}
+          >
+            <option value="en">English</option>
+            <option value="hi">हिंदी (Hindi)</option>
+            <option value="ta">தமிழ் (Tamil)</option>
+            <option value="bn">বাংলা (Bengali)</option>
           </select>
         </div>
 
@@ -880,8 +914,8 @@ function TouristDashboard({
               <span className="play-circle">
                 {playingAi ? <Pause /> : <Volume2 />}
               </span>
-              Listen to AI Safety Advisory
-              <small>Gnani Timbre Indic Spoken Voice</small>
+              Listen to AI Safety Advisory ({REGIONAL_TRANSLATIONS[selectedLang].label})
+              <small>Gnani Timbre Indic Spoken Regional Voice</small>
             </button>
 
             {/* Noise Canceller Comparison Link */}

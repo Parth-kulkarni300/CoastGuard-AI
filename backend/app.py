@@ -216,6 +216,56 @@ async def get_tourist_status(lat: float = 25.3176, lon: float = 83.0060):
     return JSONResponse(content=state)
 
 
+@app.get("/api/tourist/tts")
+async def tourist_tts(lang: str = "hi", status: str = "danger"):
+    """
+    Multi-Dialect Indic TTS via Gnani Timbre.
+    Allows tourists to hear emergency advisories in Hindi, English, Tamil, or Bengali.
+    """
+    lang_key = lang.lower()[:2]
+    if lang_key not in ["hi", "en", "ta", "bn"]:
+        lang_key = "hi"
+
+    messages = {
+        "hi": {
+            "danger": "सावधान! नाव चालकों ने नदी में अचानक बहाव की चेतावनी दी है। कृपया तुरंत घाट की ऊपरी सीढ़ियों पर जाएं।",
+            "safe": "तट रक्षक सूचना: जलस्तर सामान्य है और मौसम शांत है। नौका विहार सुरक्षित है।"
+        },
+        "ta": {
+            "danger": "எச்சரிக்கை! படகோட்டிகள் திடீர் நீர்வரத்து குறித்து எச்சரித்துள்ளனர். உடனடியாக படிக்கட்டுகளில் ஏறி பாதுகாப்பான இடத்திற்கு செல்லுங்கள்.",
+            "safe": "கடலோர தகவல்: நீர்மட்டம் சாதாரணமாக உள்ளது. படகு சவாரி பாதுகாப்பானது."
+        },
+        "bn": {
+            "danger": "সতর্কতা! মাঝিরা নদীতে দ্রুত জলবৃদ্ধির সতর্কতা জারি করেছে। অবিলম্বে ঘাটের ওপরের সিঁড়িতে উঠে যান।",
+            "safe": "উপকূলীয় তথ্য: নদীর জল স্বাভাবিক এবং আবহাওয়া শান্ত রয়েছে। নৌকাবিহার নিরাপদ।"
+        },
+        "en": {
+            "danger": "Emergency Warning! Local boatmen reported a sudden water surge. Please evacuate the river bank immediately.",
+            "safe": "Coastal advisory: Water levels are normal and waters are calm. Boating permitted."
+        }
+    }
+
+    selected_status = "danger" if status == "danger" else "safe"
+    text = messages.get(lang_key, messages["hi"])[selected_status]
+    cache_name = f"timbre_advisory_{lang_key}_{selected_status}.wav"
+    cache_file = AUDIO_CACHE_DIR / cache_name
+
+    if not cache_file.exists():
+        audio_bytes = await synthesize_alert(text=text, language=lang_key, dispatch_id=f"timbre_advisory_{lang_key}_{selected_status}")
+        try:
+            cache_file.write_bytes(audio_bytes)
+        except Exception:
+            pass
+
+    if cache_file.exists():
+        return FileResponse(str(cache_file), media_type="audio/wav")
+
+    fallback = AUDIO_CACHE_DIR / f"ai_advisory_{selected_status}.wav"
+    if fallback.exists():
+        return FileResponse(str(fallback), media_type="audio/wav")
+    raise HTTPException(status_code=404, detail="Audio advisory not found")
+
+
 @app.post("/api/fisherman/broadcast")
 async def fisherman_broadcast(
     audio: Optional[UploadFile] = File(None),
