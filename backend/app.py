@@ -38,6 +38,7 @@ from geo_matcher import get_phones_in_radius, haversine_km
 from synthetic_data import load_or_generate_registry, SYNTHETIC_LOCATIONS
 from alert_dispatcher import dispatch_alerts, get_alert_history, register_ws_callback, unregister_ws_callback
 from audio_filter import denoise_audio_bytes
+from telephony import trigger_outbound_call
 
 # Ensure UTF-8 output on Windows consoles
 if sys.stdout.encoding != 'utf-8':
@@ -266,6 +267,28 @@ async def tourist_tts(lang: str = "hi", status: str = "danger"):
     raise HTTPException(status_code=404, detail="Audio advisory not found")
 
 
+@app.post("/api/tourist/call")
+async def trigger_tourist_call(
+    phone: str = Form("9876543210"),
+    status: str = Form("danger"),
+    language: str = Form("hi")
+):
+    """
+    Triggers an automated emergency voice call to the tourist.
+    Uses Gnani Timbre synthesized speech advisory.
+    """
+    messages = {
+        "hi": "सावधान! नाव चालकों ने नदी में अचानक बहाव की चेतावनी दी है। कृपया तुरंत घाट की ऊपरी सीढ़ियों पर जाएं।",
+        "ta": "எச்சரிக்கை! படகோட்டிகள் திடீர் நீர்வரத்து குறித்து எச்சரித்துள்ளனர். உடனடியாக படிக்கட்டுகளில் ஏறி பாதுகாப்பான இடத்திற்கு செல்லுங்கள்.",
+        "bn": "সতর্কতা! মাঝিরা নদীতে দ্রুত জলবৃদ্ধির সতর্কতা জারি করেছে। অবিলম্বে ঘাটের ওপরের সিঁড়িতে উঠে যান।",
+        "en": "Emergency Warning! Local boatmen reported a sudden water surge. Please evacuate the river bank immediately."
+    }
+    msg = messages.get(language[:2].lower(), messages["hi"])
+    audio_url = f"/api/tourist/tts?lang={language[:2].lower()}&status={status}"
+    call_res = await trigger_outbound_call(phone, message=msg, audio_url=audio_url, language=language[:2].lower())
+    return JSONResponse(content={"ok": True, "call": call_res})
+
+
 @app.post("/api/fisherman/broadcast")
 async def fisherman_broadcast(
     audio: Optional[UploadFile] = File(None),
@@ -363,6 +386,14 @@ async def fisherman_broadcast(
         "type": "sector_update",
         "data": LATEST_SECTOR_STATE
     })
+
+    # Trigger automated emergency calls to active tourists in sector
+    if status == "danger":
+        for dev_phone, dev_data in list(ACTIVE_DEVICES.items()):
+            if dev_data.get("role") == "tourist":
+                d_km = haversine_km(lat, lon, dev_data.get("lat", lat), dev_data.get("lon", lon))
+                if d_km <= 2.0:
+                    asyncio.create_task(trigger_outbound_call(dev_phone, english_trans, ai_audio_url))
 
     print(f"[CoastGuard] Fisherman broadcast from {lat}, {lon} ({sector_place}): [{status.upper()}] - {transcript[:50]}...")
     return JSONResponse(content={

@@ -13,6 +13,8 @@ import {
   Navigation,
   Pause,
   Phone,
+  PhoneCall,
+  PhoneOff,
   Play,
   Radio,
   ShieldCheck,
@@ -623,6 +625,379 @@ function SosModal({
 }
 
 // ─────────────────────────────────────────────
+// 3.5. Interactive Incoming Emergency Call Modal
+// ─────────────────────────────────────────────
+function EmergencyCallModal({
+  close,
+  placeName,
+  boatmanName = 'Ramesh Nishad',
+  selectedLang = 'hi',
+  advisoryText,
+  onSos
+}: {
+  close: () => void
+  placeName: string
+  boatmanName?: string
+  selectedLang?: 'en' | 'hi' | 'ta' | 'bn'
+  advisoryText: string
+  onSos: () => void
+}) {
+  const [callState, setCallState] = useState<'ringing' | 'connected'>('ringing')
+  const [duration, setDuration] = useState(0)
+  const ringtoneRef = useRef<{ stop: () => void } | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  // Start synthesized telecom ringtone (440Hz + 480Hz dual-tone) on mount
+  useEffect(() => {
+    let isPlaying = true
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+      if (AudioCtx) {
+        const ctx = new AudioCtx()
+        const ringCadence = () => {
+          if (!isPlaying || ctx.state === 'closed') return
+          try {
+            const now = ctx.currentTime
+            const osc1 = ctx.createOscillator()
+            const osc2 = ctx.createOscillator()
+            const gain = ctx.createGain()
+
+            osc1.frequency.value = 440
+            osc2.frequency.value = 480
+            osc1.type = 'sine'
+            osc2.type = 'sine'
+
+            gain.gain.setValueAtTime(0, now)
+            gain.gain.linearRampToValueAtTime(0.18, now + 0.05)
+            gain.gain.setValueAtTime(0.18, now + 1.2)
+            gain.gain.linearRampToValueAtTime(0, now + 1.25)
+
+            osc1.connect(gain)
+            osc2.connect(gain)
+            gain.connect(ctx.destination)
+
+            osc1.start(now)
+            osc2.start(now)
+            osc1.stop(now + 1.25)
+            osc2.stop(now + 1.25)
+
+            if (isPlaying) {
+              setTimeout(ringCadence, 2400)
+            }
+          } catch {}
+        }
+        ringCadence()
+        ringtoneRef.current = {
+          stop: () => {
+            isPlaying = false
+            try {
+              ctx.close()
+            } catch {}
+          }
+        }
+      }
+    } catch {}
+
+    return () => {
+      isPlaying = false
+      if (ringtoneRef.current) ringtoneRef.current.stop()
+      if (audioRef.current) audioRef.current.pause()
+    }
+  }, [])
+
+  // Call duration counter once answered
+  useEffect(() => {
+    if (callState === 'connected') {
+      const timer = setInterval(() => {
+        setDuration((d) => d + 1)
+      }, 1000)
+      return () => clearInterval(timer)
+    }
+  }, [callState])
+
+  const acceptCall = () => {
+    if (ringtoneRef.current) {
+      ringtoneRef.current.stop()
+    }
+    setCallState('connected')
+
+    // Auto-play Gnani Timbre regional synthesized emergency voice
+    const ttsUrl = `/api/tourist/tts?lang=${selectedLang}&status=danger`
+    const audio = new Audio(ttsUrl)
+    audioRef.current = audio
+    audio.play().catch(() => {})
+  }
+
+  const declineCall = () => {
+    if (ringtoneRef.current) {
+      ringtoneRef.current.stop()
+    }
+    if (audioRef.current) {
+      audioRef.current.pause()
+    }
+    close()
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        background: 'rgba(5, 10, 18, 0.94)',
+        backdropFilter: 'blur(12px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px'
+      }}
+    >
+      <style>{`
+        @keyframes ringPulse {
+          0% { transform: scale(0.9); opacity: 0.9; }
+          50% { transform: scale(1.25); opacity: 0.15; }
+          100% { transform: scale(0.9); opacity: 0.9; }
+        }
+        @keyframes waveScale {
+          0% { transform: scaleY(0.25); }
+          100% { transform: scaleY(1.0); }
+        }
+      `}</style>
+
+      <section
+        style={{
+          background: '#09121d',
+          border: callState === 'ringing' ? '2px solid #ff3344' : '1px solid #00d4ff',
+          borderRadius: '26px',
+          maxWidth: '430px',
+          width: '100%',
+          padding: '30px 22px',
+          textAlign: 'center',
+          color: '#ffffff',
+          boxShadow: callState === 'ringing' ? '0 0 60px rgba(255, 51, 68, 0.35)' : '0 0 50px rgba(0, 212, 255, 0.25)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}
+        role="dialog"
+        aria-modal="true"
+      >
+        {/* Top Priority Badge */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+          <span
+            style={{
+              fontSize: '10px',
+              fontWeight: 800,
+              letterSpacing: '0.08em',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              background: callState === 'ringing' ? 'rgba(255, 51, 68, 0.25)' : 'rgba(0, 230, 118, 0.2)',
+              color: callState === 'ringing' ? '#ff4455' : '#00e676',
+              border: callState === 'ringing' ? '1px solid #ff3344' : '1px solid #00e676'
+            }}
+          >
+            {callState === 'ringing' ? '🚨 INCOMING AUTOMATED EMERGENCY CALL' : '🟢 CALL CONNECTED · LIVE VOICE GRID'}
+          </span>
+        </div>
+
+        {callState === 'ringing' ? (
+          <>
+            {/* Animated Ringing Beacon */}
+            <div
+              style={{
+                position: 'relative',
+                width: '96px',
+                height: '96px',
+                margin: '0 auto 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: -14,
+                  borderRadius: '50%',
+                  background: 'rgba(255, 51, 68, 0.25)',
+                  animation: 'ringPulse 1.8s infinite'
+                }}
+              />
+              <div
+                style={{
+                  width: '84px',
+                  height: '84px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #ff3344, #cc1122)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 0 35px rgba(255, 51, 68, 0.65)'
+                }}
+              >
+                <PhoneCall style={{ width: '40px', height: '40px', color: '#fff' }} />
+              </div>
+            </div>
+
+            <h2 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 6px', color: '#ffffff' }}>
+              CoastGuard Emergency 112
+            </h2>
+            <p style={{ fontSize: '13px', color: '#88a0b0', margin: '0 0 4px', fontWeight: 600 }}>
+              Sector: {placeName}
+            </p>
+            <p style={{ fontSize: '11px', color: '#ff6677', margin: '0 0 24px', fontWeight: 700 }}>
+              ⚠️ Danger alert flagged by boatman {boatmanName}
+            </p>
+
+            {/* Answer / Decline Buttons */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <button
+                type="button"
+                onClick={declineCall}
+                style={{
+                  background: 'rgba(255, 51, 68, 0.15)',
+                  border: '1px solid rgba(255, 51, 68, 0.4)',
+                  color: '#ff4455',
+                  padding: '14px',
+                  borderRadius: '16px',
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                <PhoneOff style={{ width: '18px' }} /> Decline
+              </button>
+              <button
+                type="button"
+                onClick={acceptCall}
+                style={{
+                  background: 'linear-gradient(135deg, #00e676, #00b050)',
+                  border: 'none',
+                  color: '#002812',
+                  padding: '14px',
+                  borderRadius: '16px',
+                  fontSize: '14px',
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 20px rgba(0, 230, 118, 0.4)'
+                }}
+              >
+                <PhoneCall style={{ width: '18px' }} /> Accept Call
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Active Call UI */}
+            <div style={{ margin: '10px 0 6px' }}>
+              <div style={{ fontSize: '24px', fontWeight: 900, letterSpacing: '0.04em', color: '#00e676' }}>
+                00:{String(duration).padStart(2, '0')}
+              </div>
+              <div style={{ fontSize: '11px', color: '#7799aa', fontWeight: 700 }}>
+                DISPATCH CHANNEL ACTIVE · GNANI TIMBRE TTS
+              </div>
+            </div>
+
+            {/* Pulsing Audio Waveform Visualizer */}
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', height: '34px', margin: '14px 0' }}>
+              {[0.3, 0.85, 0.55, 1.0, 0.45, 0.9, 0.35].map((scale, i) => (
+                <span
+                  key={i}
+                  style={{
+                    width: '4px',
+                    height: '28px',
+                    borderRadius: '2px',
+                    background: '#00e676',
+                    transform: `scaleY(${scale})`,
+                    animation: `waveScale 0.8s ease-in-out infinite alternate`,
+                    animationDelay: `${i * 0.12}s`
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Subtitles box */}
+            <div
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '14px',
+                padding: '12px 14px',
+                margin: '14px 0',
+                textAlign: 'left'
+              }}
+            >
+              <div style={{ fontSize: '10px', fontWeight: 800, color: '#00d4ff', letterSpacing: '0.08em', marginBottom: '4px' }}>
+                AUDIO SPOKEN IN YOUR EAR:
+              </div>
+              <p style={{ fontSize: '12px', lineHeight: '1.45', margin: 0, color: '#f0f5f8' }}>
+                "{advisoryText}"
+              </p>
+            </div>
+
+            {/* Connected Action Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  declineCall()
+                  onSos()
+                }}
+                style={{
+                  background: 'rgba(255, 170, 0, 0.15)',
+                  border: '1px solid #ffaa00',
+                  color: '#ffbb11',
+                  padding: '12px',
+                  borderRadius: '14px',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                <Siren style={{ width: '16px' }} /> Send My GPS Pin To Rescue Boat
+              </button>
+
+              <button
+                type="button"
+                onClick={declineCall}
+                style={{
+                  background: 'linear-gradient(135deg, #ff3344, #cc1122)',
+                  border: 'none',
+                  color: '#fff',
+                  padding: '12px',
+                  borderRadius: '14px',
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 18px rgba(255, 51, 68, 0.4)'
+                }}
+              >
+                <PhoneOff style={{ width: '16px' }} /> End Call (विच्छेद करें)
+              </button>
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────
 // 4. Tourist Dashboard (Customer View)
 // ─────────────────────────────────────────────
 function TouristDashboard({
@@ -638,6 +1013,8 @@ function TouristDashboard({
 }) {
   const [status, setStatus] = useState<Status>(initialStatus || 'safe')
   const [sos, setSos] = useState(false)
+  const [showCallModal, setShowCallModal] = useState(false)
+  const [hasAutoCalled, setHasAutoCalled] = useState(false)
   const [playingBoatman, setPlayingBoatman] = useState(false)
   const [playingAi, setPlayingAi] = useState(false)
   const [playingRaw, setPlayingRaw] = useState(false)
@@ -735,7 +1112,14 @@ function TouristDashboard({
   }, [location.lat, location.lon])
 
   const applySectorData = (data: any) => {
-    if (data.status) setStatus(data.status === 'safe' ? 'safe' : 'danger')
+    if (data.status) {
+      const isDanger = data.status !== 'safe'
+      setStatus(isDanger ? 'danger' : 'safe')
+      if (isDanger && !hasAutoCalled) {
+        setShowCallModal(true)
+        setHasAutoCalled(true)
+      }
+    }
     if (data.boatman_name) setBoatmanName(data.boatman_name)
     if (data.lat && data.lon) {
       setBoatmanLat(data.lat)
@@ -985,9 +1369,34 @@ function TouristDashboard({
           >
             Show Danger State
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowCallModal(true)
+            }}
+            style={{
+              background: 'rgba(255, 51, 68, 0.15)',
+              color: '#ff4455',
+              border: '1px solid rgba(255, 51, 68, 0.4)',
+              fontWeight: 800
+            }}
+          >
+            📞 Test Emergency Call (112)
+          </button>
         </div>
 
         {sos && <SosModal phone={phone} location={location} close={() => setSos(false)} />}
+
+        {showCallModal && (
+          <EmergencyCallModal
+            close={() => setShowCallModal(false)}
+            placeName={location.placeName}
+            boatmanName={boatmanName}
+            selectedLang={selectedLang}
+            advisoryText={REGIONAL_TRANSLATIONS[selectedLang].danger}
+            onSos={() => setSos(true)}
+          />
+        )}
       </main>
     </>
   )
