@@ -143,6 +143,8 @@ async def serve_audio(filename: str):
 # ─────────────────────────────────────────────
 # Sector State & Tourist / Fisherman Endpoints
 # ─────────────────────────────────────────────
+ACTIVE_DEVICES: Dict[str, Dict[str, Any]] = {}
+
 LATEST_SECTOR_STATE = {
     "status": "safe",
     "severity": "INFO",
@@ -152,6 +154,7 @@ LATEST_SECTOR_STATE = {
     "boatman_name": "Ramesh Nishad",
     "boat_id": "Boat #14",
     "distance": "350 meters from you",
+    "distance_km": 0.35,
     "time_ago": "2 mins ago",
     "timestamp": datetime.now().isoformat(),
     "hindi_quote": "भैया! पानी बिल्कुल शांत है, अभी आराम से नौका विहार कर सकते हैं, कोई खतरा नहीं है।",
@@ -163,10 +166,53 @@ LATEST_SECTOR_STATE = {
 }
 
 
+@app.post("/api/location/update")
+async def update_location(
+    phone: str = Form(...),
+    role: str = Form("tourist"),
+    lat: float = Form(25.3176),
+    lon: float = Form(83.0060),
+    accuracy: float = Form(10.0),
+    place_name: str = Form("Assi Ghat, Varanasi")
+):
+    """Register and track real-time device GPS coordinates."""
+    ACTIVE_DEVICES[phone] = {
+        "phone": phone,
+        "role": role,
+        "lat": lat,
+        "lon": lon,
+        "accuracy": accuracy,
+        "place_name": place_name,
+        "last_seen": datetime.now().isoformat()
+    }
+    return JSONResponse(content={
+        "status": "ok",
+        "active_devices": len(ACTIVE_DEVICES),
+        "tracked_phone": phone,
+        "coords": {"lat": lat, "lon": lon}
+    })
+
+
 @app.get("/api/tourist/status")
 async def get_tourist_status(lat: float = 25.3176, lon: float = 83.0060):
-    """Fetch real-time safety status and latest fisherman voice update for tourist's current location."""
-    return JSONResponse(content=LATEST_SECTOR_STATE)
+    """Fetch real-time safety status and latest fisherman voice update for tourist's current GPS location."""
+    state = dict(LATEST_SECTOR_STATE)
+    boatman_lat = state.get("lat", 25.3176)
+    boatman_lon = state.get("lon", 83.0060)
+
+    # Compute real spatial distance between tourist live GPS and boatman live GPS
+    dist_km = haversine_km(lat, lon, boatman_lat, boatman_lon)
+    state["tourist_lat"] = lat
+    state["tourist_lon"] = lon
+    state["distance_km"] = round(dist_km, 3)
+
+    if dist_km < 1.0:
+        state["distance"] = f"{int(dist_km * 1000)} meters from your live GPS"
+    else:
+        state["distance"] = f"{dist_km:.1f} km from your live GPS"
+
+    state["in_radius"] = dist_km <= 2.0
+    return JSONResponse(content=state)
 
 
 @app.post("/api/fisherman/broadcast")
@@ -177,11 +223,12 @@ async def fisherman_broadcast(
     fisherman_phone: str = Form("9876543210"),
     status_type: str = Form("auto"),
     lat: float = Form(25.3176),
-    lon: float = Form(83.0060)
+    lon: float = Form(83.0060),
+    location_name: Optional[str] = Form(None)
 ):
     """
     Fisherman Voice Broadcast:
-    Takes voice from the boatman's screen -> Prisma STT -> Evon reasoning -> Timbre TTS -> Dispatches to nearby tourists!
+    Takes real live GPS coordinates and voice from boatman -> Prisma STT -> Evon reasoning -> Timbre TTS -> Dispatches to nearby tourists!
     """
     global LATEST_SECTOR_STATE
     dispatch_id = f"voice_{int(datetime.now().timestamp() * 1000)}"
@@ -202,11 +249,12 @@ async def fisherman_broadcast(
         transcript = "Paani shaant hai, sab theek hai."
 
     # Step 2: Evon Reasoning & Classification
+    sector_place = location_name or "Assi Ghat, Varanasi"
     if status_type == "safe" or any(w in transcript.lower() for w in ["shaant", "safe", "theek", "shanti", "sukoon", "normal"]):
         status = "safe"
         severity = "INFO"
-        water_status_text = "Local boatmen report calm waters. Boating permitted until 5:30 PM."
-        english_trans = "Water is completely calm, tourists can safely enjoy boat rides until evening."
+        water_status_text = f"Local boatmen at {sector_place} report calm waters. Boating permitted until 5:30 PM."
+        english_trans = f"Water is completely calm near {sector_place}. Tourists can safely enjoy boat rides."
         hindi_quote = transcript if transcript != "Update received" else "भैया! पानी बिल्कुल शांत है, अभी आराम से नौका विहार कर सकते हैं।"
         if not audio:
             boatman_audio_url = "/api/audio/boatman_sample_safe.wav"
@@ -215,27 +263,28 @@ async def fisherman_broadcast(
         classification = await classify_emergency(transcript, language_hint="hi")
         status = "danger"
         severity = classification.get("severity", "CRITICAL")
-        water_status_text = f"Local boatman reported water level surge / hazard 350m away. Please move to upper ghat steps."
-        english_trans = classification.get("english_alert", "Hazard reported on water. Please stay on ghat steps.")
+        water_status_text = f"Local boatman at {sector_place} reported water level surge / hazard. Please move to upper steps."
+        english_trans = classification.get("english_alert", f"Hazard reported near {sector_place}. Please stay away from banks.")
         hindi_quote = transcript
         if not audio:
             boatman_audio_url = "/api/audio/boatman_sample_danger.wav"
         ai_audio_url = "/api/audio/ai_advisory_danger.wav"
 
-    # Geo-matching
+    # Geo-matching with real live boatman GPS
     nearby = get_phones_in_radius(REGISTRY, lat, lon, radius_km=1.5)
     recipients_count = max(8, len(nearby) + 10)
 
-    # Step 3: Update Sector State
+    # Step 3: Update Sector State with Live GPS
     LATEST_SECTOR_STATE = {
         "status": status,
         "severity": severity,
-        "location": "Assi Ghat, Varanasi",
+        "location": sector_place,
         "lat": lat,
         "lon": lon,
         "boatman_name": fisherman_name,
         "boat_id": "Boat #14",
         "distance": "350 meters from you",
+        "distance_km": 0.35,
         "time_ago": "Just now",
         "timestamp": datetime.now().isoformat(),
         "hindi_quote": hindi_quote,
@@ -246,13 +295,13 @@ async def fisherman_broadcast(
         "water_status_text": water_status_text
     }
 
-    # Step 4: Live broadcast to all connected tourists
+    # Step 4: Live broadcast to all connected tourists with GPS
     await manager.broadcast({
         "type": "sector_update",
         "data": LATEST_SECTOR_STATE
     })
 
-    print(f"[CoastGuard] Fisherman broadcast sent: [{status.upper()}] - {transcript[:50]}...")
+    print(f"[CoastGuard] Fisherman broadcast from {lat}, {lon} ({sector_place}): [{status.upper()}] - {transcript[:50]}...")
     return JSONResponse(content={
         "status": "success",
         "sector_state": LATEST_SECTOR_STATE

@@ -5,8 +5,12 @@ import {
   AlertTriangle,
   Check,
   ChevronDown,
+  Compass,
+  Crosshair,
+  ExternalLink,
   MapPin,
   Mic,
+  Navigation,
   Pause,
   Phone,
   Play,
@@ -26,13 +30,142 @@ const WS_URL = typeof window !== 'undefined'
   ? (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + 'localhost:8000/ws'
   : 'ws://localhost:8000/ws'
 
+// Pre-defined Indian Coastal & Riverine Water Presets for quick testing
+export const WATER_PRESETS = [
+  { name: 'Live Device GPS (My Location)', lat: 0, lon: 0, isDevice: true },
+  { name: 'Assi Ghat, Varanasi (Ganga)', lat: 25.3176, lon: 83.0060, isDevice: false },
+  { name: 'Marina Beach, Chennai (Bay of Bengal)', lat: 13.0475, lon: 80.2824, isDevice: false },
+  { name: 'Gateway of India, Mumbai (Arabian Sea)', lat: 18.9220, lon: 72.8347, isDevice: false },
+  { name: 'Alleppey Backwaters, Kerala', lat: 9.4981, lon: 76.3388, isDevice: false },
+  { name: 'Hooghly Ferry Ghat, Kolkata', lat: 22.5726, lon: 88.3639, isDevice: false },
+  { name: 'Har Ki Pauri, Haridwar', lat: 29.9457, lon: 78.1642, isDevice: false }
+]
+
+// Haversine distance calculator in meters
+function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLon = ((lon2 - lon1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return Math.round(R * c)
+}
+
+// ─────────────────────────────────────────────
+// Custom Hook: Real-Time Geolocation
+// ─────────────────────────────────────────────
+function useRealTimeLocation() {
+  const [lat, setLat] = useState<number>(25.3176)
+  const [lon, setLon] = useState<number>(83.0060)
+  const [accuracy, setAccuracy] = useState<number>(8)
+  const [placeName, setPlaceName] = useState<string>('Assi Ghat, Varanasi')
+  const [isLiveGPS, setIsLiveGPS] = useState<boolean>(false)
+  const [geoError, setGeoError] = useState<string | null>(null)
+  const [presetIndex, setPresetIndex] = useState<number>(1) // Default to Varanasi preset
+
+  // Reverse geocode lat, lon to human readable place name
+  const reverseGeocode = async (latitude: number, longitude: number) => {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=16&addressdetails=1`
+      )
+      if (res.ok) {
+        const data = await res.json()
+        const addr = data.address || {}
+        const name =
+          addr.suburb ||
+          addr.neighbourhood ||
+          addr.village ||
+          addr.town ||
+          addr.city ||
+          addr.county ||
+          'Coastal Sector'
+        const state = addr.state ? `, ${addr.state}` : ''
+        setPlaceName(`${name}${state}`)
+        return
+      }
+    } catch {}
+    setPlaceName(`${latitude.toFixed(4)}° N, ${longitude.toFixed(4)}° E`)
+  }
+
+  // Request browser device GPS
+  const requestDeviceGPS = () => {
+    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude, accuracy: acc } = pos.coords
+          setLat(latitude)
+          setLon(longitude)
+          setAccuracy(Math.round(acc))
+          setIsLiveGPS(true)
+          setGeoError(null)
+          reverseGeocode(latitude, longitude)
+
+          // Register with backend
+          const fd = new FormData()
+          fd.append('phone', 'user')
+          fd.append('lat', latitude.toString())
+          fd.append('lon', longitude.toString())
+          fd.append('accuracy', acc.toString())
+          fetch('/api/location/update', { method: 'POST', body: fd }).catch(() => {})
+        },
+        (err) => {
+          console.log('Device GPS permission fallback:', err.message)
+          setGeoError('GPS permission optional. Using water sector preset.')
+          setIsLiveGPS(false)
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
+      )
+    }
+  }
+
+  // On mount, ask browser for live GPS
+  useEffect(() => {
+    requestDeviceGPS()
+  }, [])
+
+  // Switch to specific preset or toggle device GPS
+  const setLocationPreset = (index: number) => {
+    setPresetIndex(index)
+    const selected = WATER_PRESETS[index]
+    if (selected.isDevice) {
+      requestDeviceGPS()
+    } else {
+      setLat(selected.lat)
+      setLon(selected.lon)
+      setAccuracy(5)
+      setPlaceName(selected.name)
+      setIsLiveGPS(false)
+    }
+  }
+
+  return {
+    lat,
+    lon,
+    accuracy,
+    placeName,
+    isLiveGPS,
+    geoError,
+    presetIndex,
+    setLocationPreset,
+    refreshGPS: requestDeviceGPS
+  }
+}
+
 // ─────────────────────────────────────────────
 // 1. Role Login Component
 // ─────────────────────────────────────────────
 function RoleLogin({
-  onContinue
+  onContinue,
+  location
 }: {
   onContinue: (mode: Mode, phone: string) => void
+  location: ReturnType<typeof useRealTimeLocation>
 }) {
   const [role, setRole] = useState<Mode>('tourist')
   const [phone, setPhone] = useState('9876543210')
@@ -87,9 +220,18 @@ function RoleLogin({
           </button>
         </div>
 
-        <div className="gps-badge">
-          <MapPin /> Current Location: <strong>Assi Ghat, Varanasi</strong>
-          <Check />
+        {/* Real-time Location Indicator */}
+        <div className="gps-badge" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
+            <MapPin style={{ color: location.isLiveGPS ? '#087a4b' : '#0088ff' }} />
+            <span>
+              {location.isLiveGPS ? '🟢 Live Device GPS Active' : '📍 Location:'}
+            </span>
+            <strong style={{ marginLeft: 'auto' }}>{location.placeName}</strong>
+          </div>
+          <small style={{ color: '#66777b', fontSize: '10px' }}>
+            Coordinates: {location.lat.toFixed(4)}° N, {location.lon.toFixed(4)}° E (±{location.accuracy}m)
+          </small>
         </div>
 
         <button
@@ -100,7 +242,7 @@ function RoleLogin({
           Continue / लॉगिन करें <ChevronDown />
         </button>
         <p className="login-note">
-          No password. No OTP hassle. Your location stays private.
+          No password. No OTP hassle. Your live location stays private.
         </p>
       </section>
     </main>
@@ -108,25 +250,99 @@ function RoleLogin({
 }
 
 // ─────────────────────────────────────────────
-// 2. Top Bar
+// 2. Top Bar (With Real-Time Location Switcher)
 // ─────────────────────────────────────────────
 function TopBar({
   mode,
+  location,
   onSwitch
 }: {
   mode: Mode
+  location: ReturnType<typeof useRealTimeLocation>
   onSwitch: () => void
 }) {
+  const [showLocationMenu, setShowLocationMenu] = useState(false)
+
   return (
     <header className="location-bar">
-      <div className="identity">
-        <MapPin />
-        <span>
-          {mode === 'boatman'
-            ? 'Assi Ghat Sector · Varanasi (GPS Active)'
-            : 'Your location: Assi Ghat, Varanasi'}
-        </span>
+      <div className="identity" style={{ position: 'relative' }}>
+        <button
+          type="button"
+          onClick={() => setShowLocationMenu(!showLocationMenu)}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            cursor: 'pointer',
+            textAlign: 'left'
+          }}
+        >
+          <Crosshair style={{ color: location.isLiveGPS ? '#087a4b' : '#0088ff', width: '16px' }} />
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: 800 }}>
+              {mode === 'boatman' ? `नाविक क्षेत्र: ${location.placeName}` : `Location: ${location.placeName}`}
+            </div>
+            <div style={{ fontSize: '10px', color: '#778899', fontWeight: 600 }}>
+              {location.lat.toFixed(4)}° N, {location.lon.toFixed(4)}° E · {location.isLiveGPS ? '🟢 Real GPS' : 'Water Preset'}
+            </div>
+          </div>
+          <ChevronDown style={{ width: '14px', color: '#8899aa' }} />
+        </button>
+
+        {/* Location Dropdown Modal */}
+        {showLocationMenu && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '48px',
+              left: 0,
+              background: '#fff',
+              border: '1px solid #dce5df',
+              borderRadius: '14px',
+              padding: '10px',
+              boxShadow: '0 12px 30px rgba(0,0,0,0.15)',
+              zIndex: 100,
+              minWidth: '280px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 800, color: '#64736f', padding: '4px 6px' }}>
+              CHOOSE WATER SECTOR OR REAL GPS:
+            </div>
+            {WATER_PRESETS.map((preset, idx) => (
+              <button
+                key={preset.name}
+                type="button"
+                onClick={() => {
+                  location.setLocationPreset(idx)
+                  setShowLocationMenu(false)
+                }}
+                style={{
+                  padding: '8px 10px',
+                  borderRadius: '8px',
+                  background: location.presetIndex === idx ? '#eef8f2' : 'transparent',
+                  border: 'none',
+                  textAlign: 'left',
+                  fontSize: '12px',
+                  fontWeight: location.presetIndex === idx ? 800 : 500,
+                  color: location.presetIndex === idx ? '#087a4b' : '#112233',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                {preset.isDevice ? <Navigation style={{ width: '14px' }} /> : <MapPin style={{ width: '14px' }} />}
+                {preset.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
       <button type="button" className="switch-role" onClick={onSwitch}>
         Switch Role
       </button>
@@ -135,18 +351,27 @@ function TopBar({
 }
 
 // ─────────────────────────────────────────────
-// 3. SOS Modal for Tourists
+// 3. SOS Modal for Tourists (Includes Live GPS Pin)
 // ─────────────────────────────────────────────
-function SosModal({ close, phone }: { close: () => void; phone: string }) {
+function SosModal({
+  close,
+  phone,
+  location
+}: {
+  close: () => void
+  phone: string
+  location: ReturnType<typeof useRealTimeLocation>
+}) {
   const [dispatched, setDispatched] = useState(false)
+  const mapsUrl = `https://www.google.com/maps?q=${location.lat},${location.lon}`
 
   const sendSos = async (type: string) => {
     try {
       const fd = new FormData()
       fd.append('phone', phone)
       fd.append('incident_type', type)
-      fd.append('lat', '25.3176')
-      fd.append('lon', '83.0060')
+      fd.append('lat', location.lat.toString())
+      fd.append('lon', location.lon.toString())
       await fetch('/api/tourist/sos', { method: 'POST', body: fd })
       setDispatched(true)
       setTimeout(() => {
@@ -174,15 +399,25 @@ function SosModal({ close, phone }: { close: () => void; phone: string }) {
         <div className="modal-siren">
           <Siren />
         </div>
-        <span className="eyebrow">LIVE GPS 25.3176° N, 83.0060° E</span>
+        <span className="eyebrow">
+          EXACT GPS: {location.lat.toFixed(5)}° N, {location.lon.toFixed(5)}° E (±{location.accuracy}m)
+        </span>
         <h2 id="sos-title">
-          {dispatched ? 'Patrol Alerted!' : 'What happened?'}
+          {dispatched ? 'Patrol Alerted with Live Coordinates!' : 'Tourist Emergency SOS'}
         </h2>
         <p>
           {dispatched
-            ? 'Your live GPS coordinates have been broadcast to the nearest river patrol boat.'
-            : 'Choose the emergency so the nearest patrol boat can respond immediately.'}
+            ? `Your real-time GPS coordinates (${location.lat.toFixed(4)}, ${location.lon.toFixed(4)}) have been broadcast to the nearest river patrol vessel.`
+            : `Patrol boats near ${location.placeName} will receive your live GPS beacon immediately.`}
         </p>
+
+        {/* Live Pin Link */}
+        <div style={{ margin: '8px 0 14px', padding: '8px 12px', background: '#f5f8f6', borderRadius: '10px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>📍 {location.placeName}</span>
+          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#087a4b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+            Open Live Pin <ExternalLink style={{ width: '12px' }} />
+          </a>
+        </div>
 
         {!dispatched && (
           <div className="incident-options">
@@ -215,10 +450,12 @@ function SosModal({ close, phone }: { close: () => void; phone: string }) {
 function TouristDashboard({
   onSwitch,
   phone,
+  location,
   initialStatus
 }: {
   onSwitch: () => void
   phone: string
+  location: ReturnType<typeof useRealTimeLocation>
   initialStatus?: Status
 }) {
   const [status, setStatus] = useState<Status>(initialStatus || 'safe')
@@ -228,7 +465,9 @@ function TouristDashboard({
 
   // Sector state from backend
   const [boatmanName, setBoatmanName] = useState('Ramesh Nishad')
-  const [distance, setDistance] = useState('350 meters from you · 2 mins ago')
+  const [boatmanLat, setBoatmanLat] = useState<number>(25.3176)
+  const [boatmanLon, setBoatmanLon] = useState<number>(83.0060)
+  const [distanceText, setDistanceText] = useState('350 meters from you')
   const [hindiQuote, setHindiQuote] = useState(
     '“भैया! पानी बिल्कुल शांत है, अभी आराम से नौका विहार कर सकते हैं, कोई खतरा नहीं है।”'
   )
@@ -244,11 +483,21 @@ function TouristDashboard({
   const boatmanAudioRef = useRef<HTMLAudioElement | null>(null)
   const aiAudioRef = useRef<HTMLAudioElement | null>(null)
 
+  // Calculate real distance dynamically whenever tourist location changes
+  useEffect(() => {
+    const distMeters = calculateHaversineDistance(location.lat, location.lon, boatmanLat, boatmanLon)
+    if (distMeters < 1000) {
+      setDistanceText(`${distMeters} meters from your live GPS`)
+    } else {
+      setDistanceText(`${(distMeters / 1000).toFixed(1)} km from your live GPS`)
+    }
+  }, [location.lat, location.lon, boatmanLat, boatmanLon])
+
   // Fetch current status on mount & connect to live WebSocket
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const res = await fetch('/api/tourist/status')
+        const res = await fetch(`/api/tourist/status?lat=${location.lat}&lon=${location.lon}`)
         if (res.ok) {
           const data = await res.json()
           applySectorData(data)
@@ -276,12 +525,17 @@ function TouristDashboard({
     return () => {
       if (ws) ws.close()
     }
-  }, [])
+  }, [location.lat, location.lon])
 
   const applySectorData = (data: any) => {
     if (data.status) setStatus(data.status === 'safe' ? 'safe' : 'danger')
     if (data.boatman_name) setBoatmanName(data.boatman_name)
-    if (data.distance) setDistance(`${data.distance} · ${data.time_ago || 'just now'}`)
+    if (data.lat && data.lon) {
+      setBoatmanLat(data.lat)
+      setBoatmanLon(data.lon)
+      const d = calculateHaversineDistance(location.lat, location.lon, data.lat, data.lon)
+      setDistanceText(d < 1000 ? `${d} meters from your live GPS` : `${(d / 1000).toFixed(1)} km from your live GPS`)
+    }
     if (data.hindi_quote) setHindiQuote(`“${data.hindi_quote}”`)
     if (data.english_translation) setTranslation(data.english_translation)
     if (data.water_status_text) setWaterStatusText(data.water_status_text)
@@ -337,12 +591,14 @@ function TouristDashboard({
 
   return (
     <>
-      <TopBar mode="tourist" onSwitch={onSwitch} />
+      <TopBar mode="tourist" location={location} onSwitch={onSwitch} />
       <main className="tourist-app">
         <div className="tourist-top">
           <div className="tracked-sector">
-            <span className="eyebrow">TRACKED SECTOR</span>
-            <strong>Within 1.5 km of riverfront (Assi Ghat)</strong>
+            <span className="eyebrow">LIVE TRACKED LOCATION</span>
+            <strong>
+              📍 {location.placeName} ({location.lat.toFixed(4)}° N, {location.lon.toFixed(4)}° E)
+            </strong>
           </div>
           <select className="language-select" aria-label="Language">
             <option>English</option>
@@ -371,7 +627,7 @@ function TouristDashboard({
             <div>
               <span className="eyebrow">LATEST VOICE UPDATE BY LOCAL BOATMAN</span>
               <h2>
-                {boatmanName} <small>{distance}</small>
+                {boatmanName} <small>· {distanceText}</small>
               </h2>
             </div>
           </div>
@@ -401,7 +657,7 @@ function TouristDashboard({
         {/* 3. Emergency SOS */}
         <button type="button" className="tourist-sos" onClick={() => setSos(true)}>
           <Siren /> I Need Help / Tourist SOS
-          <small>Alerts nearest boat patrol with your live GPS location</small>
+          <small>Alerts nearest boat patrol with your live GPS location ({location.lat.toFixed(4)}, {location.lon.toFixed(4)})</small>
         </button>
 
         {/* Demo toggles */}
@@ -412,7 +668,7 @@ function TouristDashboard({
             onClick={() => {
               setStatus('safe')
               setWaterStatusText(
-                'Local boatmen report calm waters. Boating permitted until 5:30 PM.'
+                `Local boatmen at ${location.placeName} report calm waters. Boating permitted until 5:30 PM.`
               )
               setHindiQuote(
                 '“भैया! पानी बिल्कुल शांत है, अभी आराम से नौका विहार कर सकते हैं, कोई खतरा नहीं है।”'
@@ -431,7 +687,7 @@ function TouristDashboard({
             onClick={() => {
               setStatus('danger')
               setWaterStatusText(
-                'Local boatman reported water level surge / hazard 350m away. Please move to upper ghat steps.'
+                `Local boatman at ${location.placeName} reported water level surge / hazard. Please move to upper steps.`
               )
               setHindiQuote(
                 '“भैया! बहाव बहुत तेज है, नाव पलट गई है घाट के पास, जल्दी मदद भेजो!”'
@@ -447,7 +703,7 @@ function TouristDashboard({
           </button>
         </div>
 
-        {sos && <SosModal phone={phone} close={() => setSos(false)} />}
+        {sos && <SosModal phone={phone} location={location} close={() => setSos(false)} />}
       </main>
     </>
   )
@@ -459,10 +715,12 @@ function TouristDashboard({
 function BoatmanDashboard({
   onSwitch,
   phone,
+  location,
   onBroadcast
 }: {
   onSwitch: () => void
   phone: string
+  location: ReturnType<typeof useRealTimeLocation>
   onBroadcast: (status: Status) => void
 }) {
   const [recording, setRecording] = useState(false)
@@ -483,7 +741,7 @@ function BoatmanDashboard({
     return () => clearInterval(timer)
   }, [recording])
 
-  // Center Mic Toggle (Real MediaRecorder + API Dispatch)
+  // Center Mic Toggle (Real MediaRecorder + API Dispatch with Real GPS)
   const toggleMic = async () => {
     if (recording) {
       // STOP recording & dispatch to backend
@@ -528,7 +786,7 @@ function BoatmanDashboard({
     }
   }
 
-  // Send broadcast to FastAPI backend
+  // Send broadcast with Real-Time Coordinates to FastAPI backend
   const sendVoiceBroadcast = async (
     audioBlob: Blob | null,
     overrideText?: string,
@@ -545,8 +803,9 @@ function BoatmanDashboard({
       fd.append('fisherman_phone', phone)
       fd.append('fisherman_name', 'Ramesh Nishad')
       fd.append('status_type', forcedStatus || 'auto')
-      fd.append('lat', '25.3176')
-      fd.append('lon', '83.0060')
+      fd.append('lat', location.lat.toString())
+      fd.append('lon', location.lon.toString())
+      fd.append('location_name', location.placeName)
 
       const res = await fetch('/api/fisherman/broadcast', {
         method: 'POST',
@@ -571,29 +830,31 @@ function BoatmanDashboard({
     }
   }
 
-  // Quick scenario triggers
+  // Quick scenario triggers with real GPS
   const triggerSafeScenario = () => {
-    const text = 'भैया! पानी बिल्कुल शांत है, सभी पर्यटक आराम से घूम सकते हैं।'
+    const text = `भैया! ${location.placeName} पर पानी बिल्कुल शांत है, सभी पर्यटक आराम से घूम सकते हैं।`
     setSentText(`“${text}”`)
     sendVoiceBroadcast(null, text, 'safe')
   }
 
   const triggerDangerScenario = () => {
-    const text = 'भैया! बहाव बहुत तेज है, नाव पलट गई है घाट नंबर सात के पास, तुरंत मदद भेजो!'
+    const text = `भैया! ${location.placeName} पर बहाव बहुत तेज है, नाव पलट गई है, तुरंत मदद भेजो!`
     setSentText(`“${text}”`)
     sendVoiceBroadcast(null, text, 'danger')
   }
 
   return (
     <>
-      <TopBar mode="boatman" onSwitch={onSwitch} />
+      <TopBar mode="boatman" location={location} onSwitch={onSwitch} />
       <main className="boatman-app">
         <div className="boatman-header">
           <div>
             <strong>नाविक: रमेश निषाद</strong>
-            <span>Boat #14 · Assi Ghat, Varanasi</span>
+            <span>Boat #14 · {location.placeName}</span>
           </div>
-          <b className="network-status">● 18 tourists & 6 boats within 1.5 km</b>
+          <b className="network-status">
+            ● GPS: {location.lat.toFixed(4)}°, {location.lon.toFixed(4)}° · {location.isLiveGPS ? '🟢 Real GPS' : 'Sector Preset'}
+          </b>
         </div>
 
         {/* Giant Hero Mic Walkie Talkie Button */}
@@ -621,20 +882,20 @@ function BoatmanDashboard({
 
           <p>
             {sent
-              ? `Sent to ${recipientsCount} tourists & boats within 1.5 km!`
+              ? `Sent to tourists within 1.5 km of ${location.placeName}!`
               : recording
               ? 'Prisma v2.5 stripping 85dB engine noise & transcribing…'
               : 'TAP TO BROADCAST VOICE UPDATE'}
           </p>
 
           <small>
-            Speak in Hindi, Bhojpuri, Bengali, or English (Auto Denoised)
+            GPS Auto-Attached: {location.lat.toFixed(4)}° N, {location.lon.toFixed(4)}° E
           </small>
         </section>
 
         {/* Quick Scenario Test Buttons */}
         <section className="scenario-buttons">
-          <h2>Quick scenario test (1-Click Broadcast)</h2>
+          <h2>Quick scenario test (1-Click Broadcast with Live GPS)</h2>
           <button type="button" onClick={triggerSafeScenario}>
             <Check /> Speak Safe Update
             <small>“Paani shaant hai, tourists can roam safely”</small>
@@ -649,7 +910,9 @@ function BoatmanDashboard({
         <section className="last-broadcast">
           <span className="eyebrow">LAST SENT BROADCAST (अंतिम वॉइस संदेश)</span>
           <p>{sentText}</p>
-          <strong>Delivered to {recipientsCount} tourists in your 1.5km radius.</strong>
+          <strong>
+            Broadcasted from {location.placeName} ({location.lat.toFixed(4)}°, {location.lon.toFixed(4)}°) to nearby tourists.
+          </strong>
         </section>
       </main>
     </>
@@ -665,6 +928,9 @@ export default function CoastguardDashboard() {
   const [phone, setPhone] = useState('9876543210')
   const [currentStatus, setCurrentStatus] = useState<Status>('safe')
 
+  // Real-time Geolocation Hook
+  const location = useRealTimeLocation()
+
   const enter = (next: Mode, enteredPhone: string) => {
     setMode(next)
     setPhone(enteredPhone)
@@ -672,7 +938,7 @@ export default function CoastguardDashboard() {
   }
 
   if (screen === 'login') {
-    return <RoleLogin onContinue={enter} />
+    return <RoleLogin location={location} onContinue={enter} />
   }
 
   return (
@@ -681,11 +947,13 @@ export default function CoastguardDashboard() {
         <TouristDashboard
           initialStatus={currentStatus}
           phone={phone}
+          location={location}
           onSwitch={() => setScreen('login')}
         />
       ) : (
         <BoatmanDashboard
           phone={phone}
+          location={location}
           onBroadcast={(status) => {
             setCurrentStatus(status)
           }}
