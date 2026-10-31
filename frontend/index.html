@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CoastGuard AI — Sovereign Voice Emergency Grid</title>
+  <meta name="description" content="Zero-UI Voice Emergency Grid for Indian Fishermen & Boatmen. Powered by Gnani Prisma v2.5, Evon v3.3 & Timbre v2.5." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ===== TOP NAV ===== -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="logo">
+        <div class="logo-shield">
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16 3 L28 7 V15 C28 22 22 27 16 29 C10 27 4 22 4 15 V7 L16 3 Z" fill="rgba(0, 212, 255, 0.15)" stroke="#00d4ff" stroke-width="2"/>
+            <path d="M7 19 Q12 15 16 17 Q20 19 25 15" stroke="#00d4ff" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="16" cy="11" r="3" fill="#ff4444" class="pulse-dot"/>
+          </svg>
+        </div>
+        <div>
+          <span class="logo-text">CoastGuard <span class="logo-accent">AI</span></span>
+          <div class="logo-tag">Sovereign Voice Emergency Grid</div>
+        </div>
+      </div>
+      <div class="powered-by">
+        <span class="gnani-pill prisma">🎙️ Prisma v2.5 STT</span>
+        <span class="gnani-pill evon">🧠 Evon v3.3 Reasoning</span>
+        <span class="gnani-pill timbre">📢 Timbre v2.5 TTS</span>
+      </div>
+    </div>
+    
+    <div class="topbar-right">
+      <div class="status-indicator" id="ws-status">
+        <div class="status-dot disconnected" id="status-dot"></div>
+        <span id="status-text">Connecting…</span>
+      </div>
+      <div class="stat-chip">
+        <span class="stat-num" id="stat-registered">64</span>
+        <span class="stat-lbl">Boats Tracked</span>
+      </div>
+      <div class="stat-chip critical">
+        <span class="stat-num" id="stat-alerts">0</span>
+        <span class="stat-lbl">Alerts Today</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== QUICK ACTION / SCENARIO BAR ===== -->
+  <section class="scenario-bar">
+    <div class="sb-label">⚡ Live Scenarios:</div>
+    <div class="sb-buttons">
+      <button class="sc-btn active" onclick="triggerScenario(0)">
+        <span>🛶 Boat Capsized</span> <small>Varanasi (Bhojpuri)</small>
+      </button>
+      <button class="sc-btn" onclick="triggerScenario(1)">
+        <span>🌊 Flash Flood Surge</span> <small>Patna (Hindi)</small>
+      </button>
+      <button class="sc-btn" onclick="triggerScenario(2)">
+        <span>🌪️ Squall Storm</span> <small>Kolkata (Bengali)</small>
+      </button>
+      <button class="sc-btn" onclick="triggerScenario(3)">
+        <span>⚓ Code-Mixed High Danger</span> <small>Mumbai (Hinglish)</small>
+      </button>
+      <button class="sc-btn" onclick="triggerScenario(4)">
+        <span>🐟 Cyclone Advisory</span> <small>Chilika (Odia)</small>
+      </button>
+    </div>
+    <div class="sb-actions">
+      <button class="action-btn demo-main" id="btn-demo" onclick="triggerDemo()">
+        ▶ Trigger Selected
+      </button>
+      <label class="action-btn upload-btn" for="audio-upload">
+        📁 Upload Audio
+      </label>
+      <input type="file" id="audio-upload" accept="audio/*" style="display:none" onchange="uploadAudio(this)" />
+    </div>
+  </section>
+
+  <!-- ===== MAIN GRID LAYOUT ===== -->
+  <main class="dashboard">
+
+    <!-- LEFT COLUMN: LIVE INCIDENT STREAM -->
+    <section class="panel panel-left" aria-label="Live Emergency Incidents">
+      <div class="panel-header">
+        <h2 class="panel-title">
+          <span class="pulse-ring"></span>
+          Incident Stream
+        </h2>
+        <span class="badge-live">LIVE FEED</span>
+      </div>
+
+      <div class="alert-feed" id="alert-feed">
+        <div class="empty-state" id="feed-empty">
+          <div class="empty-icon">📡</div>
+          <h4>Telemetry Active</h4>
+          <p>Listening on emergency radio frequency & telephonic trunk lines...</p>
+          <button class="pulse-button" onclick="triggerScenario(0)">Trigger Test Distress Call</button>
+        </div>
+      </div>
+
+      <!-- ACOUSTIC SHIELD RADAR BOX (Noise Canceller Award Showcase) -->
+      <div class="acoustic-card">
+        <div class="ac-header">
+          <span class="ac-title">🛡️ Prisma Acoustic Shield</span>
+          <span class="ac-metric" id="shield-gain">+19.2 dB SNR</span>
+        </div>
+        <p class="ac-desc">Real-time telephonic filtration strips 85dB boat engine rumble, 40-knot howling wind, and churning surf.</p>
+        <div class="waveform-box">
+          <div class="waveform-bars" id="waveform-bars">
+            <!-- 24 dynamic sound bars -->
+            <div class="wb"></div><div class="wb"></div><div class="wb"></div><div class="wb"></div>
+            <div class="wb"></div><div class="wb"></div><div class="wb"></div><div class="wb"></div>
+            <div class="wb"></div><div class="wb"></div><div class="wb"></div><div class="wb"></div>
+            <div class="wb"></div><div class="wb"></div><div class="wb"></div><div class="wb"></div>
+            <div class="wb"></div><div class="wb"></div><div class="wb"></div><div class="wb"></div>
+            <div class="wb"></div><div class="wb"></div><div class="wb"></div><div class="wb"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CENTER COLUMN: ZERO-UI PIPELINE & COGNITIVE LAYER -->
+    <section class="panel panel-center" aria-label="Pipeline & Cognitive Intelligence">
+      
+      <!-- 5-Stage Zero-UI Pipeline -->
+      <div class="pipeline-card">
+        <div class="pipeline-header">
+          <span class="ph-title">⚡ Zero-UI Autonomous Voice Pipeline</span>
+          <span class="ph-sub" id="pipe-status-label">Awaiting Incoming Signal</span>
+        </div>
+        <div class="pipeline" id="pipeline">
+          <div class="pipe-step" id="pipe-call">
+            <div class="pipe-icon">📞</div>
+            <div class="pipe-label">Intake</div>
+            <div class="pipe-sub">Telephony</div>
+            <div class="pipe-tag">2G / PSTN</div>
+          </div>
+          <div class="pipe-arrow">➔</div>
+          <div class="pipe-step" id="pipe-prisma">
+            <div class="pipe-icon">🎙️</div>
+            <div class="pipe-label">Prisma v2.5</div>
+            <div class="pipe-sub">Acoustic STT</div>
+            <div class="pipe-tag">&lt;200ms</div>
+          </div>
+          <div class="pipe-arrow">➔</div>
+          <div class="pipe-step" id="pipe-evon">
+            <div class="pipe-icon">🧠</div>
+            <div class="pipe-label">Evon v3.3</div>
+            <div class="pipe-sub">Indic Reasoner</div>
+            <div class="pipe-tag">30B MoE</div>
+          </div>
+          <div class="pipe-arrow">➔</div>
+          <div class="pipe-step" id="pipe-geomatch">
+            <div class="pipe-icon">📍</div>
+            <div class="pipe-label">Geo-Match</div>
+            <div class="pipe-sub">2km Radius</div>
+            <div class="pipe-tag">Spatial</div>
+          </div>
+          <div class="pipe-arrow">➔</div>
+          <div class="pipe-step" id="pipe-timbre">
+            <div class="pipe-icon">📢</div>
+            <div class="pipe-label">Timbre v2.5</div>
+            <div class="pipe-sub">Flash Dispatch</div>
+            <div class="pipe-tag">TTS Voice</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Prisma Transcript Box -->
+      <div class="transcript-card" id="transcript-box">
+        <div class="card-top">
+          <div class="badge-label">
+            <span class="dot-rec"></span>
+            <span>PRISMA v2.5 SPEECH RECOGNITION</span>
+          </div>
+          <div class="top-meta">
+            <span class="meta-tag" id="dialect-tag">Indic Telephony</span>
+            <span class="confidence-tag" id="conf-badge">Confidence: —</span>
+          </div>
+        </div>
+        <div class="transcript-body" id="transcript-raw">
+          <span class="placeholder-text">Waiting for emergency audio call...</span>
+        </div>
+      </div>
+
+      <!-- Evon Cognitive Reasoning Results -->
+      <div class="evon-card" id="classify-box" style="display:none">
+        <div class="evon-top">
+          <div class="evon-title">
+            <span>🧠 GNANI EVON v3.3 COGNITIVE LAYER</span>
+          </div>
+          <div class="severity-pill" id="sev-badge">CRITICAL</div>
+        </div>
+
+        <div class="evon-grid">
+          <div class="eg-cell">
+            <span class="eg-label">Threat Classification</span>
+            <span class="eg-val highlight" id="ci-threat">—</span>
+          </div>
+          <div class="eg-cell">
+            <span class="eg-label">Extracted Sector / Ghat</span>
+            <span class="eg-val" id="ci-loc">—</span>
+          </div>
+          <div class="eg-cell">
+            <span class="eg-label">Humans at Risk</span>
+            <span class="eg-val danger" id="ci-people">—</span>
+          </div>
+          <div class="eg-cell">
+            <span class="eg-label">Dialect / Code-Mixing</span>
+            <span class="eg-val" id="ci-dialect">—</span>
+          </div>
+        </div>
+
+        <!-- Evon Reasoning Explanation -->
+        <div class="evon-reasoning" id="ci-reasoning"></div>
+
+        <!-- Synthesized Alert Scripts -->
+        <div class="alert-scripts">
+          <div class="script-block hi">
+            <div class="sb-header">
+              <span>🇮🇳 Flash Broadcast Script (Hindi / Regional Dialect)</span>
+              <span class="voice-badge">Timbre v2.5</span>
+            </div>
+            <div class="sb-text" id="alert-msg-hi">—</div>
+          </div>
+          <div class="script-block en">
+            <div class="sb-header">
+              <span>🌐 Standard Marine Advisory (English)</span>
+            </div>
+            <div class="sb-text" id="alert-msg-en">—</div>
+          </div>
+        </div>
+
+        <!-- Audio Player Bar for Synthesized Timbre Voice -->
+        <div class="audio-broadcast-player" id="audio-player-bar" style="display:none">
+          <div class="ap-left">
+            <button class="ap-play-btn" id="ap-play-btn" onclick="toggleAlertAudio()">
+              <span id="ap-play-icon">▶</span>
+            </button>
+            <div class="ap-info">
+              <span class="ap-title">Timbre v2.5 Synthesized Voice Alert</span>
+              <span class="ap-sub" id="ap-sub-text">Broadcasting outbound audio to 18 registered vessels</span>
+            </div>
+          </div>
+          <audio id="alert-audio-el" controls style="display:none"></audio>
+          <div class="ap-right">
+            <span class="ap-badge">16kHz High-Fidelity Indic WAV</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dynamic Geographic India Threat Map -->
+      <div class="map-card">
+        <div class="map-header">
+          <div class="mh-left">
+            <span>📍 Active Danger Zone &amp; Vessel Fleet Map</span>
+            <span class="mh-tag">Synthetic GPS Grid</span>
+          </div>
+          <div class="map-legend">
+            <span class="leg-item"><span class="dot-crit"></span> Incident Center</span>
+            <span class="leg-item"><span class="dot-warn"></span> 2km Blast Radius</span>
+            <span class="leg-item"><span class="dot-vessel"></span> Registered Boats</span>
+          </div>
+        </div>
+
+        <div class="map-viewport">
+          <svg class="india-map" id="india-map-svg" viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Simplified India Coast & Riverine Outlines -->
+            <path d="M120,70 L160,50 L210,45 L260,40 L330,55 L380,75 L420,110 L430,150 L420,190 L395,225 L375,255 L355,295 L335,335 L305,375 L275,415 L255,455 L245,480 L235,455 L215,415 L185,375 L155,335 L135,295 L115,255 L95,215 L85,175 L90,135 Z" 
+              fill="rgba(0, 212, 255, 0.04)" stroke="rgba(0, 212, 255, 0.25)" stroke-width="1.5" stroke-linejoin="round"/>
+            
+            <!-- Major River Traces: Ganga, Brahmaputra, Hooghly -->
+            <path d="M230,135 Q260,165 295,175 T355,220 T370,245" stroke="rgba(0, 212, 255, 0.2)" stroke-width="2" stroke-dasharray="3,3" fill="none"/>
+            <path d="M370,105 Q410,130 430,160" stroke="rgba(0, 212, 255, 0.2)" stroke-width="1.5" stroke-dasharray="2,2" fill="none"/>
+            <path d="M110,210 Q140,240 175,270" stroke="rgba(0, 212, 255, 0.2)" stroke-width="1.5" stroke-dasharray="2,2" fill="none"/>
+
+            <!-- Cluster Centroid Nodes -->
+            <g id="map-clusters">
+              <!-- Varanasi -->
+              <circle cx="295" cy="175" r="5" fill="#00d4ff" class="map-cluster-node" data-name="Varanasi"/>
+              <text x="303" y="179" fill="#99bbcc" font-size="9" font-family="'JetBrains Mono', monospace">Varanasi</text>
+              
+              <!-- Patna -->
+              <circle cx="320" cy="170" r="5" fill="#00d4ff" class="map-cluster-node" data-name="Patna"/>
+              <text x="328" y="174" fill="#99bbcc" font-size="9" font-family="'JetBrains Mono', monospace">Patna</text>
+
+              <!-- Kolkata -->
+              <circle cx="360" cy="225" r="5" fill="#00d4ff" class="map-cluster-node" data-name="Kolkata"/>
+              <text x="368" y="229" fill="#99bbcc" font-size="9" font-family="'JetBrains Mono', monospace">Kolkata</text>
+
+              <!-- Mumbai -->
+              <circle cx="170" cy="270" r="5" fill="#00d4ff" class="map-cluster-node" data-name="Mumbai"/>
+              <text x="115" y="274" fill="#99bbcc" font-size="9" font-family="'JetBrains Mono', monospace">Mumbai</text>
+
+              <!-- Chilika -->
+              <circle cx="330" cy="265" r="5" fill="#00d4ff" class="map-cluster-node" data-name="Chilika"/>
+              <text x="338" y="269" fill="#99bbcc" font-size="9" font-family="'JetBrains Mono', monospace">Chilika</text>
+
+              <!-- Haridwar -->
+              <circle cx="230" cy="135" r="5" fill="#00d4ff" class="map-cluster-node" data-name="Haridwar"/>
+              <text x="175" y="139" fill="#99bbcc" font-size="9" font-family="'JetBrains Mono', monospace">Haridwar</text>
+            </g>
+
+            <!-- Dynamic Registered Vessels (Rendered via JS) -->
+            <g id="map-vessels"></g>
+
+            <!-- Active Incident Blast Radius Pulse -->
+            <g id="incident-marker" style="display:none">
+              <circle cx="295" cy="175" r="32" fill="rgba(255, 68, 68, 0.15)" stroke="#ff4444" stroke-width="1.5" stroke-dasharray="4,4" class="radar-pulse-ring"/>
+              <circle cx="295" cy="175" r="6" fill="#ff4444" class="radar-center-dot"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN: OUTBOUND CALL DISPATCH LOG -->
+    <section class="panel panel-right" aria-label="Flash Dispatch Telephony Operations">
+      <div class="panel-header">
+        <h2 class="panel-title">Flash Dispatch Log</h2>
+        <div class="target-chip">
+          <span id="phones-num">0</span> Targets
+        </div>
+      </div>
+
+      <div class="dispatch-stats">
+        <div class="ds-item">
+          <span class="ds-num" id="ds-delivered">0</span>
+          <span class="ds-lbl">Delivered</span>
+        </div>
+        <div class="ds-item">
+          <span class="ds-num" id="ds-latency">&lt;200ms</span>
+          <span class="ds-lbl">Avg STT</span>
+        </div>
+        <div class="ds-item">
+          <span class="ds-num" id="ds-radius">2.0 km</span>
+          <span class="ds-lbl">Radius</span>
+        </div>
+      </div>
+
+      <div class="dispatch-log" id="dispatch-log">
+        <div class="empty-state" id="log-empty">
+          <div class="empty-icon">📲</div>
+          <h4>No Active Broadcasts</h4>
+          <p>When an emergency is classified, Timbre v2.5 automatically triggers simultaneous telephony calls to all boats in the sector.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>
