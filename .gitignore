@@ -1,3 +1,11 @@
+# Environment variables (NEVER COMMIT SECRETS)
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
 # v0 sandbox internal files
 __v0_runtime_loader.js
 __v0_devtools.tsx
@@ -7,10 +15,14 @@ __v0_jsx-dev-runtime.ts
 .v0-trash/
 .vercel/
 
-# Environment variables
-.env*.local
-
-# Common ignores
+# Dependencies & Build
 node_modules
 .next/
+dist/
+build/
+*.pyc
+__pycache__/
+
+# OS files
 .DS_Store
+Thumbs.db
