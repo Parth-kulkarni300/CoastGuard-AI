@@ -16,7 +16,7 @@ import asyncio
 import random
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, UploadFile, File, Form, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from gnani_prisma import transcribe_audio, transcribe_bytes
 from gnani_evon import classify_emergency
 from gnani_timbre import synthesize_alert, get_alert_texts_for_severity, bytes_to_data_uri, AUDIO_CACHE_DIR
-from geo_matcher import get_phones_in_radius
+from geo_matcher import get_phones_in_radius, haversine_km
 from synthetic_data import load_or_generate_registry, SYNTHETIC_LOCATIONS
 from alert_dispatcher import dispatch_alerts, get_alert_history, register_ws_callback, unregister_ws_callback
 
