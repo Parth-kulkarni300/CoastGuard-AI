@@ -8,6 +8,7 @@ import {
   Compass,
   Crosshair,
   ExternalLink,
+  Globe,
   MapPin,
   Mic,
   Navigation,
@@ -23,6 +24,7 @@ import {
   Waves,
   X
 } from 'lucide-react'
+import { SupportedLang, LANGUAGES, UI_TRANSLATIONS } from '@/lib/i18n'
 
 type Mode = 'boatman' | 'tourist'
 type Screen = 'login' | 'dashboard'
@@ -168,14 +170,17 @@ function MiniVisualRadar({
   distanceMeters,
   placeName,
   boatmanName = 'Ramesh Nishad',
-  mode = 'tourist'
+  mode = 'tourist',
+  lang = 'hi'
 }: {
   status: Status
   distanceMeters: number
   placeName: string
   boatmanName?: string
   mode?: Mode
+  lang?: SupportedLang
 }) {
+  const t = UI_TRANSLATIONS[lang]
   const isDanger = status === 'danger'
   const radarRadiusPx = 105
   // Scale distance (max 1500m -> radius 90px)
@@ -207,7 +212,7 @@ function MiniVisualRadar({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Compass style={{ width: '16px', color: isDanger ? '#ff4444' : '#00d4ff' }} />
           <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', color: isDanger ? '#ff6677' : '#00d4ff' }}>
-            LIVE SECTOR RADAR · 1.5 KM PERIMETER
+            {t.radarTitle}
           </span>
         </div>
         <span
@@ -221,7 +226,7 @@ function MiniVisualRadar({
             border: isDanger ? '1px solid #ff4444' : '1px solid #00e676'
           }}
         >
-          {isDanger ? '⚠️ ACTIVE EMERGENCY' : '🟢 ALL SECTORS SAFE'}
+          {isDanger ? t.radarDangerBadge : t.radarSafeBadge}
         </span>
       </div>
 
@@ -297,14 +302,14 @@ function MiniVisualRadar({
           <circle cx="130" cy="130" r="14" fill={mode === 'tourist' ? 'rgba(0, 136, 255, 0.25)' : 'rgba(0, 230, 118, 0.25)'} />
           <circle cx="130" cy="130" r="5" fill={mode === 'tourist' ? '#0088ff' : '#00e676'} filter="url(#radarGlow)" />
           <text x="130" y="147" textAnchor="middle" fill="#ffffff" fontSize="8" fontWeight="800">
-            {mode === 'tourist' ? 'YOU (GPS)' : 'YOUR BOAT'}
+            {mode === 'tourist' ? t.youGps : t.yourBoat}
           </text>
 
           {/* Target Vessel Point */}
           <circle cx={targetX} cy={targetY} r="18" fill={isDanger ? 'rgba(255, 51, 68, 0.3)' : 'rgba(0, 230, 118, 0.2)'} />
           <circle cx={targetX} cy={targetY} r="6" fill={isDanger ? '#ff3344' : '#00e676'} filter="url(#radarGlow)" />
           <text x={targetX} y={targetY - 10} textAnchor="middle" fill={isDanger ? '#ff6677' : '#6df1a7'} fontSize="8" fontWeight="800">
-            {mode === 'tourist' ? `⛵ ${boatmanName}` : '🎒 TOURIST SECTOR'}
+            {mode === 'tourist' ? `⛵ ${boatmanName}` : `🎒 ${t.touristSector}`}
           </text>
         </svg>
       </div>
@@ -342,30 +347,62 @@ function MiniVisualRadar({
 // ─────────────────────────────────────────────
 function RoleLogin({
   onContinue,
-  location
+  location,
+  lang,
+  onLangChange
 }: {
   onContinue: (mode: Mode, phone: string) => void
   location: ReturnType<typeof useRealTimeLocation>
+  lang: SupportedLang
+  onLangChange: (l: SupportedLang) => void
 }) {
+  const t = UI_TRANSLATIONS[lang]
   const [role, setRole] = useState<Mode>('tourist')
   const [phone, setPhone] = useState('9876543210')
 
   return (
     <main className="login-page">
       <section className="login-card">
+        {/* Language Selector Pill */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#eef6f1', padding: '4px 10px', borderRadius: '12px' }}>
+            <Globe style={{ width: '14px', color: '#087a4b' }} />
+            <select
+              value={lang}
+              onChange={(e) => onLangChange(e.target.value as SupportedLang)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                fontSize: '12px',
+                fontWeight: 800,
+                color: '#087a4b',
+                cursor: 'pointer',
+                outline: 'none'
+              }}
+              aria-label="Choose Language"
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.native} ({l.label})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         <div className="brand-mark">
           <Waves />
         </div>
-        <span className="eyebrow">SOVEREIGN WATER SAFETY · GNANI AI</span>
+        <span className="eyebrow">{t.eyebrow}</span>
         <h1>
           CoastGuard <em>AI</em>
         </h1>
         <p className="login-intro">
-          Real-time safety grid, powered by fishermen on the water.
+          {t.tagline}
         </p>
 
         <label className="login-label" htmlFor="phone">
-          Enter Mobile Number / मोबाइल नंबर दर्ज करें
+          {t.phoneLabel}
         </label>
         <input
           id="phone"
@@ -384,8 +421,8 @@ function RoleLogin({
             aria-checked={role === 'boatman'}
           >
             <span>🎣</span>
-            <strong>I am a Boatman / Fisherman</strong>
-            <small>नाविक (Voice Lifeline)</small>
+            <strong>{t.boatmanRoleTitle}</strong>
+            <small>{t.boatmanRoleSub}</small>
           </button>
           <button
             type="button"
@@ -395,8 +432,8 @@ function RoleLogin({
             aria-checked={role === 'tourist'}
           >
             <span>🎒</span>
-            <strong>I am a Tourist / Customer</strong>
-            <small>पर्यटक (Safety Hub)</small>
+            <strong>{t.touristRoleTitle}</strong>
+            <small>{t.touristRoleSub}</small>
           </button>
         </div>
 
@@ -405,7 +442,7 @@ function RoleLogin({
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
             <MapPin style={{ color: location.isLiveGPS ? '#087a4b' : '#0088ff' }} />
             <span>
-              {location.isLiveGPS ? '🟢 Live Device GPS Active' : '📍 Location:'}
+              {location.isLiveGPS ? t.realGps : `📍 ${t.locationLabel}:`}
             </span>
             <strong style={{ marginLeft: 'auto' }}>{location.placeName}</strong>
           </div>
@@ -419,10 +456,10 @@ function RoleLogin({
           className="continue-button"
           onClick={() => onContinue(role, phone || '9876543210')}
         >
-          Continue / लॉगिन करें <ChevronDown />
+          {t.loginContinue} <ChevronDown />
         </button>
         <p className="login-note">
-          No password. No OTP hassle. Your live location stays private.
+          {t.loginNote}
         </p>
       </section>
     </main>
@@ -435,12 +472,17 @@ function RoleLogin({
 function TopBar({
   mode,
   location,
-  onSwitch
+  onSwitch,
+  lang,
+  onLangChange
 }: {
   mode: Mode
   location: ReturnType<typeof useRealTimeLocation>
   onSwitch: () => void
+  lang: SupportedLang
+  onLangChange: (l: SupportedLang) => void
 }) {
+  const t = UI_TRANSLATIONS[lang]
   const [showLocationMenu, setShowLocationMenu] = useState(false)
 
   return (
@@ -462,10 +504,10 @@ function TopBar({
           <Crosshair style={{ color: location.isLiveGPS ? '#087a4b' : '#0088ff', width: '16px' }} />
           <div>
             <div style={{ fontSize: '13px', fontWeight: 800 }}>
-              {mode === 'boatman' ? `नाविक क्षेत्र: ${location.placeName}` : `Location: ${location.placeName}`}
+              {`${t.locationLabel}: ${location.placeName}`}
             </div>
             <div style={{ fontSize: '10px', color: '#778899', fontWeight: 600 }}>
-              {location.lat.toFixed(4)}° N, {location.lon.toFixed(4)}° E · {location.isLiveGPS ? '🟢 Real GPS' : 'Water Preset'}
+              {location.lat.toFixed(4)}° N, {location.lon.toFixed(4)}° E · {location.isLiveGPS ? t.realGps : t.presetWater}
             </div>
           </div>
           <ChevronDown style={{ width: '14px', color: '#8899aa' }} />
@@ -491,7 +533,7 @@ function TopBar({
             }}
           >
             <div style={{ fontSize: '11px', fontWeight: 800, color: '#64736f', padding: '4px 6px' }}>
-              CHOOSE WATER SECTOR OR REAL GPS:
+              {t.chooseWaterOrGps}
             </div>
             {WATER_PRESETS.map((preset, idx) => (
               <button
@@ -523,9 +565,35 @@ function TopBar({
         )}
       </div>
 
-      <button type="button" className="switch-role" onClick={onSwitch}>
-        Switch Role
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#eef6f1', padding: '4px 8px', borderRadius: '10px' }}>
+          <Globe style={{ width: '13px', color: '#087a4b' }} />
+          <select
+            value={lang}
+            onChange={(e) => onLangChange(e.target.value as SupportedLang)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              fontSize: '11px',
+              fontWeight: 800,
+              color: '#087a4b',
+              cursor: 'pointer',
+              outline: 'none'
+            }}
+            aria-label="Language Selector"
+          >
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.native}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button type="button" className="switch-role" onClick={onSwitch}>
+          {t.switchRole}
+        </button>
+      </div>
     </header>
   )
 }
@@ -536,12 +604,15 @@ function TopBar({
 function SosModal({
   close,
   phone,
-  location
+  location,
+  lang = 'hi'
 }: {
   close: () => void
   phone: string
   location: ReturnType<typeof useRealTimeLocation>
+  lang?: SupportedLang
 }) {
+  const t = UI_TRANSLATIONS[lang]
   const [dispatched, setDispatched] = useState(false)
   const mapsUrl = `https://www.google.com/maps?q=${location.lat},${location.lon}`
 
@@ -583,41 +654,41 @@ function SosModal({
           EXACT GPS: {location.lat.toFixed(5)}° N, {location.lon.toFixed(5)}° E (±{location.accuracy}m)
         </span>
         <h2 id="sos-title">
-          {dispatched ? 'Patrol Alerted with Live Coordinates!' : 'Tourist Emergency SOS'}
+          {dispatched ? t.sosDispatched : t.sosModalTitle}
         </h2>
         <p>
           {dispatched
             ? `Your real-time GPS coordinates (${location.lat.toFixed(4)}, ${location.lon.toFixed(4)}) have been broadcast to the nearest river patrol vessel.`
-            : `Patrol boats near ${location.placeName} will receive your live GPS beacon immediately.`}
+            : t.sosModalSubtitle}
         </p>
 
         {/* Live Pin Link */}
         <div style={{ margin: '8px 0 14px', padding: '8px 12px', background: '#f5f8f6', borderRadius: '10px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span>📍 {location.placeName}</span>
           <a href={mapsUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#087a4b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-            Open Live Pin <ExternalLink style={{ width: '12px' }} />
+            {t.sosOpenPin} <ExternalLink style={{ width: '12px' }} />
           </a>
         </div>
 
         {!dispatched && (
           <div className="incident-options">
             <button type="button" onClick={() => sendSos('Someone fell in water')}>
-              Someone fell in water (व्यक्ति पानी में गिरा)
+              {t.sosOption1}
             </button>
             <button
               type="button"
               onClick={() => sendSos('Boat is drifting / engine stopped')}
             >
-              Boat is drifting / engine stopped (नाव बह रही है)
+              {t.sosOption2}
             </button>
             <button type="button" onClick={() => sendSos('Medical emergency on boat')}>
-              Medical emergency (चिकित्सा आपातकाल)
+              {t.sosOption3}
             </button>
           </div>
         )}
 
         <a className="call-button" href="tel:112">
-          <Phone /> Call River Patrol Police · 112
+          <Phone /> {t.sosCallPolice}
         </a>
       </section>
     </div>
@@ -631,17 +702,18 @@ function EmergencyCallModal({
   close,
   placeName,
   boatmanName = 'Ramesh Nishad',
-  selectedLang = 'hi',
+  lang = 'hi',
   advisoryText,
   onSos
 }: {
   close: () => void
   placeName: string
   boatmanName?: string
-  selectedLang?: 'en' | 'hi' | 'ta' | 'bn'
-  advisoryText: string
+  lang?: SupportedLang
+  advisoryText?: string
   onSos: () => void
 }) {
+  const t = UI_TRANSLATIONS[lang]
   const [callState, setCallState] = useState<'ringing' | 'connected'>('ringing')
   const [duration, setDuration] = useState(0)
   const ringtoneRef = useRef<{ stop: () => void } | null>(null)
@@ -722,7 +794,7 @@ function EmergencyCallModal({
     setCallState('connected')
 
     // Auto-play Gnani Timbre regional synthesized emergency voice
-    const ttsUrl = `/api/tourist/tts?lang=${selectedLang}&status=danger`
+    const ttsUrl = `/api/tourist/tts?lang=${lang}&status=danger`
     const audio = new Audio(ttsUrl)
     audioRef.current = audio
     audio.play().catch(() => {})
@@ -795,7 +867,7 @@ function EmergencyCallModal({
               border: callState === 'ringing' ? '1px solid #ff3344' : '1px solid #00e676'
             }}
           >
-            {callState === 'ringing' ? '🚨 INCOMING AUTOMATED EMERGENCY CALL' : '🟢 CALL CONNECTED · LIVE VOICE GRID'}
+            {callState === 'ringing' ? t.callIncomingBadge : t.callConnectedBadge}
           </span>
         </div>
 
@@ -839,13 +911,13 @@ function EmergencyCallModal({
             </div>
 
             <h2 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 6px', color: '#ffffff' }}>
-              CoastGuard Emergency 112
+              {t.callTitle}
             </h2>
             <p style={{ fontSize: '13px', color: '#88a0b0', margin: '0 0 4px', fontWeight: 600 }}>
-              Sector: {placeName}
+              {t.callSector(placeName)}
             </p>
             <p style={{ fontSize: '11px', color: '#ff6677', margin: '0 0 24px', fontWeight: 700 }}>
-              ⚠️ Danger alert flagged by boatman {boatmanName}
+              {t.callDangerNotice(boatmanName)}
             </p>
 
             {/* Answer / Decline Buttons */}
@@ -868,7 +940,7 @@ function EmergencyCallModal({
                   gap: '8px'
                 }}
               >
-                <PhoneOff style={{ width: '18px' }} /> Decline
+                <PhoneOff style={{ width: '18px' }} /> {t.callDecline}
               </button>
               <button
                 type="button"
@@ -889,7 +961,7 @@ function EmergencyCallModal({
                   boxShadow: '0 4px 20px rgba(0, 230, 118, 0.4)'
                 }}
               >
-                <PhoneCall style={{ width: '18px' }} /> Accept Call
+                <PhoneCall style={{ width: '18px' }} /> {t.callAccept}
               </button>
             </div>
           </>
@@ -901,7 +973,7 @@ function EmergencyCallModal({
                 00:{String(duration).padStart(2, '0')}
               </div>
               <div style={{ fontSize: '11px', color: '#7799aa', fontWeight: 700 }}>
-                DISPATCH CHANNEL ACTIVE · GNANI TIMBRE TTS
+                {t.callActiveChannel}
               </div>
             </div>
 
@@ -935,10 +1007,10 @@ function EmergencyCallModal({
               }}
             >
               <div style={{ fontSize: '10px', fontWeight: 800, color: '#00d4ff', letterSpacing: '0.08em', marginBottom: '4px' }}>
-                AUDIO SPOKEN IN YOUR EAR:
+                {t.callSpokenHeader}
               </div>
               <p style={{ fontSize: '12px', lineHeight: '1.45', margin: 0, color: '#f0f5f8' }}>
-                "{advisoryText}"
+                "{advisoryText || t.advisoryDanger}"
               </p>
             </div>
 
@@ -965,7 +1037,7 @@ function EmergencyCallModal({
                   gap: '8px'
                 }}
               >
-                <Siren style={{ width: '16px' }} /> Send My GPS Pin To Rescue Boat
+                <Siren style={{ width: '16px' }} /> {t.callSendGps}
               </button>
 
               <button
@@ -987,7 +1059,7 @@ function EmergencyCallModal({
                   boxShadow: '0 4px 18px rgba(255, 51, 68, 0.4)'
                 }}
               >
-                <PhoneOff style={{ width: '16px' }} /> End Call (विच्छेद करें)
+                <PhoneOff style={{ width: '16px' }} /> {t.callEnd}
               </button>
             </div>
           </>
@@ -1004,13 +1076,18 @@ function TouristDashboard({
   onSwitch,
   phone,
   location,
-  initialStatus
+  initialStatus,
+  lang,
+  onLangChange
 }: {
   onSwitch: () => void
   phone: string
   location: ReturnType<typeof useRealTimeLocation>
   initialStatus?: Status
+  lang: SupportedLang
+  onLangChange: (l: SupportedLang) => void
 }) {
+  const t = UI_TRANSLATIONS[lang]
   const [status, setStatus] = useState<Status>(initialStatus || 'safe')
   const [sos, setSos] = useState(false)
   const [showCallModal, setShowCallModal] = useState(false)
@@ -1025,46 +1102,29 @@ function TouristDashboard({
   const [boatmanLon, setBoatmanLon] = useState<number>(83.0060)
   const [distanceMeters, setDistanceMeters] = useState<number>(350)
   const [distanceText, setDistanceText] = useState('350 meters from you')
-  const [hindiQuote, setHindiQuote] = useState(
-    '“भैया! पानी बिल्कुल शांत है, अभी आराम से नौका विहार कर सकते हैं, कोई खतरा नहीं है।”'
-  )
-  const [translation, setTranslation] = useState(
-    'Water is completely calm, tourists can safely enjoy boat rides until evening.'
-  )
-  const [waterStatusText, setWaterStatusText] = useState(
-    'Local boatmen report calm waters. Boating permitted until 5:30 PM.'
-  )
-  const [selectedLang, setSelectedLang] = useState<'en' | 'hi' | 'ta' | 'bn'>('hi')
+  const [hindiQuote, setHindiQuote] = useState(t.quoteSafe)
+  const [translation, setTranslation] = useState(t.advisorySafe)
+  const [waterStatusText, setWaterStatusText] = useState(t.safeStatusDesc(location.placeName))
   const [boatmanAudioUrl, setBoatmanAudioUrl] = useState('/api/audio/boatman_sample_safe.wav')
   const [boatmanRawAudioUrl, setBoatmanRawAudioUrl] = useState('')
   const [aiAudioUrl, setAiAudioUrl] = useState('/api/audio/ai_advisory_safe.wav')
 
-  const REGIONAL_TRANSLATIONS: Record<'en' | 'hi' | 'ta' | 'bn', { safe: string; danger: string; label: string }> = {
-    hi: {
-      safe: 'जलस्तर सामान्य है और मौसम शांत है। शाम तक नौका विहार सुरक्षित है।',
-      danger: 'सावधान! जलस्तर में अचानक वृद्धि की सूचना। कृपया तुरंत घाट से दूर सुरक्षित स्थान पर जाएं।',
-      label: 'हिंदी'
-    },
-    en: {
-      safe: 'Water is completely calm, tourists can safely enjoy boat rides until evening.',
-      danger: 'Hazard reported: sudden water surge. Evacuate river bank and move to higher ground immediately.',
-      label: 'English'
-    },
-    ta: {
-      safe: 'நீர்மட்டம் சாதாரணமாக உள்ளது. மாலை வரை படகு சவாரி பாதுகாப்பானது.',
-      danger: 'எச்சரிக்கை! திடீர் நீர்வரத்து. உடனடியாக பாதுகாப்பான உயரமான இடத்திற்கு செல்லவும்.',
-      label: 'தமிழ்'
-    },
-    bn: {
-      safe: 'নদীর জল সম্পূর্ণ শান্ত, পর্যটকরা নিরাপদে নৌকাবিহার উপভোগ করতে পারেন।',
-      danger: 'বিপদ সতর্কতা: দ্রুত জলবৃদ্ধি। অবিলম্বে নদীর তীর ত্যাগ করে উঁচু স্থানে যান।',
-      label: 'বাংলা'
-    }
-  }
-
   const boatmanAudioRef = useRef<HTMLAudioElement | null>(null)
   const rawAudioRef = useRef<HTMLAudioElement | null>(null)
   const aiAudioRef = useRef<HTMLAudioElement | null>(null)
+
+  // Update localized text whenever language changes
+  useEffect(() => {
+    if (status === 'safe') {
+      setHindiQuote(t.quoteSafe)
+      setTranslation(t.advisorySafe)
+      setWaterStatusText(t.safeStatusDesc(location.placeName))
+    } else {
+      setHindiQuote(t.quoteDanger)
+      setTranslation(t.advisoryDanger)
+      setWaterStatusText(t.dangerStatusDesc(location.placeName))
+    }
+  }, [lang, status, location.placeName])
 
   // Calculate real distance dynamically whenever tourist location changes
   useEffect(() => {
@@ -1202,7 +1262,7 @@ function TouristDashboard({
       setPlayingRaw(false)
     }
 
-    const ttsUrl = `/api/tourist/tts?lang=${selectedLang}&status=${status}`
+    const ttsUrl = `/api/tourist/tts?lang=${lang}&status=${status}`
     if (!aiAudioRef.current) {
       aiAudioRef.current = new Audio(ttsUrl)
       aiAudioRef.current.onended = () => setPlayingAi(false)
@@ -1221,11 +1281,11 @@ function TouristDashboard({
 
   return (
     <>
-      <TopBar mode="tourist" location={location} onSwitch={onSwitch} />
+      <TopBar mode="tourist" location={location} onSwitch={onSwitch} lang={lang} onLangChange={onLangChange} />
       <main className="tourist-app">
         <div className="tourist-top">
           <div className="tracked-sector">
-            <span className="eyebrow">LIVE TRACKED LOCATION</span>
+            <span className="eyebrow">{t.liveTrackedLocation}</span>
             <strong>
               📍 {location.placeName} ({location.lat.toFixed(4)}° N, {location.lon.toFixed(4)}° E)
             </strong>
@@ -1233,26 +1293,21 @@ function TouristDashboard({
           <select
             className="language-select"
             aria-label="Language"
-            value={selectedLang}
-            onChange={(e) => {
-              const newLang = e.target.value as 'en' | 'hi' | 'ta' | 'bn'
-              setSelectedLang(newLang)
-              setTranslation(REGIONAL_TRANSLATIONS[newLang][status === 'safe' ? 'safe' : 'danger'])
-            }}
+            value={lang}
+            onChange={(e) => onLangChange(e.target.value as SupportedLang)}
           >
-            <option value="en">English</option>
-            <option value="hi">हिंदी (Hindi)</option>
-            <option value="ta">தமிழ் (Tamil)</option>
-            <option value="bn">বাংলা (Bengali)</option>
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.native} ({l.label})
+              </option>
+            ))}
           </select>
         </div>
 
         {/* 1. Dynamic Top Status Banner */}
         <section className={`status-card ${status}`}>
           <div className="status-label">
-            {status === 'safe'
-              ? '🟢 SAFE TO ROAM — ALL CLEAR AT YOUR LOCATION'
-              : '🔴 DANGER ALERT — STAY AWAY FROM WATER'}
+            {status === 'safe' ? t.safeStatusBanner : t.dangerStatusBanner}
           </div>
           <p>{waterStatusText}</p>
         </section>
@@ -1264,6 +1319,7 @@ function TouristDashboard({
           placeName={location.placeName}
           boatmanName={boatmanName}
           mode="tourist"
+          lang={lang}
         />
 
         {/* 3. Latest Voice Update by Local Boatman */}
@@ -1273,9 +1329,9 @@ function TouristDashboard({
               <Radio />
             </div>
             <div>
-              <span className="eyebrow">LATEST VOICE UPDATE BY LOCAL BOATMAN</span>
+              <span className="eyebrow">{t.voiceUpdateHeading}</span>
               <h2>
-                {boatmanName} <small>· {distanceText}</small>
+                {boatmanName} <small>· {t.fromYou(distanceText)}</small>
               </h2>
             </div>
           </div>
@@ -1289,8 +1345,8 @@ function TouristDashboard({
               <span className="play-circle">
                 {playingBoatman ? <Pause /> : <Play />}
               </span>
-              Listen to Cleaned Voice
-              <small>Prisma Acoustic Shield: Thunder & Engine Noise Stripped</small>
+              {t.listenCleanVoice}
+              <small>{t.listenCleanVoiceSub}</small>
             </button>
 
             {/* AI Synthesized Voice */}
@@ -1298,8 +1354,8 @@ function TouristDashboard({
               <span className="play-circle">
                 {playingAi ? <Pause /> : <Volume2 />}
               </span>
-              Listen to AI Safety Advisory ({REGIONAL_TRANSLATIONS[selectedLang].label})
-              <small>Gnani Timbre Indic Spoken Regional Voice</small>
+              {t.listenAiAdvisory(LANGUAGES.find((l) => l.code === lang)?.label || 'Regional')}
+              <small>{t.listenAiAdvisorySub}</small>
             </button>
 
             {/* Noise Canceller Comparison Link */}
@@ -1315,8 +1371,8 @@ function TouristDashboard({
                 <span className="play-circle" style={{ background: '#a76500' }}>
                   {playingRaw ? <Pause /> : <Play />}
                 </span>
-                Compare: Hear Raw Unfiltered Mic Audio
-                <small style={{ color: '#a76500' }}>Listen with original background thunder/engine noise</small>
+                {t.compareRawAudio}
+                <small style={{ color: '#a76500' }}>{t.compareRawAudioSub}</small>
               </button>
             )}
           </div>
@@ -1324,8 +1380,8 @@ function TouristDashboard({
 
         {/* 4. Emergency SOS */}
         <button type="button" className="tourist-sos" onClick={() => setSos(true)}>
-          <Siren /> I Need Help / Tourist SOS
-          <small>Alerts nearest boat patrol with your live GPS location ({location.lat.toFixed(4)}, {location.lon.toFixed(4)})</small>
+          <Siren /> {t.touristSosBtn}
+          <small>{t.touristSosSub(location.lat.toFixed(4), location.lon.toFixed(4))}</small>
         </button>
 
         {/* Demo toggles */}
@@ -1335,15 +1391,9 @@ function TouristDashboard({
             type="button"
             onClick={() => {
               setStatus('safe')
-              setWaterStatusText(
-                `Local boatmen at ${location.placeName} report calm waters. Boating permitted until 5:30 PM.`
-              )
-              setHindiQuote(
-                '“भैया! पानी बिल्कुल शांत है, अभी आराम से नौका विहार कर सकते हैं, कोई खतरा नहीं है।”'
-              )
-              setTranslation(
-                'Water is completely calm, tourists can safely enjoy boat rides until evening.'
-              )
+              setWaterStatusText(t.safeStatusDesc(location.placeName))
+              setHindiQuote(t.quoteSafe)
+              setTranslation(t.advisorySafe)
               setBoatmanAudioUrl('/api/audio/boatman_sample_safe.wav')
               setAiAudioUrl('/api/audio/ai_advisory_safe.wav')
             }}
@@ -1354,15 +1404,9 @@ function TouristDashboard({
             type="button"
             onClick={() => {
               setStatus('danger')
-              setWaterStatusText(
-                `Local boatman at ${location.placeName} reported water level surge / hazard. Please move to upper steps.`
-              )
-              setHindiQuote(
-                '“भैया! बहाव बहुत तेज है, नाव पलट गई है घाट के पास, जल्दी मदद भेजो!”'
-              )
-              setTranslation(
-                'Severe current surging, boat capsize hazard reported near ghat. Stay away from banks.'
-              )
+              setWaterStatusText(t.dangerStatusDesc(location.placeName))
+              setHindiQuote(t.quoteDanger)
+              setTranslation(t.advisoryDanger)
               setBoatmanAudioUrl('/api/audio/boatman_sample_danger.wav')
               setAiAudioUrl('/api/audio/ai_advisory_danger.wav')
             }}
@@ -1385,15 +1429,15 @@ function TouristDashboard({
           </button>
         </div>
 
-        {sos && <SosModal phone={phone} location={location} close={() => setSos(false)} />}
+        {sos && <SosModal phone={phone} location={location} close={() => setSos(false)} lang={lang} />}
 
         {showCallModal && (
           <EmergencyCallModal
             close={() => setShowCallModal(false)}
             placeName={location.placeName}
             boatmanName={boatmanName}
-            selectedLang={selectedLang}
-            advisoryText={REGIONAL_TRANSLATIONS[selectedLang].danger}
+            lang={lang}
+            advisoryText={t.advisoryDanger}
             onSos={() => setSos(true)}
           />
         )}
@@ -1409,19 +1453,22 @@ function BoatmanDashboard({
   onSwitch,
   phone,
   location,
-  onBroadcast
+  onBroadcast,
+  lang,
+  onLangChange
 }: {
   onSwitch: () => void
   phone: string
   location: ReturnType<typeof useRealTimeLocation>
   onBroadcast: (status: Status) => void
+  lang: SupportedLang
+  onLangChange: (l: SupportedLang) => void
 }) {
+  const t = UI_TRANSLATIONS[lang]
   const [recording, setRecording] = useState(false)
   const [seconds, setSeconds] = useState(0)
   const [sent, setSent] = useState(false)
-  const [sentText, setSentText] = useState(
-    '“पानी शांत है, शाम तक आराम से घूम सकते हैं”'
-  )
+  const [sentText, setSentText] = useState(t.quoteSafe)
   const [recipientsCount, setRecipientsCount] = useState(18)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -1516,7 +1563,7 @@ function BoatmanDashboard({
         const data = await res.json()
         const state = data.sector_state
         setSent(true)
-        setSentText(`“${state.hindi_quote || overrideText || 'वॉइस संदेश भेजा गया'}”`)
+        setSentText(`“${state.hindi_quote || overrideText || t.boatmanSpeakSent}”`)
         setRecipientsCount(state.recipients_notified || 18)
         onBroadcast(state.status)
       } else {
@@ -1545,15 +1592,15 @@ function BoatmanDashboard({
 
   return (
     <>
-      <TopBar mode="boatman" location={location} onSwitch={onSwitch} />
+      <TopBar mode="boatman" location={location} onSwitch={onSwitch} lang={lang} onLangChange={onLangChange} />
       <main className="boatman-app">
         <div className="boatman-header">
           <div>
-            <strong>नाविक: रमेश निषाद</strong>
+            <strong>{t.boatmanRoleTitle}: रमेश निषाद</strong>
             <span>Boat #14 · {location.placeName}</span>
           </div>
           <b className="network-status">
-            ● GPS: {location.lat.toFixed(4)}°, {location.lon.toFixed(4)}° · {location.isLiveGPS ? '🟢 Real GPS' : 'Sector Preset'}
+            ● {t.boatmanGpsCoords}: {location.lat.toFixed(4)}°, {location.lon.toFixed(4)}° · {location.isLiveGPS ? t.realGps : t.presetWater}
           </b>
         </div>
 
@@ -1574,10 +1621,10 @@ function BoatmanDashboard({
 
           <h1>
             {sent
-              ? 'वॉइस अपडेट प्रसारित! (Voice update sent)'
+              ? t.boatmanSpeakSent
               : recording
-              ? `00:${String(seconds).padStart(2, '0')} · बोल रहे हैं (Noise Filtering Active...)`
-              : 'बोलने के लिए दबाएं (TAP TO SPEAK)'}
+              ? `00:${String(seconds).padStart(2, '0')} · ${t.boatmanSpeakListening}`
+              : t.boatmanSpeakIdle}
           </h1>
 
           <p>
@@ -1585,7 +1632,7 @@ function BoatmanDashboard({
               ? `Sent to tourists within 1.5 km of ${location.placeName}!`
               : recording
               ? 'Prisma v2.5 stripping 85dB engine noise & transcribing…'
-              : 'TAP TO BROADCAST VOICE UPDATE'}
+              : t.boatmanHoldInstruction}
           </p>
 
           <small>
@@ -1597,11 +1644,11 @@ function BoatmanDashboard({
         <section className="scenario-buttons">
           <h2>Quick scenario test (1-Click Broadcast with Live GPS)</h2>
           <button type="button" onClick={triggerSafeScenario}>
-            <Check /> Speak Safe Update
+            <Check /> {t.reportCalm}
             <small>“Paani shaant hai, tourists can roam safely”</small>
           </button>
           <button type="button" onClick={triggerDangerScenario}>
-            <AlertTriangle /> Speak Danger Emergency
+            <AlertTriangle /> {t.reportSurge}
             <small>“Bahaav tez hai, naav ulat gayi ghat ke paas!”</small>
           </button>
         </section>
@@ -1613,11 +1660,12 @@ function BoatmanDashboard({
           placeName={location.placeName}
           boatmanName="Ramesh Nishad"
           mode="boatman"
+          lang={lang}
         />
 
         {/* Last Sent Broadcast Card */}
         <section className="last-broadcast">
-          <span className="eyebrow">LAST SENT BROADCAST (अंतिम वॉइस संदेश)</span>
+          <span className="eyebrow">{t.boatmanHeader}</span>
           <p>{sentText}</p>
           <strong>
             Broadcasted from {location.placeName} ({location.lat.toFixed(4)}°, {location.lon.toFixed(4)}°) to nearby tourists.
@@ -1636,6 +1684,7 @@ export default function CoastguardDashboard() {
   const [mode, setMode] = useState<Mode>('tourist')
   const [phone, setPhone] = useState('9876543210')
   const [currentStatus, setCurrentStatus] = useState<Status>('safe')
+  const [lang, setLang] = useState<SupportedLang>('hi')
 
   // Real-time Geolocation Hook
   const location = useRealTimeLocation()
@@ -1647,7 +1696,7 @@ export default function CoastguardDashboard() {
   }
 
   if (screen === 'login') {
-    return <RoleLogin location={location} onContinue={enter} />
+    return <RoleLogin location={location} onContinue={enter} lang={lang} onLangChange={setLang} />
   }
 
   return (
@@ -1658,6 +1707,8 @@ export default function CoastguardDashboard() {
           phone={phone}
           location={location}
           onSwitch={() => setScreen('login')}
+          lang={lang}
+          onLangChange={setLang}
         />
       ) : (
         <BoatmanDashboard
@@ -1667,6 +1718,8 @@ export default function CoastguardDashboard() {
             setCurrentStatus(status)
           }}
           onSwitch={() => setScreen('login')}
+          lang={lang}
+          onLangChange={setLang}
         />
       )}
     </div>
