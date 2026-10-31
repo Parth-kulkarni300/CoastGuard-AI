@@ -37,6 +37,7 @@ from gnani_timbre import synthesize_alert, get_alert_texts_for_severity, bytes_t
 from geo_matcher import get_phones_in_radius, haversine_km
 from synthetic_data import load_or_generate_registry, SYNTHETIC_LOCATIONS
 from alert_dispatcher import dispatch_alerts, get_alert_history, register_ws_callback, unregister_ws_callback
+from audio_filter import denoise_audio_bytes
 
 # Ensure UTF-8 output on Windows consoles
 if sys.stdout.encoding != 'utf-8':
@@ -233,18 +234,29 @@ async def fisherman_broadcast(
     global LATEST_SECTOR_STATE
     dispatch_id = f"voice_{int(datetime.now().timestamp() * 1000)}"
     boatman_audio_url = "/api/audio/boatman_sample_safe.wav"
+    boatman_raw_audio_url = "/api/audio/boatman_sample_safe.wav"
 
-    # Step 1: Prisma STT Transcription
+    # Step 1: Prisma STT Transcription with Acoustic Noise Stripping
     if transcript_override:
         transcript = transcript_override
     elif audio:
-        audio_bytes = await audio.read()
-        stt_result = await transcribe_bytes(audio_bytes, language="hi", filename=audio.filename or "mic.wav")
-        transcript = stt_result.get("transcript", "Update received")
-        # Save audio file to cache
-        cache_file = AUDIO_CACHE_DIR / f"{dispatch_id}.wav"
-        cache_file.write_bytes(audio_bytes)
+        raw_audio_bytes = await audio.read()
+        # Denoise audio: strip thunder rumble (<200Hz), engine vibration & background hiss
+        clean_audio_bytes = denoise_audio_bytes(raw_audio_bytes)
+
+        # Save both clean and raw audio clips
+        cache_file_clean = AUDIO_CACHE_DIR / f"{dispatch_id}.wav"
+        cache_file_clean.write_bytes(clean_audio_bytes)
+
+        cache_file_raw = AUDIO_CACHE_DIR / f"{dispatch_id}_raw.wav"
+        cache_file_raw.write_bytes(raw_audio_bytes)
+
         boatman_audio_url = f"/api/audio/{dispatch_id}.wav"
+        boatman_raw_audio_url = f"/api/audio/{dispatch_id}_raw.wav"
+
+        # Transcribe with Prisma STT
+        stt_result = await transcribe_bytes(clean_audio_bytes, language="hi", filename=audio.filename or "mic.wav")
+        transcript = stt_result.get("transcript", "Update received")
     else:
         transcript = "Paani shaant hai, sab theek hai."
 
@@ -290,6 +302,7 @@ async def fisherman_broadcast(
         "hindi_quote": hindi_quote,
         "english_translation": english_trans,
         "boatman_audio_url": boatman_audio_url,
+        "boatman_raw_audio_url": boatman_raw_audio_url,
         "ai_audio_url": ai_audio_url,
         "recipients_notified": recipients_count,
         "water_status_text": water_status_text

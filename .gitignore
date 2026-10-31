@@ -26,3 +26,10 @@ __pycache__/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Dynamic Audio Cache
+backend/audio_cache/voice_*
+backend/audio_cache/*_raw.wav
+backend/audio_cache/test_*
+backend/audio_cache/DISP-*
+
