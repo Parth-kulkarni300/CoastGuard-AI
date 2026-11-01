@@ -84,8 +84,23 @@ async def trigger_outbound_call(
     if account_sid and auth_tuple and twilio_from and not account_sid.startswith("your_"):
         try:
             url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Calls.json"
-            # TwiML: Speaks the danger warning in the tourist's Indic language
-            twiml = f"<Response><Say language='{telephony_lang}' voice='Polly.Aditi'>{message}</Say></Response>"
+
+            # Exact safety audio recordings heard on the Tourist Dashboard
+            base_audio_url = "https://raw.githubusercontent.com/Parth-kulkarni300/CoastGuard-AI/main/public/audio"
+            if language.startswith("en"):
+                safety_audio_url = f"{base_audio_url}/timbre_advisory_en_danger.wav"
+            else:
+                safety_audio_url = f"{base_audio_url}/timbre_advisory_hi_danger.wav"
+
+            # TwiML: Plays the EXACT dashboard audio clip to the caller, followed by localized speech
+            twiml = (
+                f"<Response>"
+                f"<Play>{safety_audio_url}</Play>"
+                f"<Pause length='1'/>"
+                f"<Say language='{telephony_lang}' voice='Polly.Aditi'>{message}</Say>"
+                f"</Response>"
+            )
+
             async with httpx.AsyncClient(timeout=12.0) as client:
                 res = await client.post(
                     url,
