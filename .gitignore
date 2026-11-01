@@ -32,4 +32,6 @@ backend/audio_cache/voice_*
 backend/audio_cache/*_raw.wav
 backend/audio_cache/test_*
 backend/audio_cache/DISP-*
+backend/audio_cache/timbre_*
+tsconfig.tsbuildinfo
 

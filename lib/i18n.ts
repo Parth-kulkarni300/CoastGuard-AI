@@ -36,6 +36,8 @@ export interface UiTranslations {
   eyebrow: string
   appTitle: string
   tagline: string
+  nameLabel: string
+  namePlaceholder: string
   phoneLabel: string
   boatmanRoleTitle: string
   boatmanRoleSub: string
@@ -43,6 +45,11 @@ export interface UiTranslations {
   touristRoleSub: string
   loginContinue: string
   loginNote: string
+  offlineBadge: string
+  onlineBadge: string
+  offlineNotice: string
+  offlineQueueNotice: string
+  pwaInstallBtn: string
 
   // Tourist Dashboard
   liveTrackedLocation: string
@@ -126,6 +133,8 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     eyebrow: 'संप्रभु जल सुरक्षा ग्रिड · GNANI AI',
     appTitle: 'CoastGuard AI',
     tagline: 'जल पर मौजूद नाविकों द्वारा संचालित रीयल-टाइम सुरक्षा ग्रिड।',
+    nameLabel: 'आपका नाम दर्ज करें',
+    namePlaceholder: 'उदा. रमेश निषाद / राहुल शर्मा',
     phoneLabel: 'मोबाइल नंबर दर्ज करें',
     boatmanRoleTitle: 'मैं एक नाविक / मछुआरा हूँ',
     boatmanRoleSub: 'नाविक (वॉइस लाइफलाइन)',
@@ -133,6 +142,11 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     touristRoleSub: 'पर्यटक (सुरक्षा केंद्र)',
     loginContinue: 'आगे बढ़ें / लॉगिन करें',
     loginNote: 'कोई पासवर्ड नहीं। कोई ओटीपी झंझट नहीं। आपका लाइव स्थान निजी रहता है।',
+    offlineBadge: '⚡ ऑफलाइन (GPS सक्रिय)',
+    onlineBadge: '🟢 ऑनलाइन ग्रिड',
+    offlineNotice: 'इंटरनेट नहीं है — ऐप पूरी तरह ऑफलाइन (PWA) काम कर रहा है। सैटेलाइट GPS और स्थानीय सुरक्षा ग्रिड चालू है।',
+    offlineQueueNotice: 'ऑडियो ऑफलाइन सुरक्षित किया गया। नेटवर्क मिलते ही स्वचालित रूप से सिंक होगा।',
+    pwaInstallBtn: 'ऐप इंस्टॉल करें (PWA)',
     liveTrackedLocation: 'लाइव ट्रैक किया गया स्थान',
     safeStatusBanner: '🟢 सुरक्षित क्षेत्र — आपके स्थान पर सब सामान्य है',
     dangerStatusBanner: '🔴 आपातकालीन चेतावनी — पानी से तुरंत दूर रहें',
@@ -201,6 +215,8 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     eyebrow: 'SOVEREIGN WATER SAFETY · GNANI AI',
     appTitle: 'CoastGuard AI',
     tagline: 'Real-time safety grid, powered by fishermen on the water.',
+    nameLabel: 'Enter Your Name',
+    namePlaceholder: 'e.g. Ramesh Nishad / Rahul Sharma',
     phoneLabel: 'Enter Mobile Number',
     boatmanRoleTitle: 'I am a Boatman / Fisherman',
     boatmanRoleSub: 'Boatman (Voice Lifeline)',
@@ -208,6 +224,11 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     touristRoleSub: 'Tourist (Safety Hub)',
     loginContinue: 'Continue to Dashboard',
     loginNote: 'No password. No OTP hassle. Your live location stays private.',
+    offlineBadge: '⚡ Offline (GPS Active)',
+    onlineBadge: '🟢 Live Grid',
+    offlineNotice: 'No Internet — CoastGuard AI is running fully offline via PWA cache. Satellite GPS and local audio are operational.',
+    offlineQueueNotice: 'Emergency broadcast saved offline. Will auto-sync when network is restored.',
+    pwaInstallBtn: 'Install App (PWA)',
     liveTrackedLocation: 'LIVE TRACKED LOCATION',
     safeStatusBanner: '🟢 SAFE TO ROAM — ALL CLEAR AT YOUR LOCATION',
     dangerStatusBanner: '🔴 DANGER ALERT — STAY AWAY FROM WATER',
@@ -276,6 +297,8 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     eyebrow: 'சுயசார்பு நீர் பாதுகாப்பு வலைப்பின்னல் · GNANI AI',
     appTitle: 'CoastGuard AI',
     tagline: 'நீரில் உள்ள படகோட்டிகளால் இயக்கப்படும் நேரலை பாதுகாப்பு கட்டமைப்பு.',
+    nameLabel: 'உங்கள் பெயரை உள்ளிடவும்',
+    namePlaceholder: 'எ.கா. ரமேஷ் நிஷாத் / செல்வம்',
     phoneLabel: 'மொபைல் எண்ணை உள்ளிடவும்',
     boatmanRoleTitle: 'நான் ஒரு படகோட்டி / மீனவர்',
     boatmanRoleSub: 'படகோட்டி (குரல் உயிர்நாடி)',
@@ -283,6 +306,11 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     touristRoleSub: 'சுற்றுலாப் பயணி (பாதுகாப்பு மையம்)',
     loginContinue: 'தொடரவும் / உள்நுழையவும்',
     loginNote: 'கடவுச்சொல் இல்லை. OTP தொந்தரவு இல்லை. உங்கள் இருப்பிடம் தனிப்பட்டது.',
+    offlineBadge: '⚡ ஆஃப்லைன் (GPS தயார்)',
+    onlineBadge: '🟢 நேரலை கிரிட்',
+    offlineNotice: 'இணையம் இல்லை — PWA மூலம் ஆஃப்லைனில் செயல்படுகிறது. செயற்கைக்கோள் GPS மற்றும் ஆடியோ தயார்.',
+    offlineQueueNotice: 'ஆடியோ ஆஃப்லைனில் சேமிக்கப்பட்டது. நெட்வொர்க் கிடைத்ததும் தானாக அனுப்பப்படும்.',
+    pwaInstallBtn: 'செயலியை நிறுவு (PWA)',
     liveTrackedLocation: 'நேரலை கண்காணிக்கப்படும் இடம்',
     safeStatusBanner: '🟢 பாதுகாப்பானது — உங்கள் பகுதியில் ஆபத்து இல்லை',
     dangerStatusBanner: '🔴 எச்சரிக்கை — நீரிலிருந்து உடனடியாக விலகவும்',
@@ -351,6 +379,8 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     eyebrow: 'সার্বভৌম জল নিরাপত্তা গ্রিড · GNANI AI',
     appTitle: 'CoastGuard AI',
     tagline: 'জলে থাকা মাঝিদের দ্বারা চালিত রিয়েল-টাইম নিরাপত্তা ব্যবস্থা।',
+    nameLabel: 'আপনার নাম লিখুন',
+    namePlaceholder: 'যেমন: রমেশ নিষাদ / রাহুল সেন',
     phoneLabel: 'মোবাইল নম্বর লিখুন',
     boatmanRoleTitle: 'আমি একজন মাঝি / জেলে',
     boatmanRoleSub: 'মাঝি (ভয়েস লাইফলাইন)',
@@ -358,6 +388,11 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     touristRoleSub: 'পর্যটক (সুরক্ষা কেন্দ্র)',
     loginContinue: 'এগিয়ে যান / লগইন করুন',
     loginNote: 'কোনো পাসওয়ার্ড নেই। কোনো ওটিপি ঝামেলা নেই। আপনার অবস্থান নিরাপদ থাকে।',
+    offlineBadge: '⚡ অফলাইন (GPS সক্রিয়)',
+    onlineBadge: '🟢 লাইভ গ্রিড',
+    offlineNotice: 'ইন্টারনেট সংযোগ নেই — অ্যাপ অফলাইনে (PWA) সক্রিয়। স্যাটেলাইট GPS ও স্থানীয় অডিও কার্যকর।',
+    offlineQueueNotice: 'অডিও অফলাইনে সংরক্ষিত। নেটওয়ার্ক ফিরলে স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।',
+    pwaInstallBtn: 'অ্যাপ ইনস্টল করুন (PWA)',
     liveTrackedLocation: 'লাইভ ট্র্যাক করা অবস্থান',
     safeStatusBanner: '🟢 নিরাপদ এলাকা — আপনার অবস্থানে কোনো বিপত্তি নেই',
     dangerStatusBanner: '🔴 বিপদ সতর্কতা — জল থেকে অবিলম্বে দূরে থাকুন',
@@ -426,6 +461,8 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     eyebrow: 'सार्वभौम जल सुरक्षा ग्रिड · GNANI AI',
     appTitle: 'CoastGuard AI',
     tagline: 'पाण्यावर उपस्थित असलेल्या नाविक बांधवांद्वारे संचालित थेट सुरक्षा प्रणाली.',
+    nameLabel: 'तुमचे नाव प्रविष्ट करा',
+    namePlaceholder: 'उदा. रमेश निषाद / राहुल पाटील',
     phoneLabel: 'मोबाईल क्रमांक प्रविष्ट करा',
     boatmanRoleTitle: 'मी एक नाविक / मच्छीमार आहे',
     boatmanRoleSub: 'नाविक (व्हॉइस लाइफलाइन)',
@@ -433,6 +470,11 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     touristRoleSub: 'पर्यटक (सुरक्षा केंद्र)',
     loginContinue: 'पुढे जा / लॉगिन करा',
     loginNote: 'पासवर्ड नाही. OTP चा त्रास नाही. तुमचे स्थान पूर्णपणे सुरक्षित राहते.',
+    offlineBadge: '⚡ ऑफलाइन (GPS सक्रिय)',
+    onlineBadge: '🟢 थेट ग्रिड',
+    offlineNotice: 'इंटरनेट उपलब्ध नाही — अॅप पूर्णपणे ऑफलाइन (PWA) कार्यरत आहे. सॅटेलाइट GPS आणि ऑडिओ लाइफलाइन सक्रिय.',
+    offlineQueueNotice: 'व्हॉइस अपडेट ऑफलाइन जतन केले. नेटवर्क येताच आपोआप पाठवले जाईल.',
+    pwaInstallBtn: 'अॅप इन्स्टॉल करा (PWA)',
     liveTrackedLocation: 'थेट ट्रॅक केलेले स्थान',
     safeStatusBanner: '🟢 सुरक्षित क्षेत्र — तुमच्या भागात धोका नाही',
     dangerStatusBanner: '🔴 धोक्याचा इशारा — पाण्यापासून लगेच दूर व्हा',

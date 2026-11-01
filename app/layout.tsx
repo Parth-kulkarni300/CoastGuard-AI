@@ -6,6 +6,16 @@ export const metadata: Metadata = {
   title: 'CoastGuard AI — Sovereign Voice Emergency Grid',
   description: 'Real-time sovereign voice emergency response for India’s rivers and ghats.',
   generator: 'v0.app',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'CoastGuard AI'
+  },
+  icons: {
+    icon: '/icon.svg',
+    apple: '/apple-icon.png'
+  }
 }
 
 export const viewport: Viewport = {

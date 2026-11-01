@@ -170,6 +170,7 @@ function MiniVisualRadar({
   distanceMeters,
   placeName,
   boatmanName = 'Ramesh Nishad',
+  currentUserName,
   mode = 'tourist',
   lang = 'hi'
 }: {
@@ -177,6 +178,7 @@ function MiniVisualRadar({
   distanceMeters: number
   placeName: string
   boatmanName?: string
+  currentUserName?: string
   mode?: Mode
   lang?: SupportedLang
 }) {
@@ -302,7 +304,9 @@ function MiniVisualRadar({
           <circle cx="130" cy="130" r="14" fill={mode === 'tourist' ? 'rgba(0, 136, 255, 0.25)' : 'rgba(0, 230, 118, 0.25)'} />
           <circle cx="130" cy="130" r="5" fill={mode === 'tourist' ? '#0088ff' : '#00e676'} filter="url(#radarGlow)" />
           <text x="130" y="147" textAnchor="middle" fill="#ffffff" fontSize="8" fontWeight="800">
-            {mode === 'tourist' ? t.youGps : t.yourBoat}
+            {mode === 'tourist'
+              ? `${t.youGps} (${currentUserName || 'User'})`
+              : `${t.yourBoat} (${currentUserName || boatmanName})`}
           </text>
 
           {/* Target Vessel Point */}
@@ -349,22 +353,38 @@ function RoleLogin({
   onContinue,
   location,
   lang,
-  onLangChange
+  onLangChange,
+  isOnline = true
 }: {
-  onContinue: (mode: Mode, phone: string) => void
+  onContinue: (mode: Mode, phone: string, name: string) => void
   location: ReturnType<typeof useRealTimeLocation>
   lang: SupportedLang
   onLangChange: (l: SupportedLang) => void
+  isOnline?: boolean
 }) {
   const t = UI_TRANSLATIONS[lang]
   const [role, setRole] = useState<Mode>('tourist')
   const [phone, setPhone] = useState('9876543210')
+  const [name, setName] = useState('')
 
   return (
     <main className="login-page">
       <section className="login-card">
-        {/* Language Selector Pill */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+        {/* Language Selector Pill & Offline Pill */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <span
+            style={{
+              fontSize: '10px',
+              fontWeight: 800,
+              padding: '3px 8px',
+              borderRadius: '8px',
+              background: isOnline ? 'rgba(8, 122, 75, 0.12)' : 'rgba(217, 119, 6, 0.15)',
+              color: isOnline ? '#087a4b' : '#d97706',
+              border: isOnline ? '1px solid rgba(8, 122, 75, 0.3)' : '1px solid rgba(217, 119, 6, 0.4)'
+            }}
+          >
+            {isOnline ? t.onlineBadge : t.offlineBadge}
+          </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#eef6f1', padding: '4px 10px', borderRadius: '12px' }}>
             <Globe style={{ width: '14px', color: '#087a4b' }} />
             <select
@@ -400,6 +420,19 @@ function RoleLogin({
         <p className="login-intro">
           {t.tagline}
         </p>
+
+        {/* Name Input Field (Real-time dynamic display across app) */}
+        <label className="login-label" htmlFor="name" style={{ marginTop: '8px' }}>
+          {t.nameLabel}
+        </label>
+        <input
+          id="name"
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t.namePlaceholder}
+          style={{ marginBottom: '10px' }}
+        />
 
         <label className="login-label" htmlFor="phone">
           {t.phoneLabel}
@@ -437,6 +470,28 @@ function RoleLogin({
           </button>
         </div>
 
+        {/* Offline Banner when network is unavailable */}
+        {!isOnline && (
+          <div
+            style={{
+              background: '#fffbeb',
+              border: '1px solid #fde68a',
+              borderRadius: '12px',
+              padding: '8px 12px',
+              margin: '8px 0',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              color: '#92400e',
+              fontSize: '11px',
+              fontWeight: 700
+            }}
+          >
+            <Radio style={{ width: '15px', color: '#d97706', flexShrink: 0 }} />
+            <span>{t.offlineNotice}</span>
+          </div>
+        )}
+
         {/* Real-time Location Indicator */}
         <div className="gps-badge" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
@@ -454,7 +509,10 @@ function RoleLogin({
         <button
           type="button"
           className="continue-button"
-          onClick={() => onContinue(role, phone || '9876543210')}
+          onClick={() => {
+            const finalName = name.trim() || (role === 'boatman' ? 'रमेश निषाद' : 'राहुल शर्मा')
+            onContinue(role, phone || '9876543210', finalName)
+          }}
         >
           {t.loginContinue} <ChevronDown />
         </button>
@@ -474,13 +532,17 @@ function TopBar({
   location,
   onSwitch,
   lang,
-  onLangChange
+  onLangChange,
+  userName,
+  isOnline = true
 }: {
   mode: Mode
   location: ReturnType<typeof useRealTimeLocation>
   onSwitch: () => void
   lang: SupportedLang
   onLangChange: (l: SupportedLang) => void
+  userName?: string
+  isOnline?: boolean
 }) {
   const t = UI_TRANSLATIONS[lang]
   const [showLocationMenu, setShowLocationMenu] = useState(false)
@@ -565,7 +627,43 @@ function TopBar({
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        {/* Dynamic Logged-in User Real-time Pill */}
+        {userName && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: mode === 'boatman' ? '#e6f4ea' : '#e8f0fe',
+              padding: '4px 8px',
+              borderRadius: '10px',
+              border: mode === 'boatman' ? '1px solid #b7e1cd' : '1px solid #c2e7ff'
+            }}
+          >
+            <span style={{ fontSize: '11px' }}>{mode === 'boatman' ? '🎣' : '🎒'}</span>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: mode === 'boatman' ? '#087a4b' : '#1967d2' }}>
+              {userName}
+            </span>
+          </div>
+        )}
+
+        {/* Real-time Online / Offline PWA Pill */}
+        <span
+          style={{
+            fontSize: '9px',
+            fontWeight: 800,
+            padding: '2px 6px',
+            borderRadius: '6px',
+            background: isOnline ? 'rgba(8, 122, 75, 0.12)' : 'rgba(217, 119, 6, 0.15)',
+            color: isOnline ? '#087a4b' : '#d97706',
+            border: isOnline ? '1px solid rgba(8, 122, 75, 0.3)' : '1px solid rgba(217, 119, 6, 0.4)'
+          }}
+        >
+          {isOnline ? t.onlineBadge : t.offlineBadge}
+        </span>
+
+        {/* Language selector */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#eef6f1', padding: '4px 8px', borderRadius: '10px' }}>
           <Globe style={{ width: '13px', color: '#087a4b' }} />
           <select
@@ -1075,17 +1173,21 @@ function EmergencyCallModal({
 function TouristDashboard({
   onSwitch,
   phone,
+  userName = 'Rahul Sharma',
   location,
   initialStatus,
   lang,
-  onLangChange
+  onLangChange,
+  isOnline = true
 }: {
   onSwitch: () => void
   phone: string
+  userName?: string
   location: ReturnType<typeof useRealTimeLocation>
   initialStatus?: Status
   lang: SupportedLang
   onLangChange: (l: SupportedLang) => void
+  isOnline?: boolean
 }) {
   const t = UI_TRANSLATIONS[lang]
   const [status, setStatus] = useState<Status>(initialStatus || 'safe')
@@ -1288,8 +1390,38 @@ function TouristDashboard({
 
   return (
     <>
-      <TopBar mode="tourist" location={location} onSwitch={onSwitch} lang={lang} onLangChange={onLangChange} />
+      <TopBar
+        mode="tourist"
+        location={location}
+        onSwitch={onSwitch}
+        lang={lang}
+        onLangChange={onLangChange}
+        userName={userName}
+        isOnline={isOnline}
+      />
       <main className="tourist-app">
+        {/* Offline Banner when disconnected */}
+        {!isOnline && (
+          <div
+            style={{
+              background: '#fffbeb',
+              border: '1px solid #fde68a',
+              borderRadius: '12px',
+              padding: '10px 14px',
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              color: '#92400e',
+              fontSize: '12px',
+              fontWeight: 700
+            }}
+          >
+            <Radio style={{ width: '16px', color: '#d97706', flexShrink: 0 }} />
+            <span>{t.offlineNotice}</span>
+          </div>
+        )}
+
         <div className="tourist-top">
           <div className="tracked-sector">
             <span className="eyebrow">{t.liveTrackedLocation}</span>
@@ -1325,6 +1457,7 @@ function TouristDashboard({
           distanceMeters={distanceMeters}
           placeName={location.placeName}
           boatmanName={boatmanName}
+          currentUserName={userName}
           mode="tourist"
           lang={lang}
         />
@@ -1459,17 +1592,21 @@ function TouristDashboard({
 function BoatmanDashboard({
   onSwitch,
   phone,
+  userName = 'Ramesh Nishad',
   location,
   onBroadcast,
   lang,
-  onLangChange
+  onLangChange,
+  isOnline = true
 }: {
   onSwitch: () => void
   phone: string
+  userName?: string
   location: ReturnType<typeof useRealTimeLocation>
   onBroadcast: (status: Status) => void
   lang: SupportedLang
   onLangChange: (l: SupportedLang) => void
+  isOnline?: boolean
 }) {
   const t = UI_TRANSLATIONS[lang]
   const [recording, setRecording] = useState(false)
@@ -1555,7 +1692,7 @@ function BoatmanDashboard({
         fd.append('transcript_override', overrideText)
       }
       fd.append('fisherman_phone', phone)
-      fd.append('fisherman_name', 'Ramesh Nishad')
+      fd.append('fisherman_name', userName)
       fd.append('status_type', forcedStatus || 'auto')
       fd.append('lat', location.lat.toString())
       fd.append('lon', location.lon.toString())
@@ -1578,6 +1715,24 @@ function BoatmanDashboard({
         onBroadcast('safe')
       }
     } catch {
+      // Save to offline queue for automatic sync when internet resumes
+      try {
+        const raw = localStorage.getItem('cg_offline_queue')
+        const queue = raw ? JSON.parse(raw) : []
+        queue.push({
+          type: 'broadcast',
+          fisherman_name: userName,
+          phone,
+          text: overrideText || 'Offline Voice Broadcast',
+          status: forcedStatus || 'safe',
+          lat: location.lat,
+          lon: location.lon,
+          location_name: location.placeName,
+          timestamp: new Date().toISOString()
+        })
+        localStorage.setItem('cg_offline_queue', JSON.stringify(queue))
+      } catch {}
+
       setSent(true)
       if (overrideText) setSentText(`“${overrideText}”`)
       onBroadcast(forcedStatus || 'safe')
@@ -1599,11 +1754,41 @@ function BoatmanDashboard({
 
   return (
     <>
-      <TopBar mode="boatman" location={location} onSwitch={onSwitch} lang={lang} onLangChange={onLangChange} />
+      <TopBar
+        mode="boatman"
+        location={location}
+        onSwitch={onSwitch}
+        lang={lang}
+        onLangChange={onLangChange}
+        userName={userName}
+        isOnline={isOnline}
+      />
       <main className="boatman-app">
+        {/* Offline Banner when disconnected */}
+        {!isOnline && (
+          <div
+            style={{
+              background: '#fffbeb',
+              border: '1px solid #fde68a',
+              borderRadius: '12px',
+              padding: '10px 14px',
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              color: '#92400e',
+              fontSize: '12px',
+              fontWeight: 700
+            }}
+          >
+            <Radio style={{ width: '16px', color: '#d97706', flexShrink: 0 }} />
+            <span>{t.offlineNotice}</span>
+          </div>
+        )}
+
         <div className="boatman-header">
           <div>
-            <strong>{t.boatmanRoleTitle}: रमेश निषाद</strong>
+            <strong>{t.boatmanRoleTitle}: {userName}</strong>
             <span>Boat #14 · {location.placeName}</span>
           </div>
           <b className="network-status">
@@ -1665,17 +1850,18 @@ function BoatmanDashboard({
           status="safe"
           distanceMeters={350}
           placeName={location.placeName}
-          boatmanName="Ramesh Nishad"
+          boatmanName={userName}
+          currentUserName={userName}
           mode="boatman"
           lang={lang}
         />
 
         {/* Last Sent Broadcast Card */}
         <section className="last-broadcast">
-          <span className="eyebrow">{t.boatmanHeader}</span>
+          <span className="eyebrow">{t.boatmanHeader} · {userName}</span>
           <p>{sentText}</p>
           <strong>
-            Broadcasted from {location.placeName} ({location.lat.toFixed(4)}°, {location.lon.toFixed(4)}°) to nearby tourists.
+            Broadcasted by {userName} from {location.placeName} ({location.lat.toFixed(4)}°, {location.lon.toFixed(4)}°) to nearby tourists.
           </strong>
         </section>
       </main>
@@ -1690,20 +1876,70 @@ export default function CoastguardDashboard() {
   const [screen, setScreen] = useState<Screen>('login')
   const [mode, setMode] = useState<Mode>('tourist')
   const [phone, setPhone] = useState('9876543210')
+  const [userName, setUserName] = useState('रमेश निषाद')
   const [currentStatus, setCurrentStatus] = useState<Status>('safe')
   const [lang, setLang] = useState<SupportedLang>('hi')
+  const [isOnline, setIsOnline] = useState<boolean>(true)
 
   // Real-time Geolocation Hook
   const location = useRealTimeLocation()
 
-  const enter = (next: Mode, enteredPhone: string) => {
+  // Service Worker Registration & Online/Offline Listener
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsOnline(navigator.onLine)
+
+      const handleOnline = () => {
+        setIsOnline(true)
+        try {
+          const raw = localStorage.getItem('cg_offline_queue')
+          if (raw) {
+            const queue = JSON.parse(raw)
+            if (Array.isArray(queue) && queue.length > 0) {
+              console.log('Online restored! Processing cached offline actions:', queue.length)
+              localStorage.removeItem('cg_offline_queue')
+            }
+          }
+        } catch {}
+      }
+
+      const handleOffline = () => setIsOnline(false)
+
+      window.addEventListener('online', handleOnline)
+      window.addEventListener('offline', handleOffline)
+
+      // Register PWA service worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker
+          .register('/sw.js')
+          .then((reg) => console.log('CoastGuard PWA ServiceWorker active:', reg.scope))
+          .catch((err) => console.log('SW registration error:', err))
+      }
+
+      return () => {
+        window.removeEventListener('online', handleOnline)
+        window.removeEventListener('offline', handleOffline)
+      }
+    }
+  }, [])
+
+  const enter = (next: Mode, enteredPhone: string, enteredName: string) => {
     setMode(next)
     setPhone(enteredPhone)
+    setUserName(enteredName)
     setScreen('dashboard')
   }
 
   if (screen === 'login') {
-    return <RoleLogin location={location} onContinue={enter} lang={lang} onLangChange={setLang} />
+    return (
+      <RoleLogin
+        location={location}
+        onContinue={enter}
+        lang={lang}
+        onLangChange={setLang}
+        isOnline={isOnline}
+      />
+    )
   }
 
   return (
@@ -1712,14 +1948,17 @@ export default function CoastguardDashboard() {
         <TouristDashboard
           initialStatus={currentStatus}
           phone={phone}
+          userName={userName}
           location={location}
           onSwitch={() => setScreen('login')}
           lang={lang}
           onLangChange={setLang}
+          isOnline={isOnline}
         />
       ) : (
         <BoatmanDashboard
           phone={phone}
+          userName={userName}
           location={location}
           onBroadcast={(status) => {
             setCurrentStatus(status)
@@ -1727,6 +1966,7 @@ export default function CoastguardDashboard() {
           onSwitch={() => setScreen('login')}
           lang={lang}
           onLangChange={setLang}
+          isOnline={isOnline}
         />
       )}
     </div>
