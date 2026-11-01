@@ -148,6 +148,7 @@ async def serve_audio(filename: str):
 ACTIVE_DEVICES: Dict[str, Dict[str, Any]] = {}
 
 LATEST_SECTOR_STATE = {
+    "dispatch_id": "initial_safe",
     "status": "safe",
     "severity": "INFO",
     "location": "Assi Ghat, Varanasi",
@@ -366,6 +367,7 @@ async def fisherman_broadcast(
 
     # Step 3: Update Sector State with Live GPS
     LATEST_SECTOR_STATE = {
+        "dispatch_id": dispatch_id,
         "status": status,
         "severity": severity,
         "location": sector_place,

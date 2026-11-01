@@ -1091,7 +1091,7 @@ function TouristDashboard({
   const [status, setStatus] = useState<Status>(initialStatus || 'safe')
   const [sos, setSos] = useState(false)
   const [showCallModal, setShowCallModal] = useState(false)
-  const [hasAutoCalled, setHasAutoCalled] = useState(false)
+  const lastHandledDispatchIdRef = useRef<string>('')
   const [playingBoatman, setPlayingBoatman] = useState(false)
   const [playingAi, setPlayingAi] = useState(false)
   const [playingRaw, setPlayingRaw] = useState(false)
@@ -1145,6 +1145,10 @@ function TouristDashboard({
         if (res.ok) {
           const data = await res.json()
           applySectorData(data)
+          // Seed the ref with current dispatch ID so simply opening/refreshing the page NEVER auto-calls the tourist
+          if (data.dispatch_id || data.timestamp) {
+            lastHandledDispatchIdRef.current = data.dispatch_id || data.timestamp
+          }
         }
       } catch (err) {
         console.log('Using initial sector status:', err)
@@ -1161,7 +1165,12 @@ function TouristDashboard({
           const msg = JSON.parse(event.data)
           if (msg.type === 'sector_update' && msg.data) {
             applySectorData(msg.data)
-            if (msg.data.status === 'danger') {
+            const incomingDispatchId = msg.data.dispatch_id || msg.data.timestamp || String(Date.now())
+            const isFreshBroadcast = incomingDispatchId !== lastHandledDispatchIdRef.current
+
+            // Trigger the incoming call ONLY when the fisherman broadcasts a NEW danger audio message
+            if (msg.data.status === 'danger' && isFreshBroadcast) {
+              lastHandledDispatchIdRef.current = incomingDispatchId
               setShowCallModal(true)
             }
           }
@@ -1176,12 +1185,7 @@ function TouristDashboard({
 
   const applySectorData = (data: any) => {
     if (data.status) {
-      const isDanger = data.status !== 'safe'
-      setStatus(isDanger ? 'danger' : 'safe')
-      if (isDanger && !hasAutoCalled) {
-        setShowCallModal(true)
-        setHasAutoCalled(true)
-      }
+      setStatus(data.status === 'safe' ? 'safe' : 'danger')
     }
     if (data.boatman_name) setBoatmanName(data.boatman_name)
     if (data.lat && data.lon) {
