@@ -116,3 +116,62 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// 4. Handle System Push & High-Priority Emergency Notifications
+self.addEventListener('push', (event) => {
+  let payload = {
+    title: '🚨 CoastGuard Emergency (112): River Surge Alert!',
+    body: 'Local boatmen reported water level surge! Evacuate river banks immediately. Tap to answer emergency voice call.',
+    place: 'Assi Ghat, Varanasi'
+  };
+
+  try {
+    if (event.data) {
+      payload = event.data.json();
+    }
+  } catch {}
+
+  const options = {
+    body: payload.body,
+    icon: '/apple-icon.png',
+    badge: '/icon.svg',
+    vibrate: [500, 200, 500, 200, 1000, 300, 1000],
+    tag: 'coastguard-emergency-alert',
+    renotify: true,
+    requireInteraction: true, // Keeps it on screen over any app until answered!
+    data: { url: '/?call=1' },
+    actions: [
+      { action: 'accept', title: '📞 Accept Call (सुनें)' },
+      { action: 'dismiss', title: 'Dismiss' }
+    ]
+  };
+
+  event.waitUntil(self.registration.showNotification(payload.title, options));
+});
+
+// 5. When tourist taps the notification on lock screen or while inside another app
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  if (event.action === 'dismiss') {
+    return;
+  }
+
+  const shouldAutoAccept = event.action === 'accept';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // If a CoastGuard tab is already open, focus it and trigger the emergency call
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.postMessage({ type: 'TRIGGER_EMERGENCY_CALL', autoAccept: shouldAutoAccept });
+          return client.focus();
+        }
+      }
+      // If no tab is open (phone was locked or browser was closed), open it directly
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(shouldAutoAccept ? '/?call=1&auto=1' : '/?call=1');
+      }
+    })
+  );
+});

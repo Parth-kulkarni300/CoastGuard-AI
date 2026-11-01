@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef } from 'react'
 import {
   AlertTriangle,
+  Bell,
+  BellRing,
   Check,
   ChevronDown,
   Compass,
@@ -802,7 +804,8 @@ function EmergencyCallModal({
   boatmanName = 'Ramesh Nishad',
   lang = 'hi',
   advisoryText,
-  onSos
+  onSos,
+  autoAccept = false
 }: {
   close: () => void
   placeName: string
@@ -810,15 +813,20 @@ function EmergencyCallModal({
   lang?: SupportedLang
   advisoryText?: string
   onSos: () => void
+  autoAccept?: boolean
 }) {
   const t = UI_TRANSLATIONS[lang]
-  const [callState, setCallState] = useState<'ringing' | 'connected'>('ringing')
+  const [callState, setCallState] = useState<'ringing' | 'connected'>(autoAccept ? 'connected' : 'ringing')
   const [duration, setDuration] = useState(0)
   const ringtoneRef = useRef<{ stop: () => void } | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
-  // Start synthesized telecom ringtone (440Hz + 480Hz dual-tone) on mount
+  // Start synthesized telecom ringtone (440Hz + 480Hz dual-tone) on mount if ringing
   useEffect(() => {
+    if (autoAccept) {
+      playAdvisoryVoice()
+      return
+    }
     let isPlaying = true
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
@@ -873,7 +881,7 @@ function EmergencyCallModal({
       if (ringtoneRef.current) ringtoneRef.current.stop()
       if (audioRef.current) audioRef.current.pause()
     }
-  }, [])
+  }, [autoAccept])
 
   // Call duration counter once answered
   useEffect(() => {
@@ -887,26 +895,32 @@ function EmergencyCallModal({
 
   const playAdvisoryVoice = () => {
     try {
-      const ttsUrl = `/api/tourist/tts?lang=${lang}&status=danger`
+      // Prioritize static raw timbre advisory WAV file, then dynamic endpoint, then speech synthesis
+      const primaryUrl = `/audio/timbre_advisory_${lang === 'en' ? 'en' : 'hi'}_danger.wav`
       if (audioRef.current) {
         audioRef.current.pause()
       }
-      const audio = new Audio(ttsUrl)
+      const audio = new Audio(primaryUrl)
       audio.volume = 1.0
       audioRef.current = audio
       const promise = audio.play()
       if (promise !== undefined) {
         promise.catch((err) => {
-          console.warn('Audio play prevented, fallback to speech synthesis:', err)
-          if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-            window.speechSynthesis.cancel()
-            const utterance = new SpeechSynthesisUtterance(advisoryText || 'सावधान! नाव चालकों ने नदी में अचानक बहाव की चेतावनी दी है। कृपया तुरंत घाट की ऊपरी सीढ़ियों पर जाएं।')
-            const voiceLocale = lang === 'hi' ? 'hi-IN' : (lang === 'mr' ? 'mr-IN' : (lang === 'ta' ? 'ta-IN' : (lang === 'bn' ? 'bn-IN' : 'en-IN')))
-            utterance.lang = voiceLocale
-            utterance.volume = 1.0
-            utterance.rate = 0.95
-            window.speechSynthesis.speak(utterance)
-          }
+          console.warn('Primary static audio blocked or unavailable, trying backend TTS:', err)
+          const fallbackAudio = new Audio(`/api/tourist/tts?lang=${lang}&status=danger`)
+          fallbackAudio.volume = 1.0
+          audioRef.current = fallbackAudio
+          fallbackAudio.play().catch(() => {
+            if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+              window.speechSynthesis.cancel()
+              const utterance = new SpeechSynthesisUtterance(advisoryText || 'सावधान! नाव चालकों ने नदी में अचानक बहाव की चेतावनी दी है। कृपया तुरंत घाट की ऊपरी सीढ़ियों पर जाएं।')
+              const voiceLocale = lang === 'hi' ? 'hi-IN' : (lang === 'mr' ? 'mr-IN' : (lang === 'ta' ? 'ta-IN' : (lang === 'bn' ? 'bn-IN' : 'en-IN')))
+              utterance.lang = voiceLocale
+              utterance.volume = 1.0
+              utterance.rate = 0.95
+              window.speechSynthesis.speak(utterance)
+            }
+          })
         })
       }
     } catch {
@@ -1249,6 +1263,8 @@ function TouristDashboard({
   const [status, setStatus] = useState<Status>(initialStatus || 'safe')
   const [sos, setSos] = useState(false)
   const [showCallModal, setShowCallModal] = useState(false)
+  const [callAutoAccept, setCallAutoAccept] = useState(false)
+  const [notificationPerm, setNotificationPerm] = useState<string>('default')
   const lastHandledDispatchIdRef = useRef<string>('')
   const [playingBoatman, setPlayingBoatman] = useState(false)
   const [playingAi, setPlayingAi] = useState(false)
@@ -1270,6 +1286,96 @@ function TouristDashboard({
   const boatmanAudioRef = useRef<HTMLAudioElement | null>(null)
   const rawAudioRef = useRef<HTMLAudioElement | null>(null)
   const aiAudioRef = useRef<HTMLAudioElement | null>(null)
+
+  // Trigger OS-level system notification over any active app / phone lock screen with SOS vibration
+  const triggerOsEmergencyAlert = (overrideTitle?: string, overrideBody?: string) => {
+    // 1. Hardware device SOS vibration pattern: [500ms on, 200ms off, 500ms on, 200ms off, 1000ms on, 300ms off, 1000ms on]
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate([500, 200, 500, 200, 1000, 300, 1000])
+      } catch {}
+    }
+
+    const title = overrideTitle || `🚨 CoastGuard Emergency (112): River Surge Alert!`
+    const body = overrideBody || `${boatmanName} reported hazardous water conditions near ${location.placeName}. Tap to answer emergency voice call.`
+
+    // 2. High-Priority System Notification (ServiceWorker OS Heads-Up Alert over any active app / lock screen)
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.ready.then((reg) => {
+            reg.showNotification(title, {
+              body,
+              icon: '/apple-icon.png',
+              badge: '/icon.svg',
+              vibrate: [500, 200, 500, 200, 1000, 300, 1000],
+              tag: 'coastguard-emergency-call',
+              renotify: true,
+              requireInteraction: true,
+              data: { url: '/?call=1' },
+              actions: [
+                { action: 'accept', title: '📞 Accept Call (सुनें)' },
+                { action: 'dismiss', title: 'Dismiss' }
+              ]
+            } as any)
+          }).catch(() => {
+            try {
+              new Notification(title, { body, icon: '/apple-icon.png', requireInteraction: true } as any)
+            } catch {}
+          })
+        } else {
+          try {
+            new Notification(title, { body, icon: '/apple-icon.png', requireInteraction: true } as any)
+          } catch {}
+        }
+      } else if (Notification.permission === 'default') {
+        Notification.requestPermission().then((res) => {
+          setNotificationPerm(res)
+          if (res === 'granted') {
+            triggerOsEmergencyAlert(overrideTitle, overrideBody)
+          }
+        }).catch(() => {})
+      }
+    }
+  }
+
+  // Listen for Service Worker background triggers, Notification permissions, and URL params
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPerm(Notification.permission)
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then((res) => {
+          setNotificationPerm(res)
+        }).catch(() => {})
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('call') === '1') {
+        if (params.get('auto') === '1') {
+          setCallAutoAccept(true)
+        }
+        setShowCallModal(true)
+        try {
+          window.history.replaceState({}, '', window.location.pathname)
+        } catch {}
+      }
+    }
+
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'TRIGGER_EMERGENCY_CALL') {
+        setCallAutoAccept(!!event.data.autoAccept)
+        setShowCallModal(true)
+      }
+    }
+
+    navigator.serviceWorker.addEventListener('message', handleSwMessage)
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleSwMessage)
+    }
+  }, [])
 
   // Update localized text whenever language changes
   useEffect(() => {
@@ -1343,6 +1449,12 @@ function TouristDashboard({
             // Trigger the incoming call ONLY when the fisherman broadcasts a NEW danger audio message
             if (msg.data.status === 'danger' && isFreshBroadcast) {
               lastHandledDispatchIdRef.current = incomingDispatchId
+              // Fire OS heads-up alert with SOS vibration over other apps & lock screen
+              triggerOsEmergencyAlert(
+                `🚨 CoastGuard Emergency (112): ${msg.data.boatman_name || 'Boatman'} Alert!`,
+                `Water surge warning near ${location.placeName}. Evacuate river bank immediately!`
+              )
+              setCallAutoAccept(false)
               setShowCallModal(true)
               // Trigger automated PSTN outbound call to physical phone
               const fd = new FormData()
@@ -1498,6 +1610,95 @@ function TouristDashboard({
           </div>
         )}
 
+        {/* OS System Notification Permission / Status Pill */}
+        {notificationPerm === 'granted' ? (
+          <div
+            style={{
+              background: 'rgba(0, 230, 118, 0.08)',
+              border: '1px solid rgba(0, 230, 118, 0.3)',
+              borderRadius: '12px',
+              padding: '8px 12px',
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '11px',
+              color: '#a0aec0'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <BellRing style={{ width: '15px', height: '15px', color: '#00e676', flexShrink: 0 }} />
+              <span style={{ color: '#e2e8f0', fontWeight: 600 }}>
+                OS Emergency Grid: Active
+              </span>
+            </div>
+            <span
+              style={{
+                color: '#00e676',
+                fontSize: '10px',
+                fontWeight: 700,
+                background: 'rgba(0,230,118,0.15)',
+                padding: '2px 8px',
+                borderRadius: '4px'
+              }}
+            >
+              Interrupts Other Apps
+            </span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== 'undefined' && 'Notification' in window) {
+                Notification.requestPermission().then((res) => {
+                  setNotificationPerm(res)
+                  if (res === 'granted') {
+                    triggerOsEmergencyAlert(
+                      '🚨 Emergency Alert Activated!',
+                      'CoastGuard AI will now pop up over Instagram, YouTube & lock screen during high-risk water surges.'
+                    )
+                  }
+                })
+              }
+            }}
+            style={{
+              width: '100%',
+              background: 'rgba(255, 170, 0, 0.12)',
+              border: '1px solid rgba(255, 170, 0, 0.4)',
+              borderRadius: '12px',
+              padding: '10px 12px',
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '11px',
+              color: '#ffb300',
+              cursor: 'pointer',
+              textAlign: 'left'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Bell style={{ width: '16px', height: '16px', color: '#ffaa00', flexShrink: 0 }} />
+              <span>
+                <strong>Enable Heads-Up Alerts:</strong> Pop up over Instagram, YouTube & Lock Screen
+              </span>
+            </div>
+            <span
+              style={{
+                background: '#ffaa00',
+                color: '#000',
+                padding: '3px 8px',
+                borderRadius: '4px',
+                fontWeight: 800,
+                fontSize: '10px',
+                flexShrink: 0
+              }}
+            >
+              Allow
+            </span>
+          </button>
+        )}
+
         <div className="tourist-top">
           <div className="tracked-sector">
             <span className="eyebrow">{t.liveTrackedLocation}</span>
@@ -1632,6 +1833,8 @@ function TouristDashboard({
           <button
             type="button"
             onClick={() => {
+              triggerOsEmergencyAlert()
+              setCallAutoAccept(false)
               setShowCallModal(true)
               const fd = new FormData()
               fd.append('phone', phone)
@@ -1646,7 +1849,7 @@ function TouristDashboard({
               fontWeight: 800
             }}
           >
-            📞 Test Emergency Call (Dial My Phone)
+            🚨 Test OS Emergency Alert & Voice Call (Overlays other apps)
           </button>
         </div>
 
@@ -1654,12 +1857,16 @@ function TouristDashboard({
 
         {showCallModal && (
           <EmergencyCallModal
-            close={() => setShowCallModal(false)}
+            close={() => {
+              setShowCallModal(false)
+              setCallAutoAccept(false)
+            }}
             placeName={location.placeName}
             boatmanName={boatmanName}
             lang={lang}
             advisoryText={t.advisoryDanger}
             onSos={() => setSos(true)}
+            autoAccept={callAutoAccept}
           />
         )}
       </main>
