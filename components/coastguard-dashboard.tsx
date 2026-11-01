@@ -1241,6 +1241,20 @@ function TouristDashboard({
 
   // Fetch current status on mount & connect to live WebSocket
   useEffect(() => {
+    // Register tourist device with real phone number for automated telephony dispatch
+    const registerTourist = async () => {
+      try {
+        const fd = new FormData()
+        fd.append('phone', phone)
+        fd.append('role', 'tourist')
+        fd.append('lat', location.lat.toString())
+        fd.append('lon', location.lon.toString())
+        fd.append('place_name', location.placeName)
+        await fetch('/api/location/update', { method: 'POST', body: fd })
+      } catch {}
+    }
+    registerTourist()
+
     const fetchStatus = async () => {
       try {
         const res = await fetch(`/api/tourist/status?lat=${location.lat}&lon=${location.lon}`)
@@ -1274,6 +1288,12 @@ function TouristDashboard({
             if (msg.data.status === 'danger' && isFreshBroadcast) {
               lastHandledDispatchIdRef.current = incomingDispatchId
               setShowCallModal(true)
+              // Trigger automated PSTN outbound call to physical phone
+              const fd = new FormData()
+              fd.append('phone', phone)
+              fd.append('status', 'danger')
+              fd.append('language', lang)
+              fetch('/api/tourist/call', { method: 'POST', body: fd }).catch(() => {})
             }
           }
         } catch {}
@@ -1283,7 +1303,7 @@ function TouristDashboard({
     return () => {
       if (ws) ws.close()
     }
-  }, [location.lat, location.lon])
+  }, [location.lat, location.lon, phone])
 
   const applySectorData = (data: any) => {
     if (data.status) {
@@ -1557,6 +1577,11 @@ function TouristDashboard({
             type="button"
             onClick={() => {
               setShowCallModal(true)
+              const fd = new FormData()
+              fd.append('phone', phone)
+              fd.append('status', 'danger')
+              fd.append('language', lang)
+              fetch('/api/tourist/call', { method: 'POST', body: fd }).catch(() => {})
             }}
             style={{
               background: 'rgba(255, 51, 68, 0.15)',
@@ -1565,7 +1590,7 @@ function TouristDashboard({
               fontWeight: 800
             }}
           >
-            📞 Test Emergency Call (112)
+            📞 Test Emergency Call (Dial My Phone)
           </button>
         </div>
 
