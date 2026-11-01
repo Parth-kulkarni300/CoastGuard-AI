@@ -75,10 +75,11 @@ async def trigger_outbound_call(
         account_sid = os.getenv("TWILIO_PARENT_ACCOUNT_SID") or os.getenv("TWILIO_MAIN_ACCOUNT_SID")
 
     auth_tuple = None
-    if api_key and api_secret:
-        auth_tuple = (api_key, api_secret)
-    elif account_sid and auth_token and not account_sid.startswith("your_"):
+    # Prioritize master Auth Token (full permissions for voice PSTN calls)
+    if account_sid and auth_token and not account_sid.startswith("your_"):
         auth_tuple = (account_sid, auth_token)
+    elif api_key and api_secret:
+        auth_tuple = (api_key, api_secret)
 
     if account_sid and auth_tuple and twilio_from and not account_sid.startswith("your_"):
         try:
