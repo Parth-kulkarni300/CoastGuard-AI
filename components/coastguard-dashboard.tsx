@@ -1161,6 +1161,9 @@ function TouristDashboard({
           const msg = JSON.parse(event.data)
           if (msg.type === 'sector_update' && msg.data) {
             applySectorData(msg.data)
+            if (msg.data.status === 'danger') {
+              setShowCallModal(true)
+            }
           }
         } catch {}
       }
