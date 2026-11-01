@@ -885,17 +885,49 @@ function EmergencyCallModal({
     }
   }, [callState])
 
+  const playAdvisoryVoice = () => {
+    try {
+      const ttsUrl = `/api/tourist/tts?lang=${lang}&status=danger`
+      if (audioRef.current) {
+        audioRef.current.pause()
+      }
+      const audio = new Audio(ttsUrl)
+      audio.volume = 1.0
+      audioRef.current = audio
+      const promise = audio.play()
+      if (promise !== undefined) {
+        promise.catch((err) => {
+          console.warn('Audio play prevented, fallback to speech synthesis:', err)
+          if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            window.speechSynthesis.cancel()
+            const utterance = new SpeechSynthesisUtterance(advisoryText || 'सावधान! नाव चालकों ने नदी में अचानक बहाव की चेतावनी दी है। कृपया तुरंत घाट की ऊपरी सीढ़ियों पर जाएं।')
+            const voiceLocale = lang === 'hi' ? 'hi-IN' : (lang === 'mr' ? 'mr-IN' : (lang === 'ta' ? 'ta-IN' : (lang === 'bn' ? 'bn-IN' : 'en-IN')))
+            utterance.lang = voiceLocale
+            utterance.volume = 1.0
+            utterance.rate = 0.95
+            window.speechSynthesis.speak(utterance)
+          }
+        })
+      }
+    } catch {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel()
+        const utterance = new SpeechSynthesisUtterance(advisoryText || 'सावधान! नाव चालकों ने नदी में अचानक बहाव की चेतावनी दी है। कृपया तुरंत घाट की ऊपरी सीढ़ियों पर जाएं।')
+        const voiceLocale = lang === 'hi' ? 'hi-IN' : 'en-IN'
+        utterance.lang = voiceLocale
+        utterance.volume = 1.0
+        window.speechSynthesis.speak(utterance)
+      }
+    }
+  }
+
   const acceptCall = () => {
     if (ringtoneRef.current) {
       ringtoneRef.current.stop()
     }
     setCallState('connected')
-
-    // Auto-play Gnani Timbre regional synthesized emergency voice
-    const ttsUrl = `/api/tourist/tts?lang=${lang}&status=danger`
-    const audio = new Audio(ttsUrl)
-    audioRef.current = audio
-    audio.play().catch(() => {})
+    // Play voice immediately with automatic speech synthesis fallback
+    playAdvisoryVoice()
   }
 
   const declineCall = () => {
@@ -904,6 +936,9 @@ function EmergencyCallModal({
     }
     if (audioRef.current) {
       audioRef.current.pause()
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
     }
     close()
   }
@@ -1104,8 +1139,29 @@ function EmergencyCallModal({
                 textAlign: 'left'
               }}
             >
-              <div style={{ fontSize: '10px', fontWeight: 800, color: '#00d4ff', letterSpacing: '0.08em', marginBottom: '4px' }}>
-                {t.callSpokenHeader}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <span style={{ fontSize: '10px', fontWeight: 800, color: '#00d4ff', letterSpacing: '0.08em' }}>
+                  {t.callSpokenHeader}
+                </span>
+                <button
+                  type="button"
+                  onClick={playAdvisoryVoice}
+                  style={{
+                    background: 'rgba(0, 212, 255, 0.15)',
+                    border: '1px solid #00d4ff',
+                    color: '#00d4ff',
+                    borderRadius: '8px',
+                    padding: '3px 8px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <Volume2 style={{ width: '12px' }} /> Replay Voice
+                </button>
               </div>
               <p style={{ fontSize: '12px', lineHeight: '1.45', margin: 0, color: '#f0f5f8' }}>
                 "{advisoryText || t.advisoryDanger}"
