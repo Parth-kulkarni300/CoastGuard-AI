@@ -59,21 +59,36 @@ async def trigger_outbound_call(
     telephony_lang = lang_map.get(language[:2].lower(), "hi-IN")
 
     # ─────────────────────────────────────────────
-    # Provider 1: Twilio
+    # Provider 1: Twilio (Supports Account SID + Auth Token OR API Key + Secret)
     # ─────────────────────────────────────────────
-    twilio_sid = os.getenv("TWILIO_ACCOUNT_SID")
-    twilio_token = os.getenv("TWILIO_AUTH_TOKEN")
+    account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+    api_key = os.getenv("TWILIO_API_KEY") or os.getenv("TWILIO_API_KEY_SID")
+    api_secret = os.getenv("TWILIO_API_SECRET") or os.getenv("TWILIO_CLIENT_SECRET")
     twilio_from = os.getenv("TWILIO_FROM_PHONE")
 
-    if twilio_sid and twilio_token and twilio_from and not twilio_sid.startswith("your_"):
+    # If the user put the SK... key into TWILIO_ACCOUNT_SID
+    if account_sid and account_sid.startswith("SK"):
+        api_key = account_sid
+        if not api_secret:
+            api_secret = auth_token
+        account_sid = os.getenv("TWILIO_PARENT_ACCOUNT_SID") or os.getenv("TWILIO_MAIN_ACCOUNT_SID")
+
+    auth_tuple = None
+    if api_key and api_secret:
+        auth_tuple = (api_key, api_secret)
+    elif account_sid and auth_token and not account_sid.startswith("your_"):
+        auth_tuple = (account_sid, auth_token)
+
+    if account_sid and auth_tuple and twilio_from and not account_sid.startswith("your_"):
         try:
-            url = f"https://api.twilio.com/2010-04-01/Accounts/{twilio_sid}/Calls.json"
+            url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Calls.json"
             # TwiML: Speaks the danger warning in the tourist's Indic language
             twiml = f"<Response><Say language='{telephony_lang}' voice='Polly.Aditi'>{message}</Say></Response>"
             async with httpx.AsyncClient(timeout=12.0) as client:
                 res = await client.post(
                     url,
-                    auth=(twilio_sid, twilio_token),
+                    auth=auth_tuple,
                     data={"To": formatted_phone, "From": twilio_from, "Twiml": twiml}
                 )
                 if res.status_code in (200, 201):
