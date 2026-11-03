@@ -197,107 +197,85 @@ async def update_location(
 
 
 # ─────────────────────────────────────────────
-# Location Autocomplete & Geocoding Search
+# Location Autocomplete & Geocoding Search (Universal Global & Pan-India)
 # ─────────────────────────────────────────────
-LANDMARK_CATALOG = [
-    # Varanasi Ganga Riverfront & Key Hubs
-    {"name": "Assi Ghat, Varanasi", "display_name": "Assi Ghat, Shivala, Varanasi, Uttar Pradesh", "lat": 25.2974, "lon": 83.0064, "category": "Varanasi Riverbank", "type": "ghat"},
-    {"name": "Dashashwamedh Ghat, Varanasi", "display_name": "Dashashwamedh Ghat (Main Aarti Ghat), Varanasi, UP", "lat": 25.3076, "lon": 83.0104, "category": "Varanasi Riverbank", "type": "ghat"},
-    {"name": "Manikarnika Ghat, Varanasi", "display_name": "Manikarnika Ghat, Varanasi, UP", "lat": 25.3109, "lon": 83.0141, "category": "Varanasi Riverbank", "type": "ghat"},
-    {"name": "Panchganga Ghat, Varanasi", "display_name": "Panchganga Ghat, Varanasi, UP", "lat": 25.3142, "lon": 83.0197, "category": "Varanasi Riverbank", "type": "ghat"},
-    {"name": "Namo Ghat (Rajghat), Varanasi", "display_name": "Namo Ghat (Namaste Sculptures), Rajghat, Varanasi, UP", "lat": 25.3340, "lon": 83.0410, "category": "Varanasi Riverbank", "type": "ghat"},
-    {"name": "BHU Lanka Gate, Varanasi", "display_name": "Banaras Hindu University Main Gate, Lanka, Varanasi, UP", "lat": 25.2780, "lon": 82.9995, "category": "Varanasi Inland", "type": "landmark"},
-    {"name": "Varanasi Cantt Railway Station", "display_name": "Varanasi Junction Cantt Railway Station, Varanasi, UP", "lat": 25.3267, "lon": 82.9863, "category": "Varanasi Transit", "type": "station"},
-    {"name": "Sarnath Stupa and Deer Park, Varanasi", "display_name": "Sarnath Buddhist Heritage and Dhamek Stupa, Varanasi, UP", "lat": 25.3811, "lon": 83.0214, "category": "Varanasi Heritage", "type": "heritage"},
-
-    # Haridwar & Rishikesh
-    {"name": "Har Ki Pauri, Haridwar", "display_name": "Har Ki Pauri Ghat (Brahmakund), Haridwar, Uttarakhand", "lat": 29.9457, "lon": 78.1642, "category": "Ganga Riverbank", "type": "ghat"},
-    {"name": "Triveni Ghat, Rishikesh", "display_name": "Triveni Ghat, Rishikesh, Uttarakhand", "lat": 30.0988, "lon": 78.2917, "category": "Ganga Riverbank", "type": "ghat"},
-    {"name": "Lakshman Jhula, Rishikesh", "display_name": "Lakshman Jhula Suspension Bridge, Rishikesh, Uttarakhand", "lat": 30.1245, "lon": 78.3283, "category": "Ganga Riverbank", "type": "landmark"},
-
-    # Prayagraj
-    {"name": "Triveni Sangam, Prayagraj", "display_name": "Triveni Sangam (Ganga-Yamuna Confluence), Prayagraj, UP", "lat": 25.4299, "lon": 81.8842, "category": "Confluence", "type": "ghat"},
-    {"name": "Arail Ghat, Prayagraj", "display_name": "Arail Ghat, Naini, Prayagraj, UP", "lat": 25.4190, "lon": 81.8790, "category": "Ganga Riverbank", "type": "ghat"},
-
-    # Coastal Cities & Beaches
-    {"name": "Marine Drive, Mumbai", "display_name": "Marine Drive Promenade, South Mumbai, Maharashtra", "lat": 18.9438, "lon": 72.8232, "category": "Coastal Promenade", "type": "coastal"},
-    {"name": "Gateway of India, Mumbai", "display_name": "Gateway of India and Apollo Bunder Pier, Mumbai, Maharashtra", "lat": 18.9220, "lon": 72.8347, "category": "Harbour Pier", "type": "coastal"},
-    {"name": "Juhu Beach, Mumbai", "display_name": "Juhu Beach, Vile Parle West, Mumbai, Maharashtra", "lat": 19.0988, "lon": 72.8264, "category": "Beach", "type": "beach"},
-    {"name": "Pune City Center, Maharashtra", "display_name": "Pune Municipal Corporation, Shivajinagar, Pune, Maharashtra", "lat": 18.5204, "lon": 73.8567, "category": "City Center", "type": "city"},
-    {"name": "Marina Beach, Chennai", "display_name": "Marina Beach (Lighthouse and Promenade), Chennai, Tamil Nadu", "lat": 13.0475, "lon": 80.2824, "category": "Beach", "type": "beach"},
-    {"name": "Calangute Beach, Goa", "display_name": "Calangute Beach, North Goa, Goa", "lat": 15.5439, "lon": 73.7553, "category": "Beach", "type": "beach"},
-    {"name": "Baga Beach, Goa", "display_name": "Baga Beach and River Creek, North Goa, Goa", "lat": 15.5553, "lon": 73.7517, "category": "Beach", "type": "beach"},
-    {"name": "Alleppey Backwaters, Kerala", "display_name": "Punnamada Lake and Houseboat Terminal, Alappuzha, Kerala", "lat": 9.4981, "lon": 76.3388, "category": "Backwaters", "type": "water"},
-    {"name": "Puri Golden Beach, Odisha", "display_name": "Puri Sea Beach (Swargadwar), Puri, Odisha", "lat": 19.7983, "lon": 85.8249, "category": "Beach", "type": "beach"},
-    {"name": "Hooghly Princep Ghat, Kolkata", "display_name": "Prinsep Ghat and Vidyasagar Setu, Kolkata, West Bengal", "lat": 22.5562, "lon": 88.3364, "category": "Hooghly Riverbank", "type": "ghat"},
-    {"name": "Yamuna Ghat, Delhi", "display_name": "Yamuna River Ghat, Kashmere Gate, Old Delhi, Delhi", "lat": 28.6653, "lon": 77.2326, "category": "Riverbank", "type": "ghat"},
-    {"name": "Bengaluru City Center", "display_name": "MG Road / Cubbon Park, Bengaluru, Karnataka", "lat": 12.9716, "lon": 77.5946, "category": "City Center", "type": "city"}
-]
-
 @app.get("/api/location/search")
 async def search_locations(q: str = ""):
     """
-    Google Maps-style autocomplete endpoint for Indian Ghats, Water Bodies, and Cities.
-    Calculates exact real distance and danger-zone status relative to Assi Ghat ground zero.
+    Universal location autocomplete: Fetches ANY location, station, ghat, or street in India
+    using Photon OSM search with Nominatim fallback.
     """
-    query = (q or "").strip().lower()
+    query = (q or "").strip()
+    if not query:
+        return JSONResponse(content={"query": "", "count": 0, "results": []})
+
     results = []
     assi_lat = 25.2974
     assi_lon = 83.0064
 
-    for loc in LANDMARK_CATALOG:
-        match = False
-        if not query:
-            match = True
-        else:
-            searchable = f"{loc['name']} {loc['display_name']} {loc['category']}".lower()
-            tokens = query.split()
-            if all(token in searchable for token in tokens):
-                match = True
+    # 1. Primary: Photon OSM (Ultra-fast, points of interest, stations, ghats, pan-India)
+    try:
+        import urllib.request
+        import urllib.parse
+        import json
 
-        if match:
-            d_km = haversine_km(assi_lat, assi_lon, loc["lat"], loc["lon"])
-            loc_copy = dict(loc)
-            loc_copy["distance_km"] = round(d_km, 2)
-            if d_km < 1.0:
-                loc_copy["distance_label"] = f"{int(d_km * 1000)}m from Assi Ghat"
-            else:
-                loc_copy["distance_label"] = f"{d_km:.1f} km from Assi Ghat"
-            loc_copy["in_danger_zone"] = d_km <= 2.0
-            results.append(loc_copy)
+        url = f"https://photon.komoot.io/api/?q={urllib.parse.quote(query)}&limit=10"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 CoastGuardAI/1.0"})
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
+            data = json.loads(resp.read().decode())
+            for f in data.get("features", []):
+                coords = f.get("geometry", {}).get("coordinates", [0, 0])
+                lon_f, lat_f = coords[0], coords[1]
+                p = f.get("properties", {})
+                name = p.get("name") or p.get("street") or p.get("city") or query
+                parts = [p.get("name"), p.get("street"), p.get("district"), p.get("city"), p.get("state"), p.get("country")]
+                unique_parts = []
+                for pt in parts:
+                    if pt and pt not in unique_parts:
+                        unique_parts.append(str(pt))
+                display = ", ".join(unique_parts) or name
+                d_km = haversine_km(assi_lat, assi_lon, lat_f, lon_f)
+                results.append({
+                    "name": name,
+                    "display_name": display,
+                    "lat": lat_f,
+                    "lon": lon_f,
+                    "distance_km": round(d_km, 2),
+                    "distance_label": f"{d_km:.1f} km from Assi Sector" if d_km >= 1.0 else f"{int(d_km * 1000)}m from Assi Sector",
+                    "in_danger_zone": d_km <= 2.0
+                })
+    except Exception as e:
+        print(f"[LocationSearch] Photon error: {e}")
 
-    # Optional Nominatim query for custom typed queries
-    if len(results) < 8 and len(query) >= 3:
+    # 2. Secondary fallback: Nominatim OSM
+    if not results:
         try:
-            import httpx
-            async with httpx.AsyncClient(timeout=2.0) as client:
-                resp = await client.get(
-                    "https://nominatim.openstreetmap.org/search",
-                    params={"format": "json", "q": q, "countrycodes": "in", "limit": 5},
-                    headers={"User-Agent": "CoastGuardAI-LocationService/1.0"}
-                )
-                if resp.status_code == 200:
-                    for item in resp.json():
-                        lat_f = float(item["lat"])
-                        lon_f = float(item["lon"])
-                        d_km = haversine_km(assi_lat, assi_lon, lat_f, lon_f)
-                        if not any(abs(r["lat"] - lat_f) < 0.001 and abs(r["lon"] - lon_f) < 0.001 for r in results):
-                            name_short = item.get("name") or item["display_name"].split(",")[0]
-                            results.append({
-                                "name": f"{name_short}, India",
-                                "display_name": item["display_name"],
-                                "lat": lat_f,
-                                "lon": lon_f,
-                                "category": "Geocoded Address",
-                                "type": "geocoded",
-                                "distance_km": round(d_km, 2),
-                                "distance_label": f"{d_km:.1f} km from Assi Ghat" if d_km >= 1.0 else f"{int(d_km * 1000)}m from Assi Ghat",
-                                "in_danger_zone": d_km <= 2.0
-                            })
-        except Exception:
-            pass
+            import urllib.request
+            import urllib.parse
+            import json
 
-    return JSONResponse(content={"query": q, "count": len(results), "results": results[:12]})
+            url = f"https://nominatim.openstreetmap.org/search?format=json&q={urllib.parse.quote(query)}&countrycodes=in&limit=8"
+            req = urllib.request.Request(url, headers={"User-Agent": "CoastGuardLocationApp/1.0 (contact@coastguard.ai)"})
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
+                data = json.loads(resp.read().decode())
+                for item in data:
+                    lat_f = float(item["lat"])
+                    lon_f = float(item["lon"])
+                    d_km = haversine_km(assi_lat, assi_lon, lat_f, lon_f)
+                    name_short = item.get("name") or item["display_name"].split(",")[0]
+                    results.append({
+                        "name": name_short,
+                        "display_name": item["display_name"],
+                        "lat": lat_f,
+                        "lon": lon_f,
+                        "distance_km": round(d_km, 2),
+                        "distance_label": f"{d_km:.1f} km from Assi Sector" if d_km >= 1.0 else f"{int(d_km * 1000)}m from Assi Sector",
+                        "in_danger_zone": d_km <= 2.0
+                    })
+        except Exception as e:
+            print(f"[LocationSearch] Nominatim fallback error: {e}")
+
+    return JSONResponse(content={"query": query, "count": len(results), "results": results[:10]})
 
 
 @app.get("/api/tourist/status")

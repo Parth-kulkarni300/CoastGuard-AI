@@ -451,46 +451,9 @@ function MiniVisualRadar({
 // ─────────────────────────────────────────────
 
 // ─────────────────────────────────────────────
-// Quick Distance Presets & Location Search Modal
 // ─────────────────────────────────────────────
-const QUICK_SIMULATION_SPOTS = [
-  {
-    name: 'Assi Ghat, Varanasi',
-    display: 'Assi Ghat (Ground Zero · 0m)',
-    lat: 25.2974,
-    lon: 83.0064,
-    inRange: true
-  },
-  {
-    name: 'Dashashwamedh Ghat, Varanasi',
-    display: 'Dashashwamedh Ghat (1.2 km)',
-    lat: 25.3076,
-    lon: 83.0104,
-    inRange: true
-  },
-  {
-    name: 'Namo Ghat (Rajghat), Varanasi',
-    display: 'Namo Ghat (3.8 km away)',
-    lat: 25.3340,
-    lon: 83.0410,
-    inRange: false
-  },
-  {
-    name: 'BHU Lanka Gate, Varanasi',
-    display: 'BHU Lanka (5.7 km away)',
-    lat: 25.2780,
-    lon: 82.9995,
-    inRange: false
-  },
-  {
-    name: 'Marine Drive, Mumbai',
-    display: 'Marine Drive Mumbai (1,400 km)',
-    lat: 18.9438,
-    lon: 72.8232,
-    inRange: false
-  }
-]
-
+// Universal Real-Time Location Search Modal (Any Indian Location / Station / Address)
+// ─────────────────────────────────────────────
 function LocationSearchModal({
   isOpen,
   onClose,
@@ -510,22 +473,103 @@ function LocationSearchModal({
   const [results, setResults] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
+  // Real-time universal search as user types
   useEffect(() => {
     if (!isOpen) return
+    const q = searchQuery.trim()
+    if (q.length < 2) {
+      setResults([])
+      setLoading(false)
+      return
+    }
+
     const timer = setTimeout(async () => {
       setLoading(true)
+      let found: any[] = []
+
+      // 1. Primary: Direct Photon OpenStreetMap Search (Ultra-fast, stations, ghats, pan-India)
       try {
-        const res = await fetch(`/api/location/search?q=${encodeURIComponent(searchQuery)}`)
+        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=10`)
         if (res.ok) {
           const data = await res.json()
-          setResults(data.results || [])
+          if (data && Array.isArray(data.features) && data.features.length > 0) {
+            found = data.features.map((f: any) => {
+              const coords = f.geometry?.coordinates || [0, 0]
+              const lon = coords[0]
+              const lat = coords[1]
+              const p = f.properties || {}
+              const name = p.name || p.street || p.city || q
+              const parts = [p.name, p.street, p.district, p.city, p.state, p.country].filter(Boolean)
+              const uniqueParts = parts.filter((item: string, pos: number) => parts.indexOf(item) === pos)
+              const displayName = uniqueParts.join(', ') || name
+              const dMeters = calculateHaversineDistance(25.2974, 83.0064, lat, lon)
+              const dKm = dMeters / 1000
+
+              return {
+                name,
+                display_name: displayName,
+                lat,
+                lon,
+                distance_km: Math.round(dKm * 10) / 10,
+                distance_label: dKm < 1 ? `${Math.round(dMeters)}m from Assi Sector` : `${dKm.toFixed(1)} km from Assi Sector`,
+                in_danger_zone: dMeters <= 2000
+              }
+            })
+          }
         }
-      } catch (e) {
-        console.error('Failed to search locations:', e)
-      } finally {
-        setLoading(false)
+      } catch (err) {
+        console.warn('Photon direct fetch failed, trying local proxy:', err)
       }
+
+      // 2. Secondary: Backend Universal Search Proxy
+      if (found.length === 0) {
+        try {
+          const res = await fetch(`/api/location/search?q=${encodeURIComponent(q)}`)
+          if (res.ok) {
+            const data = await res.json()
+            if (data && Array.isArray(data.results) && data.results.length > 0) {
+              found = data.results
+            }
+          }
+        } catch (err) {
+          console.warn('Backend location search failed:', err)
+        }
+      }
+
+      // 3. Tertiary Fallback: Nominatim OpenStreetMap
+      if (found.length === 0) {
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=in&limit=8`)
+          if (res.ok) {
+            const data = await res.json()
+            if (Array.isArray(data)) {
+              found = data.map((item: any) => {
+                const lat = parseFloat(item.lat)
+                const lon = parseFloat(item.lon)
+                const dMeters = calculateHaversineDistance(25.2974, 83.0064, lat, lon)
+                const dKm = dMeters / 1000
+                const shortName = item.name || item.display_name.split(',')[0]
+                return {
+                  name: shortName,
+                  display_name: item.display_name,
+                  lat,
+                  lon,
+                  distance_km: Math.round(dKm * 10) / 10,
+                  distance_label: dKm < 1 ? `${Math.round(dMeters)}m from Assi Sector` : `${dKm.toFixed(1)} km from Assi Sector`,
+                  in_danger_zone: dMeters <= 2000
+                }
+              })
+            }
+          }
+        } catch (err) {
+          console.error('All geocoding fallbacks failed:', err)
+        }
+      }
+
+      setResults(found)
+      setLoading(false)
     }, 200)
+
     return () => clearTimeout(timer)
   }, [searchQuery, isOpen])
 
@@ -551,7 +595,7 @@ function LocationSearchModal({
           background: '#ffffff',
           borderRadius: '20px',
           width: '100%',
-          maxWidth: '460px',
+          maxWidth: '480px',
           maxHeight: '85vh',
           display: 'flex',
           flexDirection: 'column',
@@ -574,10 +618,10 @@ function LocationSearchModal({
         >
           <div>
             <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>📍</span> Choose Emergency Grid Location
+              <span>📍</span> Choose Location
             </div>
             <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-              Search Indian ghat, riverbank, beach, or address to test geofencing
+              Search any railway station, city, ghat, beach, or street address
             </div>
           </div>
           <button
@@ -600,7 +644,7 @@ function LocationSearchModal({
           </button>
         </div>
 
-        {/* Live GPS Action Pill */}
+        {/* Live Device GPS Option */}
         <div style={{ padding: '12px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
           <button
             type="button"
@@ -637,10 +681,10 @@ function LocationSearchModal({
               </div>
               <div style={{ textAlign: 'left' }}>
                 <strong style={{ fontSize: '12.5px', color: isLiveGPS ? '#047857' : '#1e293b', display: 'block' }}>
-                  🟢 Use Real Device Live GPS
+                  🟢 Use My Device Live GPS
                 </strong>
                 <span style={{ fontSize: '10.5px', color: '#64748b' }}>
-                  Auto-detect satellite GPS coordinates from your device
+                  Auto-detect satellite GPS coordinates from device
                 </span>
               </div>
             </div>
@@ -661,8 +705,8 @@ function LocationSearchModal({
           </button>
         </div>
 
-        {/* Search Input Bar (Google Maps style) */}
-        <div style={{ padding: '14px 20px 8px 20px' }}>
+        {/* Search Input Bar */}
+        <div style={{ padding: '14px 20px' }}>
           <div
             style={{
               display: 'flex',
@@ -671,7 +715,7 @@ function LocationSearchModal({
               background: '#f8fafc',
               border: '1.5px solid #cbd5e1',
               borderRadius: '12px',
-              padding: '8px 12px'
+              padding: '10px 14px'
             }}
           >
             <Search style={{ width: '18px', height: '18px', color: '#64748b', flexShrink: 0 }} />
@@ -679,13 +723,13 @@ function LocationSearchModal({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Type ghat, beach, or city (e.g. Namo, Dashashwamedh, Mumbai)..."
+              placeholder="Type any location (e.g. Pune Station, Dadar, Assi Ghat, Marine Drive)..."
               style={{
                 border: 'none',
                 background: 'transparent',
                 outline: 'none',
                 width: '100%',
-                fontSize: '13px',
+                fontSize: '13.5px',
                 color: '#0f172a'
               }}
               autoFocus
@@ -696,107 +740,96 @@ function LocationSearchModal({
                 onClick={() => setSearchQuery('')}
                 style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
               >
-                <X style={{ width: '14px', height: '14px' }} />
+                <X style={{ width: '15px', height: '15px' }} />
               </button>
             )}
           </div>
         </div>
 
-        {/* Quick Testing Chips Bar */}
-        <div style={{ padding: '6px 20px 10px 20px', borderBottom: '1px solid #f1f5f9' }}>
-          <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#64748b', marginBottom: '6px' }}>
-            ⚡ QUICK DISTANCE SIMULATION (From Assi Ground Zero):
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-            {QUICK_SIMULATION_SPOTS.map((spot) => (
-              <button
-                key={spot.name}
-                type="button"
-                onClick={() => {
-                  onSelectLocation(spot.lat, spot.lon, spot.name)
-                  onClose()
-                }}
-                style={{
-                  padding: '5px 9px',
-                  borderRadius: '8px',
-                  border: spot.inRange ? '1px solid #fca5a5' : '1px solid #bbf7d0',
-                  background: spot.inRange ? '#fff1f2' : '#f0fdf4',
-                  color: spot.inRange ? '#be123c' : '#15803d',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
-                {spot.display} {spot.inRange ? '🚨' : '🛡️'}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Results List */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 20px 16px 20px' }}>
-          <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '6px' }}>
-            {loading ? 'Searching locations...' : `Suggested Locations (${results.length})`}
-          </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 16px 20px' }}>
+          {loading && (
+            <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+              ⏳ Searching live locations across India...
+            </div>
+          )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {results.map((loc, idx) => {
-              const isSelected = currentPlaceName === loc.name
-              return (
-                <button
-                  key={`${loc.name}-${idx}`}
-                  type="button"
-                  onClick={() => {
-                    onSelectLocation(loc.lat, loc.lon, loc.name)
-                    onClose()
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 12px',
-                    borderRadius: '10px',
-                    border: isSelected ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
-                    background: isSelected ? '#f0f9ff' : '#ffffff',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'all 0.15s'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', minWidth: 0, flex: 1 }}>
-                    <MapPin style={{ width: '16px', height: '16px', color: loc.in_danger_zone ? '#e11d48' : '#059669', marginTop: '2px', flexShrink: 0 }} />
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <strong style={{ fontSize: '12.5px', color: '#1e293b', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {loc.name}
-                      </strong>
-                      <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {loc.display_name}
+          {!loading && searchQuery.trim().length >= 2 && results.length === 0 && (
+            <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
+              No locations found matching &ldquo;{searchQuery}&rdquo;. Try checking the spelling.
+            </div>
+          )}
+
+          {!loading && searchQuery.trim().length < 2 && (
+            <div style={{ padding: '24px 12px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
+              🔍 Start typing any location, railway station, ghat, beach, or city in India to search...
+            </div>
+          )}
+
+          {!loading && results.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px' }}>
+                Matching Locations ({results.length})
+              </div>
+
+              {results.map((loc, idx) => {
+                const isSelected = currentPlaceName === loc.name
+                return (
+                  <button
+                    key={`${loc.name}-${idx}`}
+                    type="button"
+                    onClick={() => {
+                      onSelectLocation(loc.lat, loc.lon, loc.name)
+                      onClose()
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: isSelected ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
+                      background: isSelected ? '#f0f9ff' : '#ffffff',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', minWidth: 0, flex: 1 }}>
+                      <MapPin style={{ width: '16px', height: '16px', color: loc.in_danger_zone ? '#e11d48' : '#059669', marginTop: '2px', flexShrink: 0 }} />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <strong style={{ fontSize: '12.5px', color: '#1e293b', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {loc.name}
+                        </strong>
+                        <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {loc.display_name}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '10px' }}>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          fontSize: '9.5px',
+                          fontWeight: 800,
+                          padding: '2px 6px',
+                          borderRadius: '6px',
+                          background: loc.in_danger_zone ? '#ffe4e6' : '#dcfce7',
+                          color: loc.in_danger_zone ? '#b91c1c' : '#15803d'
+                        }}
+                      >
+                        {loc.in_danger_zone ? '🚨 Danger Radius (<2km)' : '🛡️ Safe Perimeter'}
                       </span>
+                      <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>
+                        {loc.distance_label}
+                      </div>
                     </div>
-                  </div>
-
-                  <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '10px' }}>
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        fontSize: '9.5px',
-                        fontWeight: 800,
-                        padding: '2px 6px',
-                        borderRadius: '6px',
-                        background: loc.in_danger_zone ? '#ffe4e6' : '#dcfce7',
-                        color: loc.in_danger_zone ? '#b91c1c' : '#15803d'
-                      }}
-                    >
-                      {loc.in_danger_zone ? '🚨 In Danger Radius' : '🛡️ Safe Perimeter'}
-                    </span>
-                    <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>
-                      {loc.distance_label}
-                    </div>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
