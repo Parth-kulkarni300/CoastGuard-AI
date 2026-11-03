@@ -1622,7 +1622,7 @@ function EmergencyCallModal({
   const tr = TRIAGE_LOCALES[lang] || TRIAGE_LOCALES.en
 
   const [callState, setCallState] = useState<'ringing' | 'connected'>(autoAccept ? 'connected' : 'ringing')
-  const [triageStep, setTriageStep] = useState<'advisory' | 'asking' | 'safe' | 'stuck'>('advisory')
+  const [triageStep, setTriageStep] = useState<'asking' | 'safe' | 'stuck'>('asking')
   const [countdown, setCountdown] = useState(15)
   const [voiceHeard, setVoiceHeard] = useState<string>('')
   const [isListeningVoice, setIsListeningVoice] = useState(false)
@@ -1632,7 +1632,6 @@ function EmergencyCallModal({
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const recognitionRef = useRef<any>(null)
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const advisoryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Synthesized telecom ringtone on mount if ringing
   useEffect(() => {
@@ -1693,7 +1692,6 @@ function EmergencyCallModal({
       isPlaying = false
       if (ringtoneRef.current) ringtoneRef.current.stop()
       if (audioRef.current) audioRef.current.pause()
-      if (advisoryTimeoutRef.current) clearTimeout(advisoryTimeoutRef.current)
       if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
       if (recognitionRef.current) {
         try { recognitionRef.current.stop() } catch {}
@@ -1757,11 +1755,11 @@ function EmergencyCallModal({
           setVoiceHeard(transcript)
 
           // Language-specific safe words
-          if (/yes|haan|ha|safe|surakshit|theek|thik|fine|aam|am|ho|accha|okay|sari|thik/i.test(transcript)) {
+          if (/yes|haan|ha|safe|surakshit|theek|thik|fine|aam|am|ho|accha|okay|sari|surakshit aahe/i.test(transcript)) {
             handleSafe()
           }
           // Language-specific stuck / emergency words
-          else if (/help|no|nahi|madad|stuck|fasa|fas|trapped|bachao|illai|na|danger|uthavi|sahajjo|adaklo/i.test(transcript)) {
+          else if (/help|no|nahi|madad|stuck|fasa|fas|trapped|bachao|illai|na|danger|uthavi|sahajjo|adaklo|madat/i.test(transcript)) {
             handleStuck('voice_detected')
           }
         }
@@ -1788,78 +1786,31 @@ function EmergencyCallModal({
     }
   }, [triageStep, lang])
 
-  // Step 1: Play Advisory Voice Announcement Strictly In The Selected Language
+  // Play Full Emergency Audio with Warning + Spoken Question in Native Voice
   const startAdvisoryFlow = () => {
-    setTriageStep('advisory')
+    setTriageStep('asking')
     try {
       if (audioRef.current) {
         audioRef.current.pause()
       }
 
-      // Exact audio file / endpoint for the selected language
-      let audioUrl = ''
-      if (lang === 'en') {
-        audioUrl = '/audio/timbre_advisory_en_danger.wav'
-      } else if (lang === 'hi') {
-        audioUrl = '/audio/timbre_advisory_hi_danger.wav'
-      } else {
-        // Marathi, Tamil, Bengali: Dynamic Gnani Timbre multi-lingual TTS
-        audioUrl = `/api/tourist/tts?lang=${lang}&status=danger`
-      }
-
+      // Pre-rendered complete audio with warning AND question:
+      // Marathi: "सावधान! नाविक मित्रांनी पाण्यात अचानक प्रवाह वाढल्याचा इशारा दिला आहे... तुम्ही सुरक्षित ठिकाणी आहात का? बोला हो, किंवा मदत हवी आहे."
+      const audioUrl = `/audio/timbre_advisory_${lang}_danger.mp3`
       const audio = new Audio(audioUrl)
       audio.volume = 1.0
       audioRef.current = audio
 
-      const proceedToAsking = () => {
-        setTriageStep('asking')
-        speakTriageQuestion()
-      }
-
-      audio.onended = () => {
-        proceedToAsking()
-      }
-
       const promise = audio.play()
       if (promise !== undefined) {
         promise.catch(() => {
-          // Fallback to browser SpeechSynthesis strictly in the selected language
-          if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-            window.speechSynthesis.cancel()
-            const utterance = new SpeechSynthesisUtterance(t.advisoryDanger)
-            utterance.lang = tr.voiceLocale
-            utterance.onend = () => proceedToAsking()
-            window.speechSynthesis.speak(utterance)
-          } else {
-            advisoryTimeoutRef.current = setTimeout(proceedToAsking, 4500)
-          }
+          // Fallback to API endpoint
+          const fallbackAudio = new Audio(`/api/tourist/tts?lang=${lang}&status=danger`)
+          fallbackAudio.play().catch(() => {})
         })
       }
-
-      // Safety fallback timer if audio stalls
-      advisoryTimeoutRef.current = setTimeout(() => {
-        setTriageStep((prev) => {
-          if (prev === 'advisory') {
-            speakTriageQuestion()
-            return 'asking'
-          }
-          return prev
-        })
-      }, 5500)
-    } catch {
-      speakTriageQuestion()
-      setTriageStep('asking')
-    }
-  }
-
-  // Speak the conversational triage question strictly in the chosen language
-  const speakTriageQuestion = () => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel()
-      const utterance = new SpeechSynthesisUtterance(tr.spokenQuestion)
-      utterance.lang = tr.voiceLocale
-      utterance.rate = 1.0
-      window.speechSynthesis.speak(utterance)
+    } catch (e) {
+      console.warn('Audio play notice:', e)
     }
   }
 
@@ -1872,9 +1823,6 @@ function EmergencyCallModal({
   const declineCall = () => {
     if (ringtoneRef.current) ringtoneRef.current.stop()
     if (audioRef.current) audioRef.current.pause()
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel()
-    }
     close()
   }
 
@@ -1884,19 +1832,13 @@ function EmergencyCallModal({
     if (recognitionRef.current) {
       try { recognitionRef.current.stop() } catch {}
     }
+    if (audioRef.current) audioRef.current.pause()
     setTriageStep('safe')
-
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel()
-      const u = new SpeechSynthesisUtterance(tr.spokenSafeAck)
-      u.lang = tr.voiceLocale
-      window.speechSynthesis.speak(u)
-    }
 
     if (onConfirmedSafe) onConfirmedSafe()
     setTimeout(() => {
       close()
-    }, 2000)
+    }, 2200)
   }
 
   // Tourist reports STUCK or 15s timeout
@@ -1905,6 +1847,7 @@ function EmergencyCallModal({
     if (recognitionRef.current) {
       try { recognitionRef.current.stop() } catch {}
     }
+    if (audioRef.current) audioRef.current.pause()
     setTriageStep('stuck')
 
     // Dispatches SOS alert to nearest boatmen via backend
@@ -1919,14 +1862,6 @@ function EmergencyCallModal({
     fd.append('location_name', location?.placeName || placeName)
     fetch('/api/tourist/sos', { method: 'POST', body: fd }).catch(() => {})
 
-    // Voice announcement strictly in the selected language
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel()
-      const u = new SpeechSynthesisUtterance(tr.spokenStuckAck)
-      u.lang = tr.voiceLocale
-      window.speechSynthesis.speak(u)
-    }
-
     if (onSos) onSos()
   }
 
@@ -1936,8 +1871,8 @@ function EmergencyCallModal({
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        background: 'rgba(5, 10, 18, 0.95)',
-        backdropFilter: 'blur(14px)',
+        background: 'rgba(3, 7, 18, 0.88)',
+        backdropFilter: 'blur(20px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -1946,64 +1881,69 @@ function EmergencyCallModal({
     >
       <style>{`
         @keyframes ringPulse {
-          0% { transform: scale(0.9); opacity: 0.9; }
-          50% { transform: scale(1.3); opacity: 0.15; }
-          100% { transform: scale(0.9); opacity: 0.9; }
+          0% { transform: scale(0.95); opacity: 0.9; }
+          50% { transform: scale(1.35); opacity: 0.15; }
+          100% { transform: scale(0.95); opacity: 0.9; }
         }
         @keyframes waveScale {
           0% { transform: scaleY(0.25); }
           100% { transform: scaleY(1.0); }
         }
-        @keyframes strobePulse {
-          0%, 100% { box-shadow: 0 0 15px rgba(255, 51, 68, 0.4); }
-          50% { box-shadow: 0 0 35px rgba(255, 51, 68, 0.9); }
+        @keyframes softBeacon {
+          0%, 100% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); }
+          50% { box-shadow: 0 0 45px rgba(239, 68, 68, 0.85); }
         }
       `}</style>
 
+      {/* Main Calling Card */}
       <section
         style={{
-          background: '#09121d',
-          border: callState === 'ringing' ? '2px solid #ff3344' : (triageStep === 'stuck' ? '2px solid #ff2233' : '1px solid #00d4ff'),
-          borderRadius: '20px',
-          maxWidth: '400px',
+          background: 'linear-gradient(180deg, #0d1726 0%, #080f1a 100%)',
+          border: callState === 'ringing'
+            ? '2px solid rgba(239, 68, 68, 0.8)'
+            : (triageStep === 'stuck' ? '2px solid rgba(239, 68, 68, 0.9)' : '1.5px solid rgba(14, 165, 233, 0.6)'),
+          borderRadius: '24px',
+          maxWidth: '430px',
           width: '100%',
           padding: '24px 20px',
-          textAlign: 'center',
           color: '#ffffff',
-          boxShadow: callState === 'ringing' ? '0 0 50px rgba(255, 51, 68, 0.35)' : '0 0 35px rgba(0, 212, 255, 0.2)',
+          boxShadow: callState === 'ringing'
+            ? '0 25px 60px rgba(239, 68, 68, 0.35)'
+            : '0 25px 60px rgba(0, 0, 0, 0.6)',
           position: 'relative',
           overflow: 'hidden'
         }}
         role="dialog"
         aria-modal="true"
       >
-        {/* Top Priority Badge */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '14px' }}>
-          <span
-            style={{
-              fontSize: '10px',
-              fontWeight: 800,
-              letterSpacing: '0.06em',
-              padding: '3px 10px',
-              borderRadius: '6px',
-              background: callState === 'ringing' ? 'rgba(255, 51, 68, 0.25)' : (triageStep === 'stuck' ? '#ff3344' : 'rgba(0, 230, 118, 0.2)'),
-              color: callState === 'ringing' ? '#ff4455' : (triageStep === 'stuck' ? '#ffffff' : '#00e676'),
-              border: callState === 'ringing' ? '1px solid #ff3344' : '1px solid #00e676'
-            }}
-          >
-            {callState === 'ringing' ? tr.headerBadge : (triageStep === 'stuck' ? tr.stuckScreenTitle : (triageStep === 'safe' ? tr.safeScreenTitle : tr.step2Tag))}
-          </span>
+        {/* Top Telecom Broadcast Bar */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span
+              style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: callState === 'ringing' ? '#ef4444' : '#10b981',
+                animation: 'ringPulse 1.5s infinite'
+              }}
+            />
+            <span style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '0.06em', color: callState === 'ringing' ? '#fca5a5' : '#6ee7b7' }}>
+              {callState === 'ringing' ? '🔴 112 DISASTER INCOMING' : `🟢 00:${String(duration).padStart(2, '0')} · LIVE VOICE GRID`}
+            </span>
+          </div>
+
           <span
             style={{
               fontSize: '10px',
               fontWeight: 700,
-              padding: '3px 8px',
+              padding: '2px 8px',
               borderRadius: '6px',
               background: 'rgba(255, 255, 255, 0.08)',
               color: '#94a3b8'
             }}
           >
-            {tr.gridTag}
+            GNANI TIMBRE AI
           </span>
         </div>
 
@@ -2013,9 +1953,9 @@ function EmergencyCallModal({
             <div
               style={{
                 position: 'relative',
-                width: '78px',
-                height: '78px',
-                margin: '0 auto 16px',
+                width: '84px',
+                height: '84px',
+                margin: '8px auto 18px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -2024,45 +1964,54 @@ function EmergencyCallModal({
               <div
                 style={{
                   position: 'absolute',
-                  inset: -12,
+                  inset: -16,
                   borderRadius: '50%',
-                  background: 'rgba(255, 51, 68, 0.25)',
+                  background: 'rgba(239, 68, 68, 0.25)',
                   animation: 'ringPulse 1.8s infinite'
                 }}
               />
               <div
                 style={{
-                  width: '68px',
-                  height: '68px',
+                  width: '74px',
+                  height: '74px',
                   borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #ff3344, #cc1122)',
+                  background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 0 30px rgba(255, 51, 68, 0.65)'
+                  boxShadow: '0 0 35px rgba(239, 68, 68, 0.7)'
                 }}
               >
-                <PhoneCall style={{ width: '32px', height: '32px', color: '#fff' }} />
+                <PhoneCall style={{ width: '34px', height: '34px', color: '#fff' }} />
               </div>
             </div>
 
-            <h2 style={{ fontSize: '18px', fontWeight: 900, margin: '0 0 4px', color: '#ffffff' }}>
-              Boat #14 · {boatmanName}
-            </h2>
-            <p style={{ fontSize: '12.5px', color: '#94a3b8', margin: '0 0 4px', fontWeight: 600 }}>
-              {t.callSector(placeName)}
-            </p>
-            <div style={{
-              background: 'rgba(255, 51, 68, 0.12)',
-              border: '1px solid rgba(255, 51, 68, 0.35)',
-              borderRadius: '8px',
-              padding: '6px 10px',
-              margin: '8px 0 18px',
-              fontSize: '11px',
-              color: '#ff6677',
-              fontWeight: 700
-            }}>
-              {tr.dangerAdvisoryTag}
+            <div style={{ textAlign: 'center' }}>
+              <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                River Rescue Disaster Command
+              </span>
+              <h2 style={{ fontSize: '20px', fontWeight: 900, margin: '4px 0 2px', color: '#ffffff' }}>
+                Boat #14 · {boatmanName}
+              </h2>
+              <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 12px', fontWeight: 600 }}>
+                {t.callSector(placeName)} · High Surge Warning
+              </p>
+            </div>
+
+            <div
+              style={{
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                borderRadius: '12px',
+                padding: '10px 12px',
+                margin: '12px 0 20px',
+                fontSize: '11.5px',
+                color: '#fca5a5',
+                fontWeight: 700,
+                textAlign: 'center'
+              }}
+            >
+              ⚠️ {tr.dangerAdvisoryTag}
             </div>
 
             {/* Answer / Decline Buttons */}
@@ -2071,12 +2020,12 @@ function EmergencyCallModal({
                 type="button"
                 onClick={declineCall}
                 style={{
-                  background: 'rgba(255, 51, 68, 0.15)',
-                  border: '1px solid rgba(255, 51, 68, 0.45)',
-                  color: '#ff4455',
-                  padding: '12px',
-                  borderRadius: '14px',
-                  fontSize: '13px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1.5px solid rgba(239, 68, 68, 0.5)',
+                  color: '#f87171',
+                  padding: '14px',
+                  borderRadius: '16px',
+                  fontSize: '13.5px',
                   fontWeight: 800,
                   cursor: 'pointer',
                   display: 'flex',
@@ -2085,203 +2034,200 @@ function EmergencyCallModal({
                   gap: '8px'
                 }}
               >
-                <PhoneOff style={{ width: '16px' }} /> {t.callDecline}
+                <PhoneOff style={{ width: '18px', height: '18px' }} /> {t.callDecline}
               </button>
+
               <button
                 type="button"
                 onClick={acceptCall}
                 style={{
-                  background: 'linear-gradient(135deg, #00e676, #00b050)',
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
                   border: 'none',
-                  color: '#002812',
-                  padding: '12px',
-                  borderRadius: '14px',
-                  fontSize: '13px',
+                  color: '#ffffff',
+                  padding: '14px',
+                  borderRadius: '16px',
+                  fontSize: '13.5px',
                   fontWeight: 900,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 20px rgba(0, 230, 118, 0.4)'
+                  boxShadow: '0 6px 25px rgba(16, 185, 129, 0.45)'
                 }}
               >
-                <PhoneCall style={{ width: '16px' }} /> {t.callAccept}
+                <PhoneCall style={{ width: '18px', height: '18px' }} /> {t.callAccept}
               </button>
             </div>
           </>
         ) : (
           <>
-            {/* Active Call Header */}
-            <div style={{ margin: '4px 0 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#00e676' }} />
-                <span style={{ fontSize: '12px', color: '#00e676', fontWeight: 800 }}>
-                  00:{String(duration).padStart(2, '0')} · {t.callActiveChannel}
+            {/* Caller Identification Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+              <div
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '50%',
+                  background: triageStep === 'stuck' ? 'linear-gradient(135deg, #ef4444, #991b1b)' : 'linear-gradient(135deg, #0284c7, #0369a1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '22px',
+                  flexShrink: 0,
+                  boxShadow: '0 0 20px rgba(2, 132, 199, 0.5)'
+                }}
+              >
+                {triageStep === 'stuck' ? '🚨' : '📡'}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <strong style={{ fontSize: '14px', color: '#ffffff', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {boatmanName} (Boat #14) · River Patrol
+                </strong>
+                <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>
+                  📍 {placeName} · Sovereign Audio Channel
                 </span>
               </div>
-              <span style={{ fontSize: '11px', color: '#94a3b8' }}>
-                Boat #14 ({boatmanName})
-              </span>
             </div>
 
-            {/* Pulsing Audio Waveform Visualizer */}
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', height: '30px', margin: '10px 0' }}>
-              {[0.3, 0.85, 0.55, 1.0, 0.45, 0.9, 0.35].map((scale, i) => (
+            {/* Audio Waveform Equalizer */}
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px', height: '24px', marginBottom: '14px' }}>
+              {[0.3, 0.8, 0.5, 1.0, 0.4, 0.9, 0.6, 0.75, 0.35].map((scale, i) => (
                 <span
                   key={i}
                   style={{
-                    width: '4px',
-                    height: '24px',
+                    width: '3.5px',
+                    height: '22px',
                     borderRadius: '2px',
-                    background: triageStep === 'stuck' ? '#ff3344' : '#00e676',
+                    background: triageStep === 'stuck' ? '#ef4444' : '#10b981',
                     transform: `scaleY(${scale})`,
-                    animation: `waveScale 0.8s ease-in-out infinite alternate`,
-                    animationDelay: `${i * 0.12}s`
+                    animation: 'waveScale 0.75s ease-in-out infinite alternate',
+                    animationDelay: `${i * 0.08}s`
                   }}
                 />
               ))}
             </div>
 
-            {/* STEP 1: Spoken Advisory Phase */}
-            {triageStep === 'advisory' && (
-              <div
-                style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '14px',
-                  padding: '14px',
-                  margin: '12px 0',
-                  textAlign: 'left'
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#00d4ff', letterSpacing: '0.08em' }}>
-                    {tr.step1Tag}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (advisoryTimeoutRef.current) clearTimeout(advisoryTimeoutRef.current)
-                      setTriageStep('asking')
-                      speakTriageQuestion()
-                    }}
-                    style={{
-                      background: 'rgba(0, 212, 255, 0.15)',
-                      border: '1px solid #00d4ff',
-                      color: '#00d4ff',
-                      borderRadius: '6px',
-                      padding: '2px 8px',
-                      fontSize: '10px',
-                      fontWeight: 800,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {tr.skipToTriage}
-                  </button>
-                </div>
-                <p style={{ fontSize: '13px', lineHeight: '1.45', margin: 0, color: '#f0f5f8', fontWeight: 500 }}>
-                  "{t.advisoryDanger}"
-                </p>
-                <div style={{ marginTop: '10px', fontSize: '10.5px', color: '#94a3b8', fontStyle: 'italic' }}>
-                  {tr.audioPlayingNotice}
-                </div>
-              </div>
-            )}
-
-            {/* STEP 2: Conversational Triage Question ("Are you safe?") */}
+            {/* STEP: Asking / Conversational Triage */}
             {triageStep === 'asking' && (
-              <div style={{ margin: '12px 0' }}>
-                {/* Triage Question Banner (Strictly in the selected language) */}
+              <div>
+                {/* Spoken Teleprompter Box */}
                 <div
                   style={{
-                    background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(9, 18, 29, 0.8))',
-                    border: '1.5px solid #00d4ff',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
                     borderRadius: '14px',
+                    padding: '12px 14px',
+                    marginBottom: '14px'
+                  }}
+                >
+                  <div style={{ fontSize: '10px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.06em' }}>
+                    🎙️ Voice Advisory Broadcast
+                  </div>
+                  <p style={{ fontSize: '12.5px', lineHeight: '1.45', margin: 0, color: '#f1f5f9', fontWeight: 500 }}>
+                    &ldquo;{t.advisoryDanger}&rdquo;
+                  </p>
+                </div>
+
+                {/* Question Callout */}
+                <div
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(8, 15, 26, 0.9))',
+                    border: '1.5px solid #0284c7',
+                    borderRadius: '16px',
                     padding: '14px',
-                    marginBottom: '12px',
+                    marginBottom: '14px',
                     textAlign: 'center'
                   }}
                 >
-                  <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#00d4ff', letterSpacing: '0.06em' }}>
-                    {tr.step2Tag}
+                  <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#38bdf8', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                    ❓ {tr.step2Tag}
                   </span>
-                  <h3 style={{ fontSize: '17px', fontWeight: 900, margin: '8px 0 4px', color: '#ffffff' }}>
-                    "{tr.questionText}"
+                  <h3 style={{ fontSize: '17px', fontWeight: 900, margin: '6px 0 2px', color: '#ffffff' }}>
+                    &ldquo;{tr.questionText}&rdquo;
                   </h3>
-                  <div style={{ fontSize: '13px', color: '#00d4ff', fontWeight: 700 }}>
+                  <div style={{ fontSize: '12.5px', color: '#38bdf8', fontWeight: 700 }}>
                     {tr.instructionText}
                   </div>
 
-                  {/* Auto-dispatch countdown */}
+                  {/* 15s Countdown Meter */}
                   <div
                     style={{
-                      marginTop: '10px',
+                      marginTop: '8px',
                       padding: '4px 8px',
-                      borderRadius: '6px',
-                      background: 'rgba(255, 51, 68, 0.15)',
-                      border: '1px solid rgba(255, 51, 68, 0.4)',
+                      borderRadius: '8px',
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      border: '1px solid rgba(239, 68, 68, 0.35)',
                       fontSize: '11px',
                       fontWeight: 700,
-                      color: '#ff6677'
+                      color: '#f87171'
                     }}
                   >
                     {tr.countdownText(countdown)}
                   </div>
-
-                  {/* Hands-free voice recognition listener pill */}
-                  <div style={{ marginTop: '8px', fontSize: '10.5px', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isListeningVoice ? '#00e676' : '#ffaa00' }} />
-                    <span>
-                      {isListeningVoice ? tr.micListening : tr.tapPrompt}
-                    </span>
-                  </div>
-                  {voiceHeard && (
-                    <div style={{ marginTop: '4px', fontSize: '10px', color: '#00d4ff', fontStyle: 'italic' }}>
-                      Heard: "{voiceHeard}"...
-                    </div>
-                  )}
                 </div>
 
-                {/* Two Large High-Contrast Decision Cards (Strictly in the selected language) */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
-                  {/* Option A: SAFE */}
+                {/* Voice Recognition Status Pill */}
+                {isListeningVoice && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '6px 12px',
+                      borderRadius: '20px',
+                      background: 'rgba(14, 165, 233, 0.1)',
+                      border: '1px solid rgba(14, 165, 233, 0.3)',
+                      marginBottom: '12px',
+                      fontSize: '11px',
+                      color: '#38bdf8',
+                      fontWeight: 700
+                    }}
+                  >
+                    <Mic style={{ width: '13px', height: '13px', animation: 'ringPulse 1.2s infinite' }} />
+                    <span>{voiceHeard ? `Heard: "${voiceHeard}"` : tr.micListening}</span>
+                  </div>
+                )}
+
+                {/* Tactile Response Buttons */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {/* Button 1: SAFE */}
                   <button
                     type="button"
                     onClick={handleSafe}
                     style={{
-                      background: 'linear-gradient(135deg, rgba(0, 230, 118, 0.2), rgba(0, 160, 80, 0.35))',
-                      border: '2px solid #00e676',
+                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.4))',
+                      border: '2px solid #10b981',
                       borderRadius: '14px',
                       padding: '12px 14px',
                       cursor: 'pointer',
                       textAlign: 'left',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between',
-                      transition: 'transform 0.15s ease'
+                      justifyContent: 'space-between'
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: '14px', fontWeight: 900, color: '#00e676' }}>
+                      <div style={{ fontSize: '14.5px', fontWeight: 900, color: '#34d399' }}>
                         {tr.safeButtonTitle}
                       </div>
                       <div style={{ fontSize: '10.5px', color: '#cbd5e1', marginTop: '2px' }}>
                         {tr.safeButtonSub}
                       </div>
                     </div>
-                    <span style={{ background: '#00e676', color: '#003314', fontSize: '11px', fontWeight: 900, padding: '4px 8px', borderRadius: '6px' }}>
+                    <span style={{ background: '#10b981', color: '#022c22', fontSize: '11px', fontWeight: 900, padding: '4px 8px', borderRadius: '6px' }}>
                       {tr.safeBadge}
                     </span>
                   </button>
 
-                  {/* Option B: STUCK / NEED HELP */}
+                  {/* Button 2: STUCK / NEED HELP */}
                   <button
                     type="button"
                     onClick={() => handleStuck('button_pressed')}
                     style={{
-                      background: 'linear-gradient(135deg, rgba(255, 51, 68, 0.25), rgba(180, 20, 30, 0.4))',
-                      border: '2px solid #ff3344',
+                      background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.28), rgba(185, 28, 28, 0.45))',
+                      border: '2px solid #ef4444',
                       borderRadius: '14px',
                       padding: '12px 14px',
                       cursor: 'pointer',
@@ -2289,18 +2235,18 @@ function EmergencyCallModal({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      animation: 'strobePulse 2s infinite'
+                      animation: 'softBeacon 2s infinite'
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: '14px', fontWeight: 900, color: '#ff4455' }}>
+                      <div style={{ fontSize: '14.5px', fontWeight: 900, color: '#f87171' }}>
                         {tr.stuckButtonTitle}
                       </div>
                       <div style={{ fontSize: '10.5px', color: '#cbd5e1', marginTop: '2px' }}>
                         {tr.stuckButtonSub}
                       </div>
                     </div>
-                    <span style={{ background: '#ff3344', color: '#ffffff', fontSize: '11px', fontWeight: 900, padding: '4px 8px', borderRadius: '6px' }}>
+                    <span style={{ background: '#ef4444', color: '#ffffff', fontSize: '11px', fontWeight: 900, padding: '4px 8px', borderRadius: '6px' }}>
                       {tr.stuckBadge}
                     </span>
                   </button>
@@ -2308,35 +2254,35 @@ function EmergencyCallModal({
               </div>
             )}
 
-            {/* STEP 3: Confirmed Safe View */}
+            {/* STEP: Safe View */}
             {triageStep === 'safe' && (
               <div
                 style={{
-                  background: 'rgba(0, 230, 118, 0.15)',
-                  border: '1.5px solid #00e676',
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  border: '1.5px solid #10b981',
                   borderRadius: '16px',
-                  padding: '20px 16px',
-                  margin: '14px 0',
+                  padding: '24px 16px',
+                  margin: '12px 0',
                   textAlign: 'center'
                 }}
               >
-                <div style={{ fontSize: '38px', marginBottom: '8px' }}>🛡️</div>
-                <h3 style={{ fontSize: '17px', fontWeight: 900, margin: '0 0 6px', color: '#00e676' }}>
+                <div style={{ fontSize: '42px', marginBottom: '8px' }}>🛡️</div>
+                <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '0 0 6px', color: '#34d399' }}>
                   {tr.safeScreenTitle}
                 </h3>
-                <p style={{ fontSize: '12px', color: '#cbd5e1', margin: '0 0 14px', lineHeight: '1.4' }}>
+                <p style={{ fontSize: '12px', color: '#cbd5e1', margin: '0 0 16px', lineHeight: '1.45' }}>
                   {tr.safeScreenDesc(boatmanName)}
                 </p>
                 <button
                   type="button"
                   onClick={close}
                   style={{
-                    background: '#00e676',
+                    background: '#10b981',
                     border: 'none',
-                    color: '#002e12',
-                    padding: '8px 18px',
-                    borderRadius: '8px',
-                    fontSize: '12px',
+                    color: '#022c22',
+                    padding: '10px 20px',
+                    borderRadius: '10px',
+                    fontSize: '12.5px',
                     fontWeight: 900,
                     cursor: 'pointer'
                   }}
@@ -2346,107 +2292,105 @@ function EmergencyCallModal({
               </div>
             )}
 
-            {/* STEP 4: Emergency SOS / Stuck View */}
+            {/* STEP: Stuck / Rescue Vessel Dispatched View */}
             {triageStep === 'stuck' && (
               <div
                 style={{
-                  background: 'linear-gradient(135deg, rgba(255, 51, 68, 0.25), rgba(30, 5, 10, 0.9))',
-                  border: '2px solid #ff3344',
-                  borderRadius: '16px',
-                  padding: '18px 14px',
-                  margin: '14px 0',
+                  background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(20, 5, 8, 0.95))',
+                  border: '2px solid #ef4444',
+                  borderRadius: '18px',
+                  padding: '20px 16px',
+                  margin: '12px 0',
                   textAlign: 'center'
                 }}
               >
-                <div style={{ fontSize: '36px', marginBottom: '6px' }}>🚨</div>
-                <h3 style={{ fontSize: '17px', fontWeight: 900, margin: '0 0 4px', color: '#ff4455' }}>
+                <div style={{ fontSize: '40px', marginBottom: '6px' }}>🚨</div>
+                <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '0 0 4px', color: '#f87171' }}>
                   {tr.stuckScreenTitle}
                 </h3>
-                <p style={{ fontSize: '12px', color: '#e2e8f0', margin: '0 0 10px', lineHeight: '1.4' }}>
+                <p style={{ fontSize: '12px', color: '#f1f5f9', margin: '0 0 12px', lineHeight: '1.45' }}>
                   {tr.stuckScreenDesc(boatmanName)}
                 </p>
 
+                {/* Nautical HUD vector box */}
                 <div
                   style={{
-                    background: 'rgba(0,0,0,0.5)',
-                    borderRadius: '8px',
-                    padding: '8px 10px',
-                    marginBottom: '12px',
+                    background: 'rgba(0, 0, 0, 0.6)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    borderRadius: '12px',
+                    padding: '10px 12px',
+                    marginBottom: '14px',
                     fontSize: '11px',
                     color: '#cbd5e1',
                     textAlign: 'left'
                   }}
                 >
-                  <div style={{ color: '#00d4ff', fontWeight: 800, marginBottom: '2px' }}>
+                  <div style={{ color: '#38bdf8', fontWeight: 800, marginBottom: '2px' }}>
                     {tr.stuckVectorTitle}
                   </div>
                   <div>{tr.stuckVectorSub}</div>
-                  <div style={{ color: '#94a3b8', fontSize: '10px', marginTop: '2px' }}>
-                    Target GPS: {(location?.lat || 25.3176).toFixed(5)}° N, {(location?.lon || 83.0060).toFixed(5)}° E
+                  <div style={{ color: '#94a3b8', fontSize: '10px', marginTop: '4px' }}>
+                    Live GPS Lock: {(location?.lat || 25.3176).toFixed(5)}° N, {(location?.lon || 83.0060).toFixed(5)}° E
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                {/* Action buttons */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <button
                     type="button"
                     onClick={close}
                     style={{
-                      background: '#00d4ff',
+                      background: '#0284c7',
                       border: 'none',
-                      color: '#001e28',
-                      padding: '10px',
-                      borderRadius: '10px',
-                      fontSize: '11.5px',
+                      color: '#ffffff',
+                      padding: '12px',
+                      borderRadius: '12px',
+                      fontSize: '12px',
                       fontWeight: 900,
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '4px'
+                      gap: '6px'
                     }}
                   >
-                    <Compass style={{ width: '14px', height: '14px' }} /> {tr.viewRadarBtn}
+                    <Compass style={{ width: '15px', height: '15px' }} /> {tr.viewRadarBtn}
                   </button>
+
                   <a
                     href="tel:112"
                     style={{
-                      background: '#ff3344',
-                      color: '#fff',
-                      padding: '10px',
-                      borderRadius: '10px',
-                      fontSize: '11.5px',
+                      background: '#ef4444',
+                      color: '#ffffff',
+                      padding: '12px',
+                      borderRadius: '12px',
+                      fontSize: '12px',
                       fontWeight: 900,
                       textDecoration: 'none',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '4px'
+                      gap: '6px'
                     }}
                   >
-                    <Phone style={{ width: '14px', height: '14px' }} /> {tr.dial112Btn}
+                    <Phone style={{ width: '15px', height: '15px' }} /> {tr.dial112Btn}
                   </a>
                 </div>
-              </div>
-            )}
 
-            {/* End Call Footer Button */}
-            {triageStep !== 'safe' && triageStep !== 'stuck' && (
-              <div style={{ marginTop: '14px' }}>
                 <button
                   type="button"
-                  onClick={declineCall}
+                  onClick={close}
                   style={{
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    background: 'transparent',
+                    border: 'none',
                     color: '#94a3b8',
-                    padding: '8px 16px',
-                    borderRadius: '10px',
-                    fontSize: '11.5px',
+                    fontSize: '11px',
                     fontWeight: 700,
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    marginTop: '10px'
                   }}
                 >
-                  <PhoneOff style={{ width: '13px', display: 'inline', marginRight: '6px' }} /> {tr.endCallBtn}
+                  {tr.endCallBtn}
                 </button>
               </div>
             )}
@@ -2456,7 +2400,6 @@ function EmergencyCallModal({
     </div>
   )
 }
-
 // ─────────────────────────────────────────────
 // 4. Tourist Dashboard (Customer View)
 // ─────────────────────────────────────────────
