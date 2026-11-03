@@ -1593,6 +1593,65 @@ const TRIAGE_LOCALES: Record<SupportedLang, TriageStrings> = {
 // ─────────────────────────────────────────────
 // 3.5. Interactive Conversational Emergency Call Modal (Strictly Localized)
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// Post-Triage Notifications (Red Warning Box & Auto-Dispatch)
+// ─────────────────────────────────────────────
+const STAY_AWAY_WARNINGS: Record<SupportedLang, { title: string; desc: string; badge: string }> = {
+  mr: {
+    title: '🔴 सावधान: नदीकाठ / पात्रापासून त्वरित दूर राहा!',
+    desc: 'प्रशासनाने व नाविक मित्रांनी जलस्तर वाढल्याचा इशारा दिला आहे. तुम्ही सुरक्षित असल्याचे नोंदवले आहे, परंतु कोणत्याही परिस्थितीत पुन्हा नदीपात्राजवळ किंवा पायऱ्यांवर जाऊ नका.',
+    badge: '✅ तुम्ही सुरक्षित नोंदवले (कॉल म्यूट आहेत)'
+  },
+  hi: {
+    title: '🔴 सावधान: नदी के तट / पानी से तुरंत दूर रहें!',
+    desc: 'प्रशासन एवं नाविकों ने जलस्तर में तेज बहाव की चेतावनी जारी की है। आप सुरक्षित दर्ज हैं, कृपया किसी भी स्थिति में दोबारा पानी या घाट की निचली सीढ़ियों पर न जाएं।',
+    badge: '✅ आप सुरक्षित दर्ज हैं (कॉल म्यूट हैं)'
+  },
+  en: {
+    title: '🔴 CRITICAL: STAY AWAY FROM WATER BANK & RIVER EDGE!',
+    desc: 'Authorities and boatmen have issued an urgent flash surge warning. Your safe status has been logged, but stay on high ground and do not approach the water under any circumstances.',
+    badge: '✅ Marked Safe by You (Calls Muted)'
+  },
+  ta: {
+    title: '🔴 எச்சரிக்கை: நதிக்கரை / நீர்நிலையை விட்டு உடனே விலகி இருங்கள்!',
+    desc: 'அதிகாரிகள் திடீர் நீர்வரத்து எச்சரிக்கை விடுத்துள்ளனர். உங்கள் பாதுகாப்பு பதிவு செய்யப்பட்டுள்ளது, தயவுசெய்து நீர்நிலைக்கு அருகில் செல்ல வேண்டாம்.',
+    badge: '✅ பாதுகாப்பு பதிவு செய்யப்பட்டது'
+  },
+  bn: {
+    title: '🔴 সতর্কতা: নদীর পাড় / জল থেকে অবিলম্বে দূরে থাকুন!',
+    desc: 'প্রশাসন তীব্র জলবৃদ্ধির সতর্কতা জারি করেছে। আপনার নিরাপত্তা নথিভুক্ত হয়েছে, দয়া করে কোনোভাবেই জলের কাছাকাছি যাবেন না।',
+    badge: '✅ নিরাপদ হিসেবে চিহ্নিত'
+  }
+}
+
+const AUTO_DISPATCH_NOTICES: Record<SupportedLang, { title: string; desc: string; hud: string }> = {
+  mr: {
+    title: '🚨 आणीबाणी मदत रवाना: तुम्ही प्रतिसाद न दिल्याने तात्काळ बोट पाठवली!',
+    desc: '१५ सेकंदात कोणताही प्रतिसाद न आल्याने आपत्कालीन सुरक्षा प्रोटोकॉलनुसार जवळच्या गस्ती बोटीला तुमचे अचूक GPS स्थान पाठवण्यात आले आहे.',
+    hud: 'बचाव बोट #14 (रामेश निषाद) कडे तुमचे थेट GPS पोहोचले आहे. शांत राहा, मदत येत आहे.'
+  },
+  hi: {
+    title: '🚨 आपातकालीन बचाव सक्रिय: 15 सेकंड मौन रहने पर स्वतः बोट रवाना!',
+    desc: '15 सेकंड तक उत्तर न मिलने पर सुरक्षा प्रोटोकॉल के तहत नजदीकी गश्ती नाव को आपका लाइव GPS स्थान भेज दिया गया है।',
+    hud: 'गश्ती नाव #14 (रमेश निषाद) को आपका स्थान मिल गया है। शांत रहें, सहायता आ रही है।'
+  },
+  en: {
+    title: '🚨 EMERGENCY RESCUE DISPATCHED: 15s Non-Response Auto-Dispatch!',
+    desc: 'No response detected for 15 seconds. Automatic emergency safety protocol has dispatched the nearest boat patrol to your live GPS location.',
+    hud: 'Patrol Vessel #14 has locked your coordinates. Stay calm, help is on the way.'
+  },
+  ta: {
+    title: '🚨 அவசர மீட்புப் படை அனுப்பப்பட்டது: 15 வினாடி தானியங்கி இயக்கம்!',
+    desc: '15 வினாடிகளில் பதில் வராததால் தானியங்கி மீட்பு நெறிமுறை செயல்படுத்தப்பட்டு அருகிலுள்ள ரோந்து படகுக்கு உங்கள் இருப்பிடம் அனுப்பப்பட்டுள்ளது.',
+    hud: 'மீட்பு படகு #14 உங்கள் இடத்தை அடைந்து வருகிறது. அமைதியாக இருங்கள்.'
+  },
+  bn: {
+    title: '🚨 জরুরি উদ্ধার অভিযান সক্রিয়: ১৫ সেকেন্ড সাড়া না পাওয়ায় নৌকা পাঠানো হয়েছে!',
+    desc: '১৫ সেকেন্ডের মধ্যে সাড়া না পাওয়ায় স্বয়ংক্রিয় প্রোটোকলের অধীনে কাছের টহল নৌকায় আপনার লাইভ GPS পাঠানো হয়েছে।',
+    hud: 'টহল নৌকা #14 আপনার অবস্থানের দিকে রওনা হয়েছে। সাহায্য আসছে।'
+  }
+}
+
 function EmergencyCallModal({
   close,
   placeName,
@@ -1826,29 +1885,25 @@ function EmergencyCallModal({
     close()
   }
 
-  // Tourist reports SAFE
+  // Tourist reports SAFE: Close call modal immediately and return to homescreen with prominent Red Warning Box!
   const handleSafe = () => {
     if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
     if (recognitionRef.current) {
       try { recognitionRef.current.stop() } catch {}
     }
     if (audioRef.current) audioRef.current.pause()
-    setTriageStep('safe')
 
     if (onConfirmedSafe) onConfirmedSafe()
-    setTimeout(() => {
-      close()
-    }, 2200)
+    close()
   }
 
-  // Tourist reports STUCK or 15s timeout
+  // Tourist reports STUCK or 15s timeout: Close modal immediately, return to homescreen, and notify Boatman/NDRF!
   const handleStuck = (reason?: string) => {
     if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
     if (recognitionRef.current) {
       try { recognitionRef.current.stop() } catch {}
     }
     if (audioRef.current) audioRef.current.pause()
-    setTriageStep('stuck')
 
     // Dispatches SOS alert to nearest boatmen via backend
     const fd = new FormData()
@@ -1863,6 +1918,7 @@ function EmergencyCallModal({
     fetch('/api/tourist/sos', { method: 'POST', body: fd }).catch(() => {})
 
     if (onSos) onSos()
+    close()
   }
 
   return (
@@ -2426,6 +2482,7 @@ function TouristDashboard({
   const [status, setStatus] = useState<Status>(initialStatus || 'safe')
   const [outOfRangeNotice, setOutOfRangeNotice] = useState<{ location: string; distanceKm: string } | null>(null)
   const [isVerifiedSafe, setIsVerifiedSafe] = useState(false)
+  const [sosAutoDispatched, setSosAutoDispatched] = useState(false)
   const [sos, setSos] = useState(false)
   const [showCallModal, setShowCallModal] = useState(false)
   const [callAutoAccept, setCallAutoAccept] = useState(false)
@@ -2948,51 +3005,160 @@ function TouristDashboard({
           </button>
         )}
 
-                {/* Tourist Verified Safe Status Pill */}
+                {/* PROMINENT RED WARNING BOX (Shown when tourist confirms "I am Safe") */}
         {isVerifiedSafe && (
-          <div
+          <section
             style={{
-              background: 'rgba(5, 150, 105, 0.12)',
-              border: '1.5px solid #059669',
-              borderRadius: '12px',
-              padding: '10px 14px',
-              marginBottom: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              fontSize: '12px',
-              color: '#065f46',
-              fontWeight: 700
+              background: '#fef2f2',
+              border: '2.5px solid #dc2626',
+              borderRadius: '16px',
+              padding: '16px 18px',
+              marginBottom: '16px',
+              boxShadow: '0 8px 24px rgba(220, 38, 38, 0.15)',
+              position: 'relative'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ShieldCheck style={{ width: '18px', height: '18px', color: '#059669', flexShrink: 0 }} />
-              <div>
-                <div style={{ fontWeight: 800 }}>
-                  {lang === 'hi' ? '✅ सुरक्षा स्थिति: सुरक्षित दर्ज' : (lang === 'mr' ? '✅ स्थिती: सुरक्षित नोंदवले' : (lang === 'ta' ? '✅ நிலை: பாதுகாப்பாக பதிவு செய்யப்பட்டது' : (lang === 'bn' ? '✅ স্থিতি: নিরাপদ হিসেবে চিহ্নিত' : "✅ Safety Status: Marked Safe by You")))}
-                </div>
-                <div style={{ fontSize: '10.5px', color: '#047857' }}>
-                  {lang === 'hi' ? 'रिवर पेट्रोल ने आपकी सुरक्षा दर्ज कर ली है। दोबारा कॉल म्यूट हैं।' : (lang === 'mr' ? 'रिव्हर पेट्रोलने नोंद घेतली आहे. कॉल म्यूट केले आहेत.' : (lang === 'ta' ? 'பாதுகாப்பு பதிவு செய்யப்பட்டது. எச்சரிக்கை முடக்கப்பட்டுள்ளது.' : (lang === 'bn' ? 'রিভার প্যাট্রোল নিরাপত্তা নথিভুক্ত করেছে। পুনরায় কল নিঃশব্দ।' : 'River Patrol logged your safety. Repeat emergency calls are muted.')))}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <div
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  background: '#fee2e2',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '20px',
+                  flexShrink: 0
+                }}
+              >
+                ⚠️
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 900, color: '#991b1b', margin: '0 0 4px', lineHeight: '1.3' }}>
+                  {STAY_AWAY_WARNINGS[lang]?.title || STAY_AWAY_WARNINGS.en.title}
+                </h3>
+                <p style={{ fontSize: '12.5px', color: '#7f1d1d', margin: '0 0 10px', lineHeight: '1.45', fontWeight: 600 }}>
+                  {STAY_AWAY_WARNINGS[lang]?.desc || STAY_AWAY_WARNINGS.en.desc}
+                </p>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      background: '#16a34a',
+                      color: '#ffffff',
+                      padding: '3px 10px',
+                      borderRadius: '8px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <ShieldCheck style={{ width: '13px', height: '13px' }} />
+                    {STAY_AWAY_WARNINGS[lang]?.badge || STAY_AWAY_WARNINGS.en.badge}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsVerifiedSafe(false)}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid #f87171',
+                      color: '#b91c1c',
+                      borderRadius: '6px',
+                      padding: '3px 10px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {lang === 'hi' ? 'रीसेट' : (lang === 'mr' ? 'रीसेट' : (lang === 'ta' ? 'மீட்டமை' : (lang === 'bn' ? 'রিসেট' : 'Reset')))}
+                  </button>
                 </div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsVerifiedSafe(false)}
-              style={{
-                background: 'rgba(5, 150, 105, 0.15)',
-                border: '1px solid #059669',
-                color: '#065f46',
-                borderRadius: '6px',
-                padding: '4px 8px',
-                fontSize: '10.5px',
-                fontWeight: 800,
-                cursor: 'pointer'
-              }}
-            >
-              {lang === 'hi' ? 'रीसेट' : (lang === 'mr' ? 'रीसेट' : (lang === 'ta' ? 'மீட்டமை' : (lang === 'bn' ? 'রিসেট' : 'Reset')))}
-            </button>
-          </div>
+          </section>
+        )}
+
+        {/* PROMINENT EMERGENCY AUTO-DISPATCH ALERT (Shown when tourist was unresponsive for 15s) */}
+        {sosAutoDispatched && (
+          <section
+            style={{
+              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(185, 28, 28, 0.2))',
+              border: '2.5px solid #ef4444',
+              borderRadius: '16px',
+              padding: '16px 18px',
+              marginBottom: '16px',
+              boxShadow: '0 8px 25px rgba(239, 68, 68, 0.25)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <div
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '50%',
+                  background: '#ef4444',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '22px',
+                  color: '#ffffff',
+                  flexShrink: 0
+                }}
+              >
+                🚨
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 900, color: '#dc2626', margin: '0 0 4px', lineHeight: '1.3' }}>
+                  {AUTO_DISPATCH_NOTICES[lang]?.title || AUTO_DISPATCH_NOTICES.en.title}
+                </h3>
+                <p style={{ fontSize: '12px', color: '#450a0a', margin: '0 0 8px', lineHeight: '1.4', fontWeight: 600 }}>
+                  {AUTO_DISPATCH_NOTICES[lang]?.desc || AUTO_DISPATCH_NOTICES.en.desc}
+                </p>
+                <div style={{ fontSize: '11px', color: '#7f1d1d', fontWeight: 700 }}>
+                  {AUTO_DISPATCH_NOTICES[lang]?.hud || AUTO_DISPATCH_NOTICES.en.hud}
+                </div>
+                <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
+                  <a
+                    href="tel:112"
+                    style={{
+                      background: '#ef4444',
+                      color: '#ffffff',
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      fontSize: '11.5px',
+                      fontWeight: 800,
+                      textDecoration: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <Phone style={{ width: '13px', height: '13px' }} /> 112 River Police
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setSosAutoDispatched(false)}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      color: '#64748b',
+                      borderRadius: '8px',
+                      padding: '6px 12px',
+                      fontSize: '11.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Dismiss Notice
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
         )}
 
         <div className="tourist-top">
@@ -3175,8 +3341,13 @@ function TouristDashboard({
             userName={userName}
             phone={phone}
             location={location}
-            onConfirmedSafe={() => setIsVerifiedSafe(true)}
-            onSos={() => setSos(true)}
+            onConfirmedSafe={() => {
+              setIsVerifiedSafe(true)
+              setStatus('safe')
+            }}
+            onSos={() => {
+              setSosAutoDispatched(true)
+            }}
             autoAccept={callAutoAccept}
           />
         )}
