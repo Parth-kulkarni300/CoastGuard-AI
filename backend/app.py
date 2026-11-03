@@ -280,13 +280,39 @@ async def search_locations(q: str = ""):
 
 @app.get("/api/tourist/status")
 async def get_tourist_status(lat: float = 25.3176, lon: float = 83.0060):
-    """Fetch real-time safety status and latest fisherman voice update for tourist's current GPS location."""
+    """Fetch real-time safety status for tourist's current GPS location (strict 3.0 km hyper-local sector radius)."""
     state = dict(LATEST_SECTOR_STATE)
     boatman_lat = state.get("lat", 25.3176)
     boatman_lon = state.get("lon", 83.0060)
 
-    # Compute real spatial distance between tourist live GPS and boatman live GPS
+    # Compute real spatial distance between tourist live GPS and latest incident GPS
     dist_km = haversine_km(lat, lon, boatman_lat, boatman_lon)
+
+    # If latest incident in system happened > 3.0 km away (e.g. Nagpur while tourist is in Pune/Swargate):
+    # Do NOT contaminate local tourist dashboard with distant city's hazard!
+    if dist_km > 3.0:
+        return JSONResponse(content={
+            "dispatch_id": "local_calm",
+            "status": "safe",
+            "severity": "INFO",
+            "location": "Local River Sector",
+            "lat": lat,
+            "lon": lon,
+            "boatman_name": "Local River Patrol",
+            "boat_id": "Patrol #01",
+            "distance": "Within your sector",
+            "distance_km": 0.0,
+            "time_ago": "Just now",
+            "timestamp": datetime.now().isoformat(),
+            "hindi_quote": "स्थानीय जल क्षेत्र पूरी तरह शांत और सुरक्षित है। कोई आपातकालीन चेतावनी नहीं है।",
+            "english_translation": "Local water sector is calm and clear. No river hazard reported within 3.0 km.",
+            "boatman_audio_url": "/api/audio/boatman_sample_safe.wav",
+            "ai_audio_url": "/api/audio/ai_advisory_safe.wav",
+            "recipients_notified": 12,
+            "water_status_text": "Local sector reports calm waters. Boating permitted.",
+            "in_radius": True
+        })
+
     state["tourist_lat"] = lat
     state["tourist_lon"] = lon
     state["distance_km"] = round(dist_km, 3)
@@ -507,6 +533,7 @@ async def tourist_sos(
         "incident": incident_type,
         "lat": lat,
         "lon": lon,
+        "max_radius_km": 3.0,
         "time": datetime.now().strftime("%H:%M:%S"),
         "location": location_name or "Assi Ghat Sector, Varanasi"
     }

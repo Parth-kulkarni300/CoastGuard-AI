@@ -2644,7 +2644,18 @@ function TouristDashboard({
         const res = await fetch(`/api/tourist/status?lat=${location.lat}&lon=${location.lon}`)
         if (res.ok) {
           const data = await res.json()
-          applySectorData(data)
+          // Only apply sector data if within 3.0 km of tourist's water body!
+          if (data.distance_km <= 3.0) {
+            applySectorData(data)
+          } else {
+            setStatus('safe')
+            setOutOfRangeNotice(null)
+            setWaterStatusText(`All clear at ${location.placeName}. Local river patrol reports normal conditions.`)
+            setBoatmanName('Local River Patrol')
+            setDistanceText('Patrolling local 3 km sector')
+            setHindiQuote('स्थानीय जल क्षेत्र पूरी तरह शांत और सुरक्षित है। कोई खतरा नहीं है।')
+            setTranslation(`Water is completely calm near ${location.placeName}. Boating permitted.`)
+          }
           // Seed the ref with current dispatch ID so simply opening/refreshing the page NEVER auto-calls the tourist
           if (data.dispatch_id || data.timestamp) {
             lastHandledDispatchIdRef.current = data.dispatch_id || data.timestamp
@@ -2664,25 +2675,33 @@ function TouristDashboard({
         try {
           const msg = JSON.parse(event.data)
           if (msg.type === 'sector_update' && msg.data) {
+            const broadcastLat = msg.data.lat ?? location.lat
+            const broadcastLon = msg.data.lon ?? location.lon
+            const currentDist = calculateHaversineDistance(location.lat, location.lon, broadcastLat, broadcastLon)
+
+            // STRICT HYPER-LOCAL RADIUS (3.0 km max):
+            // If an incident happened in Nagpur (624 km away), tourist in Pune/Swargate MUST NOT have their dashboard hijacked!
+            if (currentDist > 3000) {
+              console.log(`[CoastGuard Grid] Broadcast from ${msg.data.location || 'remote'} is ${(currentDist / 1000).toFixed(1)} km away (> 3.0 km). Outside local river grid for ${location.placeName}. Ignored.`);
+              return
+            }
+
+            // Only apply sector data if within 3.0 km of tourist
             applySectorData(msg.data)
             const incomingDispatchId = msg.data.dispatch_id || msg.data.timestamp || String(Date.now())
             const isFreshBroadcast = incomingDispatchId !== lastHandledDispatchIdRef.current
 
-            // Check spatial blast radius (2.0 km) between boatman's incident coordinates and tourist's location
-            const broadcastLat = msg.data.lat ?? 25.2974
-            const broadcastLon = msg.data.lon ?? 83.0064
-            const currentDist = calculateHaversineDistance(location.lat, location.lon, broadcastLat, broadcastLon)
+            // Check danger perimeter (2.0 km)
             const isWithinPerimeter = currentDist <= 2000
 
-            // Trigger the incoming call ONLY when danger is within the 2.0 km perimeter
             if (msg.data.status === 'danger' && isFreshBroadcast) {
               lastHandledDispatchIdRef.current = incomingDispatchId
 
               if (!isWithinPerimeter) {
-                console.log(`Tourist is ${(currentDist / 1000).toFixed(1)} km away (> 2.0 km perimeter). Suppressing disruptive call popup.`)
+                console.log(`Incident within 3km but outside 2.0 km danger perimeter (${(currentDist / 1000).toFixed(1)} km away). Suppressing call modal.`);
                 setStatus('safe')
                 setOutOfRangeNotice({
-                  location: msg.data.location || 'Assi Ghat Sector',
+                  location: msg.data.location || 'Nearby Sector',
                   distanceKm: (currentDist / 1000).toFixed(1)
                 })
                 setShowCallModal(false)
@@ -2696,14 +2715,12 @@ function TouristDashboard({
                 console.log('Tourist already marked safe. Suppressing disruptive call popup.')
                 return
               }
-              // Fire OS heads-up alert with SOS vibration over other apps & lock screen
               triggerOsEmergencyAlert(
                 `🚨 CoastGuard Emergency (112): ${msg.data.boatman_name || 'Boatman'} Alert!`,
                 `Water surge warning near ${location.placeName}. Evacuate river bank immediately!`
               )
               setCallAutoAccept(false)
               setShowCallModal(true)
-              // Trigger automated PSTN outbound call to physical phone
               const fd = new FormData()
               fd.append('phone', phone)
               fd.append('status', 'danger')
@@ -2757,15 +2774,27 @@ function TouristDashboard({
   useEffect(() => {
     if (boatmanLat && boatmanLon) {
       const d = calculateHaversineDistance(location.lat, location.lon, boatmanLat, boatmanLon)
-      setDistanceMeters(d)
-      setDistanceText(d < 1000 ? `${d} meters from your live GPS` : `${(d / 1000).toFixed(1)} km from your live GPS`)
-      if (d > 2000 && status === 'danger') {
+      // If incident is > 3.0 km away, reset to calm local sector
+      if (d > 3000) {
         setStatus('safe')
-        setOutOfRangeNotice({
-          location: 'Assi Ghat Sector',
-          distanceKm: (d / 1000).toFixed(1)
-        })
+        setOutOfRangeNotice(null)
+        setWaterStatusText(`All normal in ${location.placeName}. No river hazards reported within 3.0 km.`)
+        setBoatmanName('Local River Patrol')
+        setDistanceText('Patrolling local 3 km perimeter')
+        setHindiQuote('स्थानीय जल क्षेत्र पूरी तरह शांत और सुरक्षित है।')
+        setTranslation(`Local waters are calm near ${location.placeName}. No hazards in 3 km perimeter.`)
         setShowCallModal(false)
+      } else {
+        setDistanceMeters(d)
+        setDistanceText(d < 1000 ? `${d} meters from your live GPS` : `${(d / 1000).toFixed(1)} km from your live GPS`)
+        if (d > 2000 && status === 'danger') {
+          setStatus('safe')
+          setOutOfRangeNotice({
+            location: 'Nearby Sector',
+            distanceKm: (d / 1000).toFixed(1)
+          })
+          setShowCallModal(false)
+        }
       }
     }
   }, [location.lat, location.lon, boatmanLat, boatmanLon])
@@ -3276,6 +3305,15 @@ function BoatmanDashboard({
           if (msg.type === 'sos_alert' && msg.data) {
             const sos = msg.data
             const d = calculateHaversineDistance(location.lat, location.lon, sos.lat, sos.lon)
+            const maxRadiusMeters = (sos.max_radius_km || 3.0) * 1000
+
+            // STRICT HYPER-LOCAL PERIMETER: Only notify boatman / NDRF if incident is within 3.0 km!
+            // E.g. A boatman in Swargate (Pune) MUST NEVER be notified about an incident in Nagpur (624 km away)!
+            if (d > maxRadiusMeters) {
+              console.log(`[CoastGuard Grid] SOS at ${sos.location || 'remote'} is ${(d / 1000).toFixed(1)} km away (> 3.0 km). Outside boat patrol grid for ${location.placeName}. Discarded.`);
+              return
+            }
+
             const b = calculateBearing(location.lat, location.lon, sos.lat, sos.lon)
             setActiveRescue({
               touristName: sos.tourist_name || 'Rahul Sharma (Tourist)',
