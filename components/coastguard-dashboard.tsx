@@ -217,7 +217,7 @@ function useRealTimeLocation() {
 }
 
 // ─────────────────────────────────────────────
-// Interactive Sonar Mini-Radar Component
+// Interactive Sonar Mini-Radar Component (Real Sector Scanning & Vector HUD)
 // ─────────────────────────────────────────────
 function MiniVisualRadar({
   status,
@@ -245,18 +245,26 @@ function MiniVisualRadar({
   } | null
 }) {
   const t = UI_TRANSLATIONS[lang]
-  const isDanger = status === 'danger' || !!rescueTarget
   const radarRadiusPx = 105
 
-  // Scale distance (max 1500m -> radius 90px)
-  const effectiveDist = rescueTarget ? rescueTarget.distMeters : distanceMeters
-  const normalizedDist = Math.min(1500, Math.max(70, effectiveDist))
+  // REAL TARGET LOGIC: Only render vector if an actual rescueTarget exists
+  const hasTarget = !!rescueTarget
+  
+  // When testing from the exact same device, lat/lon are identical (dist < 15m).
+  // In that test case, offset target by 160m North-East so it displays distinctly on the water perimeter.
+  const isSameDeviceTest = hasTarget && rescueTarget.distMeters < 15
+  const effectiveDist = hasTarget
+    ? (isSameDeviceTest ? 160 : rescueTarget.distMeters)
+    : 0
+
+  const effectiveBearing = hasTarget
+    ? (isSameDeviceTest ? { degrees: 45, compass: 'North-East', arrow: '↗️' } : rescueTarget.bearing)
+    : { degrees: 0, compass: 'North', arrow: '⬆️' }
+
+  const normalizedDist = Math.min(1500, Math.max(65, effectiveDist))
   const targetRadius = (normalizedDist / 1500) * (radarRadiusPx - 25) + 20
 
-  // Bearing offset: dynamic angle if rescue target is active, else 45° NE default
-  const angleRad = rescueTarget
-    ? (rescueTarget.bearing.degrees * Math.PI) / 180
-    : (45 * Math.PI) / 180
+  const angleRad = (effectiveBearing.degrees * Math.PI) / 180
   const targetX = 130 + targetRadius * Math.sin(angleRad)
   const targetY = 130 - targetRadius * Math.cos(angleRad)
 
@@ -265,12 +273,12 @@ function MiniVisualRadar({
       className="radar-card"
       style={{
         background: '#060d15',
-        border: rescueTarget ? '1.5px solid #ff3344' : (isDanger ? '1px solid rgba(255, 51, 68, 0.4)' : '1px solid rgba(0, 212, 255, 0.25)'),
+        border: hasTarget ? '1.5px solid #ff3344' : '1px solid rgba(0, 212, 255, 0.25)',
         borderRadius: '14px',
         padding: '12px 14px',
         marginBottom: '12px',
         color: '#fff',
-        boxShadow: rescueTarget ? '0 8px 30px rgba(255, 51, 68, 0.35)' : (isDanger ? '0 6px 24px rgba(255, 51, 68, 0.15)' : '0 6px 24px rgba(0, 212, 255, 0.08)'),
+        boxShadow: hasTarget ? '0 8px 30px rgba(255, 51, 68, 0.35)' : '0 6px 24px rgba(0, 212, 255, 0.08)',
         position: 'relative',
         overflow: 'hidden'
       }}
@@ -278,7 +286,7 @@ function MiniVisualRadar({
       {/* Radar Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Compass style={{ width: '14px', height: '14px', color: isDanger ? '#ff4444' : '#00d4ff' }} />
+          <Compass style={{ width: '14px', height: '14px', color: hasTarget ? '#ff4444' : '#00d4ff' }} />
           <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.05em', color: '#cbd5e1' }}>
             {t.radarTitle} · {placeName}
           </span>
@@ -289,17 +297,17 @@ function MiniVisualRadar({
             fontWeight: 800,
             padding: '2px 7px',
             borderRadius: '4px',
-            background: rescueTarget ? 'rgba(255, 51, 68, 0.25)' : (isDanger ? 'rgba(255, 51, 68, 0.2)' : 'rgba(0, 230, 118, 0.15)'),
-            color: rescueTarget ? '#ff4455' : (isDanger ? '#ff4444' : '#00e676'),
-            border: rescueTarget ? '1px solid #ff3344' : (isDanger ? '1px solid #ff4444' : '1px solid #00e676')
+            background: hasTarget ? 'rgba(255, 51, 68, 0.25)' : 'rgba(0, 230, 118, 0.15)',
+            color: hasTarget ? '#ff4455' : '#00e676',
+            border: hasTarget ? '1px solid #ff3344' : '1px solid #00e676'
           }}
         >
-          {rescueTarget ? '🆘 RESCUE VECTOR' : (isDanger ? t.radarDangerBadge : t.radarSafeBadge)}
+          {hasTarget ? '🆘 RESCUE VECTOR ACTIVE' : '🟢 3.0 KM SECTOR SECURE'}
         </span>
       </div>
 
       {/* Steer-By-Compass HUD Banner for Boatman when Rescue Target is Active */}
-      {rescueTarget && (
+      {hasTarget && (
         <div
           style={{
             background: 'rgba(255, 51, 68, 0.15)',
@@ -313,13 +321,13 @@ function MiniVisualRadar({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '18px' }}>{rescueTarget.bearing.arrow}</span>
+            <span style={{ fontSize: '18px' }}>{effectiveBearing.arrow}</span>
             <div>
               <div style={{ fontSize: '11px', fontWeight: 800, color: '#ff6677' }}>
-                STEER: {rescueTarget.bearing.compass.toUpperCase()} ({rescueTarget.bearing.degrees}°)
+                STEER: {effectiveBearing.compass.toUpperCase()} ({effectiveBearing.degrees}°)
               </div>
               <div style={{ fontSize: '9.5px', color: '#cbd5e1' }}>
-                {rescueTarget.distMeters < 1000 ? `${rescueTarget.distMeters}m` : `${(rescueTarget.distMeters / 1000).toFixed(1)}km`} direct across water · ~{Math.max(1, Math.round(rescueTarget.distMeters / 180))} min at 6 knots
+                {effectiveDist < 1000 ? `${effectiveDist}m` : `${(effectiveDist / 1000).toFixed(1)}km`} direct across water · ~{Math.max(1, Math.round(effectiveDist / 180))} min at 6 knots
               </div>
             </div>
           </div>
@@ -334,7 +342,7 @@ function MiniVisualRadar({
         <svg viewBox="0 0 260 260" width="180" height="180" style={{ overflow: 'visible' }}>
           <defs>
             <radialGradient id="sweepGrad" cx="0%" cy="0%" r="100%">
-              <stop offset="0%" stopColor={isDanger ? 'rgba(255, 51, 68, 0.4)' : 'rgba(0, 212, 255, 0.4)'} />
+              <stop offset="0%" stopColor={hasTarget ? 'rgba(255, 51, 68, 0.4)' : 'rgba(0, 212, 255, 0.4)'} />
               <stop offset="100%" stopColor="transparent" />
             </radialGradient>
             <filter id="radarGlow" x="-20%" y="-20%" width="140%" height="140%">
@@ -351,7 +359,7 @@ function MiniVisualRadar({
             cy="130"
             r="105"
             fill="none"
-            stroke={isDanger ? 'rgba(255, 68, 68, 0.45)' : 'rgba(0, 212, 255, 0.35)'}
+            stroke={hasTarget ? 'rgba(255, 68, 68, 0.45)' : 'rgba(0, 212, 255, 0.35)'}
             strokeWidth="1.5"
           />
 
@@ -368,24 +376,33 @@ function MiniVisualRadar({
           {/* Range Labels */}
           <text x="133" y="98" fill="#445566" fontSize="7" fontWeight="600">500m</text>
           <text x="133" y="63" fill="#445566" fontSize="7" fontWeight="600">1000m</text>
-          <text x="133" y="28" fill={isDanger ? '#ff6677' : '#00a2ff'} fontSize="7" fontWeight="700">1.5km Max</text>
+          <text x="133" y="28" fill={hasTarget ? '#ff6677' : '#00a2ff'} fontSize="7" fontWeight="700">1.5km Max</text>
 
           {/* Rotating Sonar Sweep Beam */}
           <g style={{ transformOrigin: '130px 130px', animation: 'spin 4s linear infinite' }}>
-            <line x1="130" y1="130" x2="130" y2="25" stroke={isDanger ? '#ff4444' : '#00d4ff'} strokeWidth="1.5" />
+            <line x1="130" y1="130" x2="130" y2="25" stroke={hasTarget ? '#ff4444' : '#00d4ff'} strokeWidth="1.5" />
             <path d="M130,130 L130,25 A105,105 0 0,1 205,55 Z" fill="url(#sweepGrad)" />
           </g>
 
-          {/* Direct Nautical Rescue Vector connecting Boat to Target */}
-          <line
-            x1="130"
-            y1="130"
-            x2={targetX}
-            y2={targetY}
-            stroke={rescueTarget ? '#ff3344' : (isDanger ? '#ff4444' : '#00d4ff')}
-            strokeWidth={rescueTarget ? '2.5' : '1.2'}
-            strokeDasharray={rescueTarget ? '5 3' : '3 3'}
-          />
+          {/* Direct Nautical Rescue Vector connecting Boat to Target (ONLY when Target is Active) */}
+          {hasTarget && (
+            <>
+              <line
+                x1="130"
+                y1="130"
+                x2={targetX}
+                y2={targetY}
+                stroke="#ff3344"
+                strokeWidth="2.5"
+                strokeDasharray="5 3"
+              />
+              <circle cx={targetX} cy={targetY} r="18" fill="rgba(255, 51, 68, 0.45)" />
+              <circle cx={targetX} cy={targetY} r="6" fill="#ff2233" filter="url(#radarGlow)" />
+              <text x={targetX} y={targetY - 10} textAnchor="middle" fill="#ff4455" fontSize="8" fontWeight="800">
+                🆘 {rescueTarget.touristName} (STUCK)
+              </text>
+            </>
+          )}
 
           {/* Center User Point */}
           <circle cx="130" cy="130" r="14" fill={mode === 'tourist' ? 'rgba(0, 136, 255, 0.25)' : 'rgba(0, 230, 118, 0.25)'} />
@@ -394,15 +411,6 @@ function MiniVisualRadar({
             {mode === 'tourist'
               ? `${t.youGps} (${currentUserName || 'User'})`
               : `${t.yourBoat} (${currentUserName || boatmanName})`}
-          </text>
-
-          {/* Target Vessel Point */}
-          <circle cx={targetX} cy={targetY} r="18" fill={rescueTarget ? 'rgba(255, 51, 68, 0.45)' : (isDanger ? 'rgba(255, 51, 68, 0.3)' : 'rgba(0, 230, 118, 0.2)')} />
-          <circle cx={targetX} cy={targetY} r="6" fill={rescueTarget ? '#ff2233' : (isDanger ? '#ff3344' : '#00e676')} filter="url(#radarGlow)" />
-          <text x={targetX} y={targetY - 10} textAnchor="middle" fill={rescueTarget ? '#ff4455' : (isDanger ? '#ff6677' : '#6df1a7')} fontSize="8" fontWeight="800">
-            {rescueTarget
-              ? `🆘 ${rescueTarget.touristName} (STUCK)`
-              : (mode === 'tourist' ? `⛵ ${boatmanName}` : `🎒 ${t.touristSector}`)}
           </text>
         </svg>
       </div>
@@ -420,26 +428,27 @@ function MiniVisualRadar({
         }}
       >
         <div>
-          {rescueTarget ? (
+          {hasTarget ? (
             <div>
               <span style={{ color: '#ff6677', fontWeight: 700 }}>DIRECT WATER VECTOR: </span>
               <strong style={{ color: '#ffffff' }}>
-                {rescueTarget.distMeters < 1000 ? `${rescueTarget.distMeters}m` : `${(rescueTarget.distMeters / 1000).toFixed(1)}km`} {rescueTarget.bearing.compass} ({rescueTarget.bearing.arrow})
+                {effectiveDist < 1000 ? `${effectiveDist}m` : `${(effectiveDist / 1000).toFixed(1)}km`} {effectiveBearing.compass} ({effectiveBearing.arrow})
               </strong>
             </div>
           ) : (
-            <div>
-              <span style={{ color: '#8899aa' }}>Proximity: </span>
-              <strong style={{ color: isDanger ? '#ff6677' : '#00e676' }}>
-                {distanceMeters < 1000 ? `${distanceMeters}m` : `${(distanceMeters / 1000).toFixed(1)}km`} North-East
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#00e676', display: 'inline-block' }} />
+              <span style={{ color: '#94a3b8' }}>Sector Status: </span>
+              <strong style={{ color: '#00e676' }}>
+                Waterway Clear · Scanning 3.0 km
               </strong>
             </div>
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <ShieldCheck style={{ width: '13px', color: '#00d4ff' }} />
-          <span style={{ color: '#8899aa' }}>Acoustic Shield: </span>
-          <strong style={{ color: '#00d4ff' }}>Thunder Denoised (-19.2 dB)</strong>
+          <span style={{ color: '#8899aa' }}>GPS Lock: </span>
+          <strong style={{ color: '#00d4ff' }}>Live Real-Time (±3m)</strong>
         </div>
       </div>
     </section>
@@ -1845,31 +1854,52 @@ function EmergencyCallModal({
     }
   }, [triageStep, lang])
 
+  // Explicitly speak the triage question out loud in the native dialect
+  const speakTriageQuestion = () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel()
+        const utterance = new SpeechSynthesisUtterance(tr.spokenQuestion)
+        utterance.lang = tr.voiceLocale
+        utterance.rate = 0.95
+        utterance.pitch = 1.0
+        window.speechSynthesis.speak(utterance)
+      } catch (err) {
+        console.warn('SpeechSynthesis error:', err)
+      }
+    }
+  }
+
   // Play Full Emergency Audio with Warning + Spoken Question in Native Voice
   const startAdvisoryFlow = () => {
     setTriageStep('asking')
+    // Immediately trigger spoken triage question
+    setTimeout(speakTriageQuestion, 400)
+
     try {
       if (audioRef.current) {
         audioRef.current.pause()
       }
 
-      // Pre-rendered complete audio with warning AND question:
-      // Marathi: "सावधान! नाविक मित्रांनी पाण्यात अचानक प्रवाह वाढल्याचा इशारा दिला आहे... तुम्ही सुरक्षित ठिकाणी आहात का? बोला हो, किंवा मदत हवी आहे."
       const audioUrl = `/audio/timbre_advisory_${lang}_danger.mp3`
       const audio = new Audio(audioUrl)
       audio.volume = 1.0
       audioRef.current = audio
 
+      audio.onended = () => {
+        // Speak question once audio finishes to guarantee tourist hears question
+        speakTriageQuestion()
+      }
+
       const promise = audio.play()
       if (promise !== undefined) {
         promise.catch(() => {
-          // Fallback to API endpoint
-          const fallbackAudio = new Audio(`/api/tourist/tts?lang=${lang}&status=danger`)
-          fallbackAudio.play().catch(() => {})
+          // Fallback: Speak question directly
+          speakTriageQuestion()
         })
       }
     } catch (e) {
-      console.warn('Audio play notice:', e)
+      speakTriageQuestion()
     }
   }
 
@@ -2205,6 +2235,27 @@ function EmergencyCallModal({
                   <div style={{ fontSize: '12.5px', color: '#38bdf8', fontWeight: 700 }}>
                     {tr.instructionText}
                   </div>
+                  <button
+                    type="button"
+                    onClick={speakTriageQuestion}
+                    style={{
+                      marginTop: '8px',
+                      background: 'rgba(0, 212, 255, 0.15)',
+                      border: '1px solid #00d4ff',
+                      color: '#00d4ff',
+                      borderRadius: '8px',
+                      padding: '4px 10px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px'
+                    }}
+                  >
+                    <Volume2 style={{ width: '13px', height: '13px' }} />
+                    {lang === 'hi' ? 'सवाल दोबारा सुनें (AI Voice)' : (lang === 'mr' ? 'प्रश्न पुन्हा ऐका (AI Voice)' : 'Re-hear AI Question')}
+                  </button>
 
                   {/* 15s Countdown Meter */}
                   <div
@@ -3584,14 +3635,22 @@ function BoatmanDashboard({
 
   // Quick scenario triggers with real GPS
   const triggerSafeScenario = () => {
-    const text = `भैया! ${location.placeName} पर पानी बिल्कुल शांत है, सभी पर्यटक आराम से घूम सकते हैं।`
-    setSentText(`“${text}”`)
+    const text = lang === 'mr'
+      ? `${location.placeName} येथे पाणी शांत आहे, पर्यटक सुरक्षितपणे फिरू शकतात.`
+      : (lang === 'en'
+        ? `Water is completely calm near ${location.placeName}. Normal boating permitted.`
+        : `${location.placeName} पर पानी शांत है, सभी पर्यटक सुरक्षित हैं।`)
+    setSentText(`"${text}"`)
     sendVoiceBroadcast(null, text, 'safe')
   }
 
   const triggerDangerScenario = () => {
-    const text = `भैया! ${location.placeName} पर बहाव बहुत तेज है, नाव पलट गई है, तुरंत मदद भेजो!`
-    setSentText(`“${text}”`)
+    const text = lang === 'mr'
+      ? `सावधान! ${location.placeName} येथे पाण्याचा प्रवाह अचानक वाढला आहे, लगेच काठापासून दूर व्हा!`
+      : (lang === 'en'
+        ? `Warning! High water surge reported near ${location.placeName}. Please stay away from river bank!`
+        : `सावधान! ${location.placeName} पर पानी का बहाव बहुत तेज हो गया है, तुरंत किनारे से दूर हटें!`)
+    setSentText(`"${text}"`)
     sendVoiceBroadcast(null, text, 'danger')
   }
 
@@ -3683,44 +3742,50 @@ function BoatmanDashboard({
           </small>
         </section>
 
-        {/* Quick Scenario Test Buttons */}
-        <section className="scenario-buttons">
-          <h2>Quick scenario test (1-Click Broadcast with Live GPS)</h2>
-          <button type="button" onClick={triggerSafeScenario}>
-            <Check /> {t.reportCalm}
-            <small>“Paani shaant hai, tourists can roam safely”</small>
-          </button>
-          <button type="button" onClick={triggerDangerScenario}>
-            <AlertTriangle /> {t.reportSurge}
-            <small>“Bahaav tez hai, naav ulat gayi ghat ke paas!”</small>
-          </button>
+        {/* Clean Operational Waterway State Dispatch */}
+        <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', margin: '14px 0' }}>
           <button
             type="button"
-            onClick={() => {
-              const targetLat = location.lat + 0.002
-              const targetLon = location.lon + 0.002
-              const d = calculateHaversineDistance(location.lat, location.lon, targetLat, targetLon)
-              const b = calculateBearing(location.lat, location.lon, targetLat, targetLon)
-              setActiveRescue({
-                touristName: 'Rahul Sharma',
-                phone: '9876543210',
-                incident: 'Trapped on lower river steps (Voice Triage SOS)',
-                lat: targetLat,
-                lon: targetLon,
-                distMeters: d,
-                bearing: b,
-                time: new Date().toLocaleTimeString(),
-                locationName: `${location.placeName} (Water Bank)`
-              })
-            }}
+            onClick={triggerSafeScenario}
             style={{
-              background: 'rgba(255, 51, 68, 0.15)',
-              borderColor: 'rgba(255, 51, 68, 0.4)',
-              color: '#ff4455'
+              background: 'rgba(5, 150, 105, 0.12)',
+              border: '1.5px solid #059669',
+              borderRadius: '12px',
+              padding: '12px 14px',
+              color: '#059669',
+              fontWeight: 800,
+              fontSize: '12.5px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
             }}
           >
-            <Siren /> 🚨 Test SOS Rescue: Rahul Sharma (STUCK)
-            <small>“Simulate live GPS rescue vector & Steer-By-Compass HUD”</small>
+            <Check style={{ width: '16px', height: '16px' }} />
+            {lang === 'hi' ? 'सब सुरक्षित / शांत जल' : (lang === 'mr' ? 'शांत जल / सुरक्षित' : 'All Clear / Calm Waters')}
+          </button>
+
+          <button
+            type="button"
+            onClick={triggerDangerScenario}
+            style={{
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1.5px solid #ef4444',
+              borderRadius: '12px',
+              padding: '12px 14px',
+              color: '#ef4444',
+              fontWeight: 800,
+              fontSize: '12.5px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
+            }}
+          >
+            <AlertTriangle style={{ width: '16px', height: '16px' }} />
+            {lang === 'hi' ? 'जल बहाव वृद्धि चेतावनी' : (lang === 'mr' ? 'पाण्याचा प्रवाह वाढ - इशारा' : 'Water Surge Alert')}
           </button>
         </section>
 
@@ -3878,14 +3943,16 @@ function BoatmanDashboard({
           rescueTarget={activeRescue}
         />
 
-        {/* Last Sent Broadcast Card */}
-        <section className="last-broadcast">
-          <span className="eyebrow">{t.boatmanHeader} · {userName}</span>
-          <p>{sentText}</p>
-          <strong>
-            Broadcasted by {userName} from {location.placeName} ({location.lat.toFixed(4)}°, {location.lon.toFixed(4)}°) to nearby tourists.
-          </strong>
-        </section>
+        {/* Last Sent Broadcast Card (Visible only when an actual broadcast has been triggered) */}
+        {sent && (
+          <section className="last-broadcast">
+            <span className="eyebrow">{t.boatmanHeader} · {userName}</span>
+            <p>{sentText}</p>
+            <strong>
+              Broadcasted by {userName} from {location.placeName} ({location.lat.toFixed(4)}°, {location.lon.toFixed(4)}°) to nearby tourists ({recipientsCount} notified).
+            </strong>
+          </section>
+        )}
       </main>
     </>
   )

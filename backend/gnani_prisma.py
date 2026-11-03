@@ -91,21 +91,13 @@ def _mock_prisma_transcribe(filename: str = "") -> Dict[str, Any]:
     Returns realistic emergency call transcripts with acoustic shield metrics.
     """
     fname = filename.lower()
-    if "boat" in fname or "capsiz" in fname or "ulat" in fname:
-        transcript = "Paani bahut tez hai yahan naav ulat gayi teen aadmi hain paani mein ghat ke paas jaldi bachaao!"
-        confidence = 0.95
-        lang = "hi"
-    elif "flood" in fname or "surge" in fname or "bahaav" in fname:
-        transcript = "Bhaiya yahan bahaav bohot tez hai paani do haath upar chadha hai jaldi warning bhejo hum ghat number saat ke paas hain!"
-        confidence = 0.93
-        lang = "hi"
-    elif "storm" in fname or "toofan" in fname or "wind" in fname:
-        transcript = "Toofan aa raha hai hawa bohot tez hai nadi ke paas sabko saawdhan karo hum ferry terminal ke paas hain"
-        confidence = 0.91
+    if "safe" in fname or "calm" in fname or "shaant" in fname:
+        transcript = "भैया! पानी बिल्कुल शांत है, सब सुरक्षित नौका विहार कर सकते हैं।"
+        confidence = 0.96
         lang = "hi"
     else:
-        transcript = "Bhaiya! Yahan bahaav bohot tez hai, paani do haath upar chadha hai, jaldi warning bhejo! Hum ghat number saat ke paas hain!"
-        confidence = 0.94
+        transcript = "सावधान! नाव चालकों ने नदी में अचानक बहाव की चेतावनी दी है। कृपया तुरंत घाट की ऊपरी सीढ़ियों पर जाएं।"
+        confidence = 0.95
         lang = "hi"
 
     return {
