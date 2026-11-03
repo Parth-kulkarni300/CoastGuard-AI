@@ -43,6 +43,8 @@ export interface UiTranslations {
   boatmanRoleSub: string
   touristRoleTitle: string
   touristRoleSub: string
+  authorityRoleTitle: string
+  authorityRoleSub: string
   loginContinue: string
   loginNote: string
   offlineBadge: string
@@ -140,6 +142,8 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     boatmanRoleSub: 'नाविक (वॉइस लाइफलाइन)',
     touristRoleTitle: 'मैं एक पर्यटक / यात्री हूँ',
     touristRoleSub: 'पर्यटक (सुरक्षा केंद्र)',
+    authorityRoleTitle: 'शासकीय प्राधिकरण / NDRF',
+    authorityRoleSub: 'आपदा प्रबंधन एवं गश्ती कमान',
     loginContinue: 'आगे बढ़ें / लॉगिन करें',
     loginNote: 'कोई पासवर्ड नहीं। कोई ओटीपी झंझट नहीं। आपका लाइव स्थान निजी रहता है।',
     offlineBadge: '⚡ ऑफलाइन (GPS सक्रिय)',
@@ -222,6 +226,8 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     boatmanRoleSub: 'Boatman (Voice Lifeline)',
     touristRoleTitle: 'I am a Tourist / Customer',
     touristRoleSub: 'Tourist (Safety Hub)',
+    authorityRoleTitle: 'Government Authority / NDRF',
+    authorityRoleSub: 'Disaster Relief & River Patrol Command',
     loginContinue: 'Continue to Dashboard',
     loginNote: 'No password. No OTP hassle. Your live location stays private.',
     offlineBadge: '⚡ Offline (GPS Active)',
@@ -304,6 +310,8 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     boatmanRoleSub: 'படகோட்டி (குரல் உயிர்நாடி)',
     touristRoleTitle: 'நான் ஒரு சுற்றுலாப் பயணி',
     touristRoleSub: 'சுற்றுலாப் பயணி (பாதுகாப்பு மையம்)',
+    authorityRoleTitle: 'அரசு நிர்வாகம் / NDRF',
+    authorityRoleSub: 'பேரிடர் மேலாண்மை & ரோந்து கட்டளை',
     loginContinue: 'தொடரவும் / உள்நுழையவும்',
     loginNote: 'கடவுச்சொல் இல்லை. OTP தொந்தரவு இல்லை. உங்கள் இருப்பிடம் தனிப்பட்டது.',
     offlineBadge: '⚡ ஆஃப்லைன் (GPS தயார்)',
@@ -386,6 +394,8 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     boatmanRoleSub: 'মাঝি (ভয়েস লাইফলাইন)',
     touristRoleTitle: 'আমি একজন পর্যটক / যাত্রী',
     touristRoleSub: 'পর্যটক (সুরক্ষা কেন্দ্র)',
+    authorityRoleTitle: 'সরকারি কর্তৃপক্ষ / NDRF',
+    authorityRoleSub: 'দুর্যোগ ব্যবস্থাপনা ও টহল কমান্ড',
     loginContinue: 'এগিয়ে যান / লগইন করুন',
     loginNote: 'কোনো পাসওয়ার্ড নেই। কোনো ওটিপি ঝামেলা নেই। আপনার অবস্থান নিরাপদ থাকে।',
     offlineBadge: '⚡ অফলাইন (GPS সক্রিয়)',
@@ -468,6 +478,8 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     boatmanRoleSub: 'नाविक (व्हॉइस लाइफलाइन)',
     touristRoleTitle: 'मी एक पर्यटक / प्रवासी आहे',
     touristRoleSub: 'पर्यटक (सुरक्षा केंद्र)',
+    authorityRoleTitle: 'शासकीय प्राधिकरण / NDRF',
+    authorityRoleSub: 'आपदा प्रबंधन एवं गश्ती कमान',
     loginContinue: 'पुढे जा / लॉगिन करा',
     loginNote: 'पासवर्ड नाही. OTP चा त्रास नाही. तुमचे स्थान पूर्णपणे सुरक्षित राहते.',
     offlineBadge: '⚡ ऑफलाइन (GPS सक्रिय)',

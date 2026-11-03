@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 import { SupportedLang, LANGUAGES, UI_TRANSLATIONS } from '@/lib/i18n'
 
-type Mode = 'boatman' | 'tourist'
+type Mode = 'boatman' | 'tourist' | 'authority'
 type Screen = 'login' | 'dashboard'
 type Status = 'safe' | 'danger'
 
@@ -530,7 +530,10 @@ function RoleLogin({
           <button
             type="button"
             className={role === 'boatman' ? 'role-card active' : 'role-card'}
-            onClick={() => setRole('boatman')}
+            onClick={() => {
+              setRole('boatman')
+              if (!name || name === 'Insp. Rajesh Verma (NDRF)' || name === 'राजेश वर्मा (NDRF कमान)') setName('रमेश निषाद')
+            }}
             role="radio"
             aria-checked={role === 'boatman'}
           >
@@ -541,13 +544,48 @@ function RoleLogin({
           <button
             type="button"
             className={role === 'tourist' ? 'role-card active' : 'role-card'}
-            onClick={() => setRole('tourist')}
+            onClick={() => {
+              setRole('tourist')
+              if (!name || name === 'Insp. Rajesh Verma (NDRF)' || name === 'राजेश वर्मा (NDRF कमान)') setName('राहुल शर्मा')
+            }}
             role="radio"
             aria-checked={role === 'tourist'}
           >
             <span>🎒</span>
             <strong>{t.touristRoleTitle}</strong>
             <small>{t.touristRoleSub}</small>
+          </button>
+          <button
+            type="button"
+            className={role === 'authority' ? 'role-card active' : 'role-card'}
+            onClick={() => {
+              setRole('authority')
+              if (!name || name === 'रमेश निषाद' || name === 'राहुल शर्मा') {
+                setName(lang === 'hi' ? 'राजेश वर्मा (NDRF कमान)' : 'Insp. Rajesh Verma (NDRF)')
+              }
+            }}
+            role="radio"
+            aria-checked={role === 'authority'}
+            style={{
+              gridColumn: '1 / -1',
+              display: 'flex',
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '11px 14px',
+              background: role === 'authority' ? 'rgba(5, 150, 105, 0.08)' : '#f8fafc',
+              borderColor: role === 'authority' ? '#059669' : 'var(--line)'
+            }}
+          >
+            <span style={{ fontSize: '24px' }}>🏛️</span>
+            <div style={{ textAlign: 'left' }}>
+              <strong style={{ fontSize: '13px', display: 'block', color: role === 'authority' ? '#047857' : '#1e293b' }}>
+                {t.authorityRoleTitle}
+              </strong>
+              <small style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>
+                {t.authorityRoleSub}
+              </small>
+            </div>
           </button>
         </div>
 
@@ -591,7 +629,7 @@ function RoleLogin({
           type="button"
           className="continue-button"
           onClick={() => {
-            const finalName = name.trim() || (role === 'boatman' ? 'रमेश निषाद' : 'राहुल शर्मा')
+            const finalName = name.trim() || (role === 'authority' ? (lang === 'hi' ? 'राजेश वर्मा (NDRF कमान)' : 'Insp. Rajesh Verma (NDRF)') : (role === 'boatman' ? 'रमेश निषाद' : 'राहुल शर्मा'))
             onContinue(role, phone || '9876543210', finalName)
           }}
         >
@@ -722,7 +760,7 @@ function TopBar({
               border: mode === 'boatman' ? '1px solid #a7f3d0' : '1px solid #bae6fd'
             }}
           >
-            <span style={{ fontSize: '10.5px' }}>{mode === 'boatman' ? '🎣' : '🎒'}</span>
+            <span style={{ fontSize: '10.5px' }}>{mode === 'authority' ? '🏛️' : (mode === 'boatman' ? '🎣' : '🎒')}</span>
             <span style={{ fontSize: '10.5px', fontWeight: 700, color: mode === 'boatman' ? '#047857' : '#0369a1' }}>
               {userName}
             </span>
@@ -2665,6 +2703,7 @@ function TouristDashboard({
 // 5. Boatman / Fisherman Dashboard
 // ─────────────────────────────────────────────
 function BoatmanDashboard({
+  role = 'boatman',
   onSwitch,
   phone,
   userName = 'Ramesh Nishad',
@@ -2674,6 +2713,7 @@ function BoatmanDashboard({
   onLangChange,
   isOnline = true
 }: {
+  role?: Mode
   onSwitch: () => void
   phone: string
   userName?: string
@@ -2925,8 +2965,16 @@ function BoatmanDashboard({
 
         <div className="boatman-header">
           <div>
-            <strong>{t.boatmanRoleTitle}: {userName}</strong>
-            <span>Boat #14 · {location.placeName}</span>
+            <strong>
+              {role === 'authority'
+                ? `🏛️ ${t.authorityRoleTitle}: ${userName}`
+                : `${t.boatmanRoleTitle}: ${userName}`}
+            </strong>
+            <span>
+              {role === 'authority'
+                ? `NDRF Disaster Command #01 · ${location.placeName}`
+                : `Boat #14 · ${location.placeName}`}
+            </span>
           </div>
           <b className="network-status">
             ● {t.boatmanGpsCoords}: {location.lat.toFixed(4)}°, {location.lon.toFixed(4)}° · {location.isLiveGPS ? t.realGps : t.presetWater}
@@ -3265,6 +3313,7 @@ export default function CoastguardDashboard() {
         />
       ) : (
         <BoatmanDashboard
+          role={mode}
           phone={phone}
           userName={userName}
           location={location}
