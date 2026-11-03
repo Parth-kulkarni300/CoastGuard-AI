@@ -412,18 +412,21 @@ async def fisherman_broadcast(
 @app.post("/api/tourist/sos")
 async def tourist_sos(
     phone: str = Form("9876543210"),
+    tourist_name: Optional[str] = Form("Rahul Sharma"),
     incident_type: str = Form("Emergency SOS"),
     lat: float = Form(25.3176),
-    lon: float = Form(83.0060)
+    lon: float = Form(83.0060),
+    location_name: Optional[str] = Form("Assi Ghat Sector, Varanasi")
 ):
     sos_data = {
         "type": "tourist_sos",
         "phone": phone,
+        "tourist_name": tourist_name or "Rahul Sharma",
         "incident": incident_type,
         "lat": lat,
         "lon": lon,
         "time": datetime.now().strftime("%H:%M:%S"),
-        "location": "Assi Ghat Sector, Varanasi"
+        "location": location_name or "Assi Ghat Sector, Varanasi"
     }
     await manager.broadcast({
         "type": "sos_alert",
@@ -431,6 +434,7 @@ async def tourist_sos(
     })
     return JSONResponse(content={
         "status": "dispatched",
+        "data": sos_data,
         "message": "Nearest boat patrol and river police alerted with your live GPS location."
     })
 

@@ -63,6 +63,39 @@ function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lo
   return Math.round(R * c)
 }
 
+// Nautical Bearing & Heading Calculator (Range & Bearing Vector across open water)
+function calculateBearing(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): { degrees: number; compass: string; arrow: string } {
+  const dLon = ((lon2 - lon1) * Math.PI) / 180
+  const y = Math.sin(dLon) * Math.cos((lat2 * Math.PI) / 180)
+  const x =
+    Math.cos((lat1 * Math.PI) / 180) * Math.sin((lat2 * Math.PI) / 180) -
+    Math.sin((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.cos(dLon)
+  const brng = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360
+
+  const directions = [
+    { label: 'North', arrow: '⬆️' },
+    { label: 'North-East', arrow: '↗️' },
+    { label: 'East', arrow: '➡️' },
+    { label: 'South-East', arrow: '↘️' },
+    { label: 'South', arrow: '⬇️' },
+    { label: 'South-West', arrow: '↙️' },
+    { label: 'West', arrow: '⬅️' },
+    { label: 'North-West', arrow: '↖️' }
+  ]
+  const index = Math.round(brng / 45) % 8
+  return {
+    degrees: Math.round(brng),
+    compass: directions[index].label,
+    arrow: directions[index].arrow
+  }
+}
+
+
 // ─────────────────────────────────────────────
 // Custom Hook: Real-Time Geolocation
 // ─────────────────────────────────────────────
@@ -174,7 +207,8 @@ function MiniVisualRadar({
   boatmanName = 'Ramesh Nishad',
   currentUserName,
   mode = 'tourist',
-  lang = 'hi'
+  lang = 'hi',
+  rescueTarget = null
 }: {
   status: Status
   distanceMeters: number
@@ -183,16 +217,27 @@ function MiniVisualRadar({
   currentUserName?: string
   mode?: Mode
   lang?: SupportedLang
+  rescueTarget?: {
+    touristName: string
+    distMeters: number
+    bearing: { degrees: number; compass: string; arrow: string }
+    incident: string
+    time: string
+  } | null
 }) {
   const t = UI_TRANSLATIONS[lang]
-  const isDanger = status === 'danger'
+  const isDanger = status === 'danger' || !!rescueTarget
   const radarRadiusPx = 105
+
   // Scale distance (max 1500m -> radius 90px)
-  const normalizedDist = Math.min(1500, Math.max(70, distanceMeters))
+  const effectiveDist = rescueTarget ? rescueTarget.distMeters : distanceMeters
+  const normalizedDist = Math.min(1500, Math.max(70, effectiveDist))
   const targetRadius = (normalizedDist / 1500) * (radarRadiusPx - 25) + 20
 
-  // Bearing offset: 45° North-East
-  const angleRad = (45 * Math.PI) / 180
+  // Bearing offset: dynamic angle if rescue target is active, else 45° NE default
+  const angleRad = rescueTarget
+    ? (rescueTarget.bearing.degrees * Math.PI) / 180
+    : (45 * Math.PI) / 180
   const targetX = 130 + targetRadius * Math.sin(angleRad)
   const targetY = 130 - targetRadius * Math.cos(angleRad)
 
@@ -201,22 +246,22 @@ function MiniVisualRadar({
       className="radar-card"
       style={{
         background: '#060d15',
-        border: isDanger ? '1px solid rgba(255, 51, 68, 0.4)' : '1px solid rgba(0, 212, 255, 0.25)',
+        border: rescueTarget ? '1.5px solid #ff3344' : (isDanger ? '1px solid rgba(255, 51, 68, 0.4)' : '1px solid rgba(0, 212, 255, 0.25)'),
         borderRadius: '14px',
         padding: '12px 14px',
         marginBottom: '12px',
         color: '#fff',
-        boxShadow: isDanger ? '0 6px 24px rgba(255, 51, 68, 0.15)' : '0 6px 24px rgba(0, 212, 255, 0.08)',
+        boxShadow: rescueTarget ? '0 8px 30px rgba(255, 51, 68, 0.35)' : (isDanger ? '0 6px 24px rgba(255, 51, 68, 0.15)' : '0 6px 24px rgba(0, 212, 255, 0.08)'),
         position: 'relative',
         overflow: 'hidden'
       }}
     >
-      {/* Header */}
+      {/* Radar Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Compass style={{ width: '14px', height: '14px', color: isDanger ? '#ff4444' : '#00d4ff' }} />
-          <span style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '0.06em', color: isDanger ? '#ff6677' : '#00d4ff' }}>
-            {t.radarTitle}
+          <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.05em', color: '#cbd5e1' }}>
+            {t.radarTitle} · {placeName}
           </span>
         </div>
         <span
@@ -225,42 +270,63 @@ function MiniVisualRadar({
             fontWeight: 800,
             padding: '2px 7px',
             borderRadius: '4px',
-            background: isDanger ? 'rgba(255,51,68,0.2)' : 'rgba(0,230,118,0.15)',
-            color: isDanger ? '#ff4444' : '#00e676',
-            border: isDanger ? '1px solid #ff4444' : '1px solid #00e676'
+            background: rescueTarget ? 'rgba(255, 51, 68, 0.25)' : (isDanger ? 'rgba(255, 51, 68, 0.2)' : 'rgba(0, 230, 118, 0.15)'),
+            color: rescueTarget ? '#ff4455' : (isDanger ? '#ff4444' : '#00e676'),
+            border: rescueTarget ? '1px solid #ff3344' : (isDanger ? '1px solid #ff4444' : '1px solid #00e676')
           }}
         >
-          {isDanger ? t.radarDangerBadge : t.radarSafeBadge}
+          {rescueTarget ? '🆘 RESCUE VECTOR' : (isDanger ? t.radarDangerBadge : t.radarSafeBadge)}
         </span>
       </div>
+
+      {/* Steer-By-Compass HUD Banner for Boatman when Rescue Target is Active */}
+      {rescueTarget && (
+        <div
+          style={{
+            background: 'rgba(255, 51, 68, 0.15)',
+            border: '1px solid rgba(255, 51, 68, 0.45)',
+            borderRadius: '10px',
+            padding: '7px 10px',
+            marginBottom: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '18px' }}>{rescueTarget.bearing.arrow}</span>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#ff6677' }}>
+                STEER: {rescueTarget.bearing.compass.toUpperCase()} ({rescueTarget.bearing.degrees}°)
+              </div>
+              <div style={{ fontSize: '9.5px', color: '#cbd5e1' }}>
+                {rescueTarget.distMeters < 1000 ? `${rescueTarget.distMeters}m` : `${(rescueTarget.distMeters / 1000).toFixed(1)}km`} direct across water · ~{Math.max(1, Math.round(rescueTarget.distMeters / 180))} min at 6 knots
+              </div>
+            </div>
+          </div>
+          <span style={{ background: '#ff3344', color: '#fff', fontSize: '9px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px' }}>
+            SOS TARGET
+          </span>
+        </div>
+      )}
 
       {/* SVG Sonar Scope */}
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
         <svg viewBox="0 0 260 260" width="180" height="180" style={{ overflow: 'visible' }}>
           <defs>
-            <linearGradient id="sweepGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={isDanger ? '#ff4444' : '#00d4ff'} stopOpacity="0.45" />
-              <stop offset="100%" stopColor={isDanger ? '#ff4444' : '#00d4ff'} stopOpacity="0" />
-            </linearGradient>
+            <radialGradient id="sweepGrad" cx="0%" cy="0%" r="100%">
+              <stop offset="0%" stopColor={isDanger ? 'rgba(255, 51, 68, 0.4)' : 'rgba(0, 212, 255, 0.4)'} />
+              <stop offset="100%" stopColor="transparent" />
+            </radialGradient>
             <filter id="radarGlow" x="-20%" y="-20%" width="140%" height="140%">
               <feGaussianBlur stdDeviation="3" result="blur" />
               <feComposite in="SourceGraphic" in2="blur" operator="over" />
             </filter>
           </defs>
 
-          {/* Background circle */}
-          <circle
-            cx="130"
-            cy="130"
-            r="105"
-            fill="#03070d"
-            stroke={isDanger ? 'rgba(255, 51, 68, 0.35)' : 'rgba(0, 212, 255, 0.25)'}
-            strokeWidth="1.5"
-          />
-
-          {/* Concentric Range Rings (500m, 1000m, 1500m) */}
-          <circle cx="130" cy="130" r="35" fill="none" stroke="rgba(0, 212, 255, 0.15)" strokeWidth="1" strokeDasharray="3 3" />
-          <circle cx="130" cy="130" r="70" fill="none" stroke="rgba(0, 212, 255, 0.2)" strokeWidth="1" strokeDasharray="4 4" />
+          {/* Concentric Sonar Rings */}
+          <circle cx="130" cy="130" r="35" fill="none" stroke="rgba(0, 212, 255, 0.15)" strokeWidth="1" />
+          <circle cx="130" cy="130" r="70" fill="none" stroke="rgba(0, 212, 255, 0.2)" strokeWidth="1" strokeDasharray="3 3" />
           <circle
             cx="130"
             cy="130"
@@ -291,15 +357,15 @@ function MiniVisualRadar({
             <path d="M130,130 L130,25 A105,105 0 0,1 205,55 Z" fill="url(#sweepGrad)" />
           </g>
 
-          {/* Range Vector connecting User to Boatman */}
+          {/* Direct Nautical Rescue Vector connecting Boat to Target */}
           <line
             x1="130"
             y1="130"
             x2={targetX}
             y2={targetY}
-            stroke={isDanger ? '#ff4444' : '#00d4ff'}
-            strokeWidth="1.2"
-            strokeDasharray="3 3"
+            stroke={rescueTarget ? '#ff3344' : (isDanger ? '#ff4444' : '#00d4ff')}
+            strokeWidth={rescueTarget ? '2.5' : '1.2'}
+            strokeDasharray={rescueTarget ? '5 3' : '3 3'}
           />
 
           {/* Center User Point */}
@@ -312,10 +378,12 @@ function MiniVisualRadar({
           </text>
 
           {/* Target Vessel Point */}
-          <circle cx={targetX} cy={targetY} r="18" fill={isDanger ? 'rgba(255, 51, 68, 0.3)' : 'rgba(0, 230, 118, 0.2)'} />
-          <circle cx={targetX} cy={targetY} r="6" fill={isDanger ? '#ff3344' : '#00e676'} filter="url(#radarGlow)" />
-          <text x={targetX} y={targetY - 10} textAnchor="middle" fill={isDanger ? '#ff6677' : '#6df1a7'} fontSize="8" fontWeight="800">
-            {mode === 'tourist' ? `⛵ ${boatmanName}` : `🎒 ${t.touristSector}`}
+          <circle cx={targetX} cy={targetY} r="18" fill={rescueTarget ? 'rgba(255, 51, 68, 0.45)' : (isDanger ? 'rgba(255, 51, 68, 0.3)' : 'rgba(0, 230, 118, 0.2)')} />
+          <circle cx={targetX} cy={targetY} r="6" fill={rescueTarget ? '#ff2233' : (isDanger ? '#ff3344' : '#00e676')} filter="url(#radarGlow)" />
+          <text x={targetX} y={targetY - 10} textAnchor="middle" fill={rescueTarget ? '#ff4455' : (isDanger ? '#ff6677' : '#6df1a7')} fontSize="8" fontWeight="800">
+            {rescueTarget
+              ? `🆘 ${rescueTarget.touristName} (STUCK)`
+              : (mode === 'tourist' ? `⛵ ${boatmanName}` : `🎒 ${t.touristSector}`)}
           </text>
         </svg>
       </div>
@@ -333,10 +401,21 @@ function MiniVisualRadar({
         }}
       >
         <div>
-          <span style={{ color: '#8899aa' }}>Proximity: </span>
-          <strong style={{ color: isDanger ? '#ff6677' : '#00e676' }}>
-            {distanceMeters < 1000 ? `${distanceMeters}m` : `${(distanceMeters / 1000).toFixed(1)}km`} North-East
-          </strong>
+          {rescueTarget ? (
+            <div>
+              <span style={{ color: '#ff6677', fontWeight: 700 }}>DIRECT WATER VECTOR: </span>
+              <strong style={{ color: '#ffffff' }}>
+                {rescueTarget.distMeters < 1000 ? `${rescueTarget.distMeters}m` : `${(rescueTarget.distMeters / 1000).toFixed(1)}km`} {rescueTarget.bearing.compass} ({rescueTarget.bearing.arrow})
+              </strong>
+            </div>
+          ) : (
+            <div>
+              <span style={{ color: '#8899aa' }}>Proximity: </span>
+              <strong style={{ color: isDanger ? '#ff6677' : '#00e676' }}>
+                {distanceMeters < 1000 ? `${distanceMeters}m` : `${(distanceMeters / 1000).toFixed(1)}km`} North-East
+              </strong>
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <ShieldCheck style={{ width: '13px', color: '#00d4ff' }} />
@@ -817,6 +896,10 @@ function EmergencyCallModal({
   boatmanName = 'Ramesh Nishad',
   lang = 'hi',
   advisoryText,
+  userName = 'Rahul Sharma',
+  phone = '9876543210',
+  location,
+  onConfirmedSafe,
   onSos,
   autoAccept = false
 }: {
@@ -825,19 +908,31 @@ function EmergencyCallModal({
   boatmanName?: string
   lang?: SupportedLang
   advisoryText?: string
+  userName?: string
+  phone?: string
+  location?: { lat: number; lon: number; placeName: string; accuracy?: number }
+  onConfirmedSafe?: () => void
   onSos: () => void
   autoAccept?: boolean
 }) {
   const t = UI_TRANSLATIONS[lang]
   const [callState, setCallState] = useState<'ringing' | 'connected'>(autoAccept ? 'connected' : 'ringing')
+  const [triageStep, setTriageStep] = useState<'advisory' | 'asking' | 'safe' | 'stuck'>('advisory')
+  const [countdown, setCountdown] = useState(15)
+  const [voiceHeard, setVoiceHeard] = useState<string>('')
+  const [isListeningVoice, setIsListeningVoice] = useState(false)
   const [duration, setDuration] = useState(0)
+
   const ringtoneRef = useRef<{ stop: () => void } | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const recognitionRef = useRef<any>(null)
+  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const advisoryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Start synthesized telecom ringtone (440Hz + 480Hz dual-tone) on mount if ringing
   useEffect(() => {
     if (autoAccept) {
-      playAdvisoryVoice()
+      startAdvisoryFlow()
       return
     }
     let isPlaying = true
@@ -859,8 +954,8 @@ function EmergencyCallModal({
             osc2.type = 'sine'
 
             gain.gain.setValueAtTime(0, now)
-            gain.gain.linearRampToValueAtTime(0.18, now + 0.05)
-            gain.gain.setValueAtTime(0.18, now + 1.2)
+            gain.gain.linearRampToValueAtTime(0.2, now + 0.05)
+            gain.gain.setValueAtTime(0.2, now + 1.2)
             gain.gain.linearRampToValueAtTime(0, now + 1.25)
 
             osc1.connect(gain)
@@ -893,6 +988,11 @@ function EmergencyCallModal({
       isPlaying = false
       if (ringtoneRef.current) ringtoneRef.current.stop()
       if (audioRef.current) audioRef.current.pause()
+      if (advisoryTimeoutRef.current) clearTimeout(advisoryTimeoutRef.current)
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop() } catch {}
+      }
     }
   }, [autoAccept])
 
@@ -906,9 +1006,87 @@ function EmergencyCallModal({
     }
   }, [callState])
 
-  const playAdvisoryVoice = () => {
+  // 15-second non-response auto-dispatch timer when asking "Are you safe?"
+  useEffect(() => {
+    if (triageStep !== 'asking') return
+
+    setCountdown(15)
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          handleStuck('unanswered_timeout')
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    countdownTimerRef.current = timer
+
+    return () => {
+      if (timer) clearInterval(timer)
+    }
+  }, [triageStep])
+
+  // Web Speech API for hands-free voice response ("Yes" / "Need Help")
+  useEffect(() => {
+    if (triageStep !== 'asking') {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop() } catch {}
+      }
+      setIsListeningVoice(false)
+      return
+    }
+
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (SpeechRec) {
+      try {
+        const rec = new SpeechRec()
+        rec.continuous = true
+        rec.interimResults = true
+        rec.lang = lang === 'hi' ? 'hi-IN' : (lang === 'mr' ? 'mr-IN' : (lang === 'ta' ? 'ta-IN' : (lang === 'bn' ? 'bn-IN' : 'en-IN')))
+
+        rec.onresult = (event: any) => {
+          const results = event.results
+          const transcript = results[results.length - 1][0].transcript.toLowerCase().trim()
+          setVoiceHeard(transcript)
+
+          // Check for safe keywords
+          if (/yes|haan|ha|safe|surakshit|theek|thik|fine|aam|ho|accha|okay/i.test(transcript)) {
+            handleSafe()
+          }
+          // Check for stuck / emergency keywords
+          else if (/help|no|nahi|madad|stuck|fasa|fas|trapped|bachao|illai|na|danger/i.test(transcript)) {
+            handleStuck('voice_detected')
+          }
+        }
+
+        rec.onerror = () => setIsListeningVoice(false)
+        rec.onend = () => {
+          if (triageStep === 'asking') {
+            try { rec.start() } catch {}
+          }
+        }
+
+        rec.start()
+        recognitionRef.current = rec
+        setIsListeningVoice(true)
+      } catch {
+        setIsListeningVoice(false)
+      }
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop() } catch {}
+      }
+    }
+  }, [triageStep, lang])
+
+  // Step 1: Play Advisory Voice Announcement
+  const startAdvisoryFlow = () => {
+    setTriageStep('advisory')
     try {
-      // Prioritize static raw timbre advisory WAV file, then dynamic endpoint, then speech synthesis
       const primaryUrl = `/audio/timbre_advisory_${lang === 'en' ? 'en' : 'hi'}_danger.wav`
       if (audioRef.current) {
         audioRef.current.pause()
@@ -916,58 +1094,143 @@ function EmergencyCallModal({
       const audio = new Audio(primaryUrl)
       audio.volume = 1.0
       audioRef.current = audio
+
+      const proceedToAsking = () => {
+        setTriageStep('asking')
+        speakTriageQuestion()
+      }
+
+      audio.onended = () => {
+        proceedToAsking()
+      }
+
       const promise = audio.play()
       if (promise !== undefined) {
-        promise.catch((err) => {
-          console.warn('Primary static audio blocked or unavailable, trying backend TTS:', err)
-          const fallbackAudio = new Audio(`/api/tourist/tts?lang=${lang}&status=danger`)
-          fallbackAudio.volume = 1.0
-          audioRef.current = fallbackAudio
-          fallbackAudio.play().catch(() => {
-            if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-              window.speechSynthesis.cancel()
-              const utterance = new SpeechSynthesisUtterance(advisoryText || 'सावधान! नाव चालकों ने नदी में अचानक बहाव की चेतावनी दी है। कृपया तुरंत घाट की ऊपरी सीढ़ियों पर जाएं।')
-              const voiceLocale = lang === 'hi' ? 'hi-IN' : (lang === 'mr' ? 'mr-IN' : (lang === 'ta' ? 'ta-IN' : (lang === 'bn' ? 'bn-IN' : 'en-IN')))
-              utterance.lang = voiceLocale
-              utterance.volume = 1.0
-              utterance.rate = 0.95
-              window.speechSynthesis.speak(utterance)
-            }
-          })
+        promise.catch(() => {
+          // Fallback to speech synthesis
+          if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            window.speechSynthesis.cancel()
+            const msg = advisoryText || 'सावधान! नाव चालकों ने नदी में अचानक बहाव की चेतावनी दी है। कृपया तुरंत घाट की ऊपरी सीढ़ियों पर जाएं।'
+            const utterance = new SpeechSynthesisUtterance(msg)
+            const voiceLocale = lang === 'hi' ? 'hi-IN' : (lang === 'mr' ? 'mr-IN' : (lang === 'ta' ? 'ta-IN' : (lang === 'bn' ? 'bn-IN' : 'en-IN')))
+            utterance.lang = voiceLocale
+            utterance.onend = () => proceedToAsking()
+            window.speechSynthesis.speak(utterance)
+          } else {
+            advisoryTimeoutRef.current = setTimeout(proceedToAsking, 4500)
+          }
         })
       }
+
+      // Safety fallback timer if audio stalls
+      advisoryTimeoutRef.current = setTimeout(() => {
+        setTriageStep((prev) => {
+          if (prev === 'advisory') {
+            speakTriageQuestion()
+            return 'asking'
+          }
+          return prev
+        })
+      }, 5500)
     } catch {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel()
-        const utterance = new SpeechSynthesisUtterance(advisoryText || 'सावधान! नाव चालकों ने नदी में अचानक बहाव की चेतावनी दी है। कृपया तुरंत घाट की ऊपरी सीढ़ियों पर जाएं।')
-        const voiceLocale = lang === 'hi' ? 'hi-IN' : 'en-IN'
-        utterance.lang = voiceLocale
-        utterance.volume = 1.0
-        window.speechSynthesis.speak(utterance)
-      }
+      speakTriageQuestion()
+      setTriageStep('asking')
+    }
+  }
+
+  // Speak the conversational triage question
+  const speakTriageQuestion = () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+      const questionText = lang === 'hi'
+        ? 'क्या आप सुरक्षित स्थान पर हैं? बोलें हाँ, या मदद चाहिए।'
+        : (lang === 'mr'
+          ? 'तुम्ही सुरक्षित ठिकाणी आहात का? बोला हो, किंवा मदत हवी आहे.'
+          : (lang === 'ta'
+            ? 'நீங்கள் பாதுகாப்பான இடத்தில் இருக்கிறீர்களா? ஆம் அல்லது உதவி தேவை என்று சொல்லுங்கள்.'
+            : (lang === 'bn'
+              ? 'আপনি কি নিরাপদ স্থানে আছেন? হ্যাঁ বা সাহায্য চাই বলুন।'
+              : 'Are you in a safe place? Say Yes, or Need Help.')))
+
+      const utterance = new SpeechSynthesisUtterance(questionText)
+      const voiceLocale = lang === 'hi' ? 'hi-IN' : (lang === 'mr' ? 'mr-IN' : (lang === 'ta' ? 'ta-IN' : (lang === 'bn' ? 'bn-IN' : 'en-IN')))
+      utterance.lang = voiceLocale
+      utterance.rate = 1.0
+      window.speechSynthesis.speak(utterance)
     }
   }
 
   const acceptCall = () => {
-    if (ringtoneRef.current) {
-      ringtoneRef.current.stop()
-    }
+    if (ringtoneRef.current) ringtoneRef.current.stop()
     setCallState('connected')
-    // Play voice immediately with automatic speech synthesis fallback
-    playAdvisoryVoice()
+    startAdvisoryFlow()
   }
 
   const declineCall = () => {
-    if (ringtoneRef.current) {
-      ringtoneRef.current.stop()
-    }
-    if (audioRef.current) {
-      audioRef.current.pause()
-    }
+    if (ringtoneRef.current) ringtoneRef.current.stop()
+    if (audioRef.current) audioRef.current.pause()
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel()
     }
     close()
+  }
+
+  // Tourist reports SAFE
+  const handleSafe = () => {
+    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch {}
+    }
+    setTriageStep('safe')
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+      const safeAck = lang === 'hi'
+        ? 'धन्यवाद। आपकी सुरक्षा स्थिति दर्ज कर ली गई है। सतर्क रहें।'
+        : 'Thank you. Your safe status has been logged with river patrol.'
+      const u = new SpeechSynthesisUtterance(safeAck)
+      u.lang = lang === 'hi' ? 'hi-IN' : 'en-IN'
+      window.speechSynthesis.speak(u)
+    }
+
+    if (onConfirmedSafe) onConfirmedSafe()
+    setTimeout(() => {
+      close()
+    }, 2000)
+  }
+
+  // Tourist reports STUCK or 15s timeout
+  const handleStuck = (reason?: string) => {
+    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch {}
+    }
+    setTriageStep('stuck')
+
+    // Dispatches SOS alert to nearest boatmen via backend
+    const fd = new FormData()
+    fd.append('phone', phone)
+    fd.append('tourist_name', userName)
+    fd.append('incident_type', reason === 'unanswered_timeout'
+      ? 'Unanswered Tourist (15s Silence Auto-Dispatch)'
+      : 'Tourist Stuck / Needs Immediate Rescue')
+    fd.append('lat', (location?.lat || 25.3176).toString())
+    fd.append('lon', (location?.lon || 83.0060).toString())
+    fd.append('location_name', location?.placeName || placeName)
+    fetch('/api/tourist/sos', { method: 'POST', body: fd }).catch(() => {})
+
+    // Voice announcement
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+      const stuckAck = lang === 'hi'
+        ? 'नजदीकी नाव चालक को आपकी लोकेशन भेज दी गई है। मदद आ रही है।'
+        : 'Alert dispatched to nearest boat patrol with your live coordinates. Help is coming.'
+      const u = new SpeechSynthesisUtterance(stuckAck)
+      u.lang = lang === 'hi' ? 'hi-IN' : 'en-IN'
+      window.speechSynthesis.speak(u)
+    }
+
+    if (onSos) onSos()
   }
 
   return (
@@ -976,8 +1239,8 @@ function EmergencyCallModal({
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        background: 'rgba(5, 10, 18, 0.94)',
-        backdropFilter: 'blur(12px)',
+        background: 'rgba(5, 10, 18, 0.95)',
+        backdropFilter: 'blur(14px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -987,26 +1250,30 @@ function EmergencyCallModal({
       <style>{`
         @keyframes ringPulse {
           0% { transform: scale(0.9); opacity: 0.9; }
-          50% { transform: scale(1.25); opacity: 0.15; }
+          50% { transform: scale(1.3); opacity: 0.15; }
           100% { transform: scale(0.9); opacity: 0.9; }
         }
         @keyframes waveScale {
           0% { transform: scaleY(0.25); }
           100% { transform: scaleY(1.0); }
         }
+        @keyframes strobePulse {
+          0%, 100% { box-shadow: 0 0 15px rgba(255, 51, 68, 0.4); }
+          50% { box-shadow: 0 0 35px rgba(255, 51, 68, 0.9); }
+        }
       `}</style>
 
       <section
         style={{
           background: '#09121d',
-          border: callState === 'ringing' ? '2px solid #ff3344' : '1px solid #00d4ff',
-          borderRadius: '18px',
-          maxWidth: '380px',
+          border: callState === 'ringing' ? '2px solid #ff3344' : (triageStep === 'stuck' ? '2px solid #ff2233' : '1px solid #00d4ff'),
+          borderRadius: '20px',
+          maxWidth: '400px',
           width: '100%',
-          padding: '22px 18px',
+          padding: '24px 20px',
           textAlign: 'center',
           color: '#ffffff',
-          boxShadow: callState === 'ringing' ? '0 0 45px rgba(255, 51, 68, 0.3)' : '0 0 35px rgba(0, 212, 255, 0.2)',
+          boxShadow: callState === 'ringing' ? '0 0 50px rgba(255, 51, 68, 0.35)' : '0 0 35px rgba(0, 212, 255, 0.2)',
           position: 'relative',
           overflow: 'hidden'
         }}
@@ -1014,20 +1281,32 @@ function EmergencyCallModal({
         aria-modal="true"
       >
         {/* Top Priority Badge */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '14px' }}>
           <span
             style={{
-              fontSize: '9.5px',
+              fontSize: '10px',
               fontWeight: 800,
               letterSpacing: '0.06em',
-              padding: '3px 8px',
-              borderRadius: '5px',
-              background: callState === 'ringing' ? 'rgba(255, 51, 68, 0.25)' : 'rgba(0, 230, 118, 0.2)',
-              color: callState === 'ringing' ? '#ff4455' : '#00e676',
+              padding: '3px 10px',
+              borderRadius: '6px',
+              background: callState === 'ringing' ? 'rgba(255, 51, 68, 0.25)' : (triageStep === 'stuck' ? '#ff3344' : 'rgba(0, 230, 118, 0.2)'),
+              color: callState === 'ringing' ? '#ff4455' : (triageStep === 'stuck' ? '#ffffff' : '#00e676'),
               border: callState === 'ringing' ? '1px solid #ff3344' : '1px solid #00e676'
             }}
           >
-            {callState === 'ringing' ? t.callIncomingBadge : t.callConnectedBadge}
+            {callState === 'ringing' ? '🚨 112 RIVER RESCUE PATROL' : (triageStep === 'stuck' ? '🆘 RESCUE DISPATCHED' : (triageStep === 'safe' ? '✅ VERIFIED SAFE' : '⚡ TWO-WAY VOICE TRIAGE'))}
+          </span>
+          <span
+            style={{
+              fontSize: '10px',
+              fontWeight: 700,
+              padding: '3px 8px',
+              borderRadius: '6px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              color: '#94a3b8'
+            }}
+          >
+            SOVEREIGN GRID
           </span>
         </div>
 
@@ -1037,8 +1316,8 @@ function EmergencyCallModal({
             <div
               style={{
                 position: 'relative',
-                width: '74px',
-                height: '74px',
+                width: '78px',
+                height: '78px',
                 margin: '0 auto 16px',
                 display: 'flex',
                 alignItems: 'center',
@@ -1048,7 +1327,7 @@ function EmergencyCallModal({
               <div
                 style={{
                   position: 'absolute',
-                  inset: -10,
+                  inset: -12,
                   borderRadius: '50%',
                   background: 'rgba(255, 51, 68, 0.25)',
                   animation: 'ringPulse 1.8s infinite'
@@ -1056,51 +1335,60 @@ function EmergencyCallModal({
               />
               <div
                 style={{
-                  width: '64px',
-                  height: '64px',
+                  width: '68px',
+                  height: '68px',
                   borderRadius: '50%',
                   background: 'linear-gradient(135deg, #ff3344, #cc1122)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 0 25px rgba(255, 51, 68, 0.65)'
+                  boxShadow: '0 0 30px rgba(255, 51, 68, 0.65)'
                 }}
               >
-                <PhoneCall style={{ width: '30px', height: '30px', color: '#fff' }} />
+                <PhoneCall style={{ width: '32px', height: '32px', color: '#fff' }} />
               </div>
             </div>
 
-            <h2 style={{ fontSize: '17px', fontWeight: 800, margin: '0 0 4px', color: '#ffffff' }}>
-              {t.callTitle}
+            <h2 style={{ fontSize: '18px', fontWeight: 900, margin: '0 0 4px', color: '#ffffff' }}>
+              Boat #14 · {boatmanName}
             </h2>
-            <p style={{ fontSize: '12px', color: '#88a0b0', margin: '0 0 4px', fontWeight: 600 }}>
-              {t.callSector(placeName)}
+            <p style={{ fontSize: '12.5px', color: '#94a3b8', margin: '0 0 4px', fontWeight: 600 }}>
+              Sector: {placeName}
             </p>
-            <p style={{ fontSize: '10.5px', color: '#ff6677', margin: '0 0 18px', fontWeight: 700 }}>
-              {t.callDangerNotice(boatmanName)}
-            </p>
+            <div style={{
+              background: 'rgba(255, 51, 68, 0.12)',
+              border: '1px solid rgba(255, 51, 68, 0.35)',
+              borderRadius: '8px',
+              padding: '6px 10px',
+              margin: '8px 0 18px',
+              fontSize: '11px',
+              color: '#ff6677',
+              fontWeight: 700
+            }}>
+              ⚠️ URGENT WATER LEVEL / FLASH SURGE ADVISORY
+            </div>
 
             {/* Answer / Decline Buttons */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <button
                 type="button"
                 onClick={declineCall}
                 style={{
                   background: 'rgba(255, 51, 68, 0.15)',
-                  border: '1px solid rgba(255, 51, 68, 0.4)',
+                  border: '1px solid rgba(255, 51, 68, 0.45)',
                   color: '#ff4455',
-                  padding: '11px',
-                  borderRadius: '12px',
-                  fontSize: '12.5px',
+                  padding: '12px',
+                  borderRadius: '14px',
+                  fontSize: '13px',
                   fontWeight: 800,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '6px'
+                  gap: '8px'
                 }}
               >
-                <PhoneOff style={{ width: '15px' }} /> {t.callDecline}
+                <PhoneOff style={{ width: '16px' }} /> {t.callDecline}
               </button>
               <button
                 type="button"
@@ -1109,44 +1397,47 @@ function EmergencyCallModal({
                   background: 'linear-gradient(135deg, #00e676, #00b050)',
                   border: 'none',
                   color: '#002812',
-                  padding: '11px',
-                  borderRadius: '12px',
-                  fontSize: '12.5px',
+                  padding: '12px',
+                  borderRadius: '14px',
+                  fontSize: '13px',
                   fontWeight: 900,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '6px',
-                  boxShadow: '0 4px 16px rgba(0, 230, 118, 0.35)'
+                  gap: '8px',
+                  boxShadow: '0 4px 20px rgba(0, 230, 118, 0.4)'
                 }}
               >
-                <PhoneCall style={{ width: '15px' }} /> {t.callAccept}
+                <PhoneCall style={{ width: '16px' }} /> {t.callAccept}
               </button>
             </div>
           </>
         ) : (
           <>
-            {/* Active Call UI */}
-            <div style={{ margin: '10px 0 6px' }}>
-              <div style={{ fontSize: '24px', fontWeight: 900, letterSpacing: '0.04em', color: '#00e676' }}>
-                00:{String(duration).padStart(2, '0')}
+            {/* Active Call Header */}
+            <div style={{ margin: '4px 0 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#00e676' }} />
+                <span style={{ fontSize: '12px', color: '#00e676', fontWeight: 800 }}>
+                  00:{String(duration).padStart(2, '0')} · Priority Lifeline Active
+                </span>
               </div>
-              <div style={{ fontSize: '11px', color: '#7799aa', fontWeight: 700 }}>
-                {t.callActiveChannel}
-              </div>
+              <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                Boat #14 ({boatmanName})
+              </span>
             </div>
 
             {/* Pulsing Audio Waveform Visualizer */}
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', height: '34px', margin: '14px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', height: '30px', margin: '10px 0' }}>
               {[0.3, 0.85, 0.55, 1.0, 0.45, 0.9, 0.35].map((scale, i) => (
                 <span
                   key={i}
                   style={{
                     width: '4px',
-                    height: '28px',
+                    height: '24px',
                     borderRadius: '2px',
-                    background: '#00e676',
+                    background: triageStep === 'stuck' ? '#ff3344' : '#00e676',
                     transform: `scaleY(${scale})`,
                     animation: `waveScale 0.8s ease-in-out infinite alternate`,
                     animationDelay: `${i * 0.12}s`
@@ -1155,94 +1446,313 @@ function EmergencyCallModal({
               ))}
             </div>
 
-            {/* Subtitles box */}
-            <div
-              style={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '14px',
-                padding: '12px 14px',
-                margin: '14px 0',
-                textAlign: 'left'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{ fontSize: '10px', fontWeight: 800, color: '#00d4ff', letterSpacing: '0.08em' }}>
-                  {t.callSpokenHeader}
-                </span>
-                <button
-                  type="button"
-                  onClick={playAdvisoryVoice}
+            {/* STEP 1: Spoken Advisory Phase */}
+            {triageStep === 'advisory' && (
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '14px',
+                  padding: '14px',
+                  margin: '12px 0',
+                  textAlign: 'left'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#00d4ff', letterSpacing: '0.08em' }}>
+                    📢 STEP 1: SAFETY ADVISORY BROADCAST
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (advisoryTimeoutRef.current) clearTimeout(advisoryTimeoutRef.current)
+                      setTriageStep('asking')
+                      speakTriageQuestion()
+                    }}
+                    style={{
+                      background: 'rgba(0, 212, 255, 0.15)',
+                      border: '1px solid #00d4ff',
+                      color: '#00d4ff',
+                      borderRadius: '6px',
+                      padding: '2px 8px',
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Skip to Triage ⏭️
+                  </button>
+                </div>
+                <p style={{ fontSize: '13px', lineHeight: '1.45', margin: 0, color: '#f0f5f8', fontWeight: 500 }}>
+                  "{advisoryText || t.advisoryDanger}"
+                </p>
+                <div style={{ marginTop: '10px', fontSize: '10.5px', color: '#94a3b8', fontStyle: 'italic' }}>
+                  🔊 Playing warning audio… Stay tuned for safety check.
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: Conversational Triage Question ("Are you safe?") */}
+            {triageStep === 'asking' && (
+              <div style={{ margin: '12px 0' }}>
+                {/* Triage Question Banner */}
+                <div
                   style={{
-                    background: 'rgba(0, 212, 255, 0.15)',
-                    border: '1px solid #00d4ff',
-                    color: '#00d4ff',
-                    borderRadius: '8px',
-                    padding: '3px 8px',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
+                    background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(9, 18, 29, 0.8))',
+                    border: '1.5px solid #00d4ff',
+                    borderRadius: '14px',
+                    padding: '14px',
+                    marginBottom: '12px',
+                    textAlign: 'center'
                   }}
                 >
-                  <Volume2 style={{ width: '12px' }} /> Replay Voice
+                  <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#00d4ff', letterSpacing: '0.06em' }}>
+                    ❓ STEP 2: TWO-WAY SAFETY TRIAGE
+                  </span>
+                  <h3 style={{ fontSize: '16px', fontWeight: 900, margin: '6px 0 2px', color: '#ffffff' }}>
+                    "Are you in a safe place?"
+                  </h3>
+                  <div style={{ fontSize: '13px', color: '#cbd5e1', fontWeight: 700 }}>
+                    क्या आप सुरक्षित स्थान पर हैं?
+                  </div>
+
+                  {/* Auto-dispatch countdown */}
+                  <div
+                    style={{
+                      marginTop: '10px',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      background: 'rgba(255, 51, 68, 0.15)',
+                      border: '1px solid rgba(255, 51, 68, 0.4)',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#ff6677'
+                    }}
+                  >
+                    ⏳ Auto-dispatching rescue in <strong>{countdown}s</strong> if unanswered
+                  </div>
+
+                  {/* Hands-free voice recognition listener pill */}
+                  <div style={{ marginTop: '8px', fontSize: '10.5px', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isListeningVoice ? '#00e676' : '#ffaa00' }} />
+                    <span>
+                      {isListeningVoice ? '🎙️ Mic active: Say "Yes / Safe" or "Need Help"' : 'Tap your response below:'}
+                    </span>
+                  </div>
+                  {voiceHeard && (
+                    <div style={{ marginTop: '4px', fontSize: '10px', color: '#00d4ff', fontStyle: 'italic' }}>
+                      Heard: "{voiceHeard}"...
+                    </div>
+                  )}
+                </div>
+
+                {/* Two Large High-Contrast Decision Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
+                  {/* Option A: SAFE */}
+                  <button
+                    type="button"
+                    onClick={handleSafe}
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(0, 230, 118, 0.2), rgba(0, 160, 80, 0.35))',
+                      border: '2px solid #00e676',
+                      borderRadius: '14px',
+                      padding: '12px 14px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      transition: 'transform 0.15s ease'
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 900, color: '#00e676' }}>
+                        ✅ हाँ, मैं सुरक्षित हूँ (I'm Safe)
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: '#cbd5e1', marginTop: '2px' }}>
+                        At safe high ground · Mute future alerts
+                      </div>
+                    </div>
+                    <span style={{ background: '#00e676', color: '#003314', fontSize: '11px', fontWeight: 900, padding: '4px 8px', borderRadius: '6px' }}>
+                      TAP
+                    </span>
+                  </button>
+
+                  {/* Option B: STUCK / NEED HELP */}
+                  <button
+                    type="button"
+                    onClick={() => handleStuck('button_pressed')}
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(255, 51, 68, 0.25), rgba(180, 20, 30, 0.4))',
+                      border: '2px solid #ff3344',
+                      borderRadius: '14px',
+                      padding: '12px 14px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      animation: 'strobePulse 2s infinite'
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 900, color: '#ff4455' }}>
+                        🆘 मदद चाहिए / फंसा हूँ (Need Help)
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: '#cbd5e1', marginTop: '2px' }}>
+                        Trapped near water · Dispatch boat patrol now
+                      </div>
+                    </div>
+                    <span style={{ background: '#ff3344', color: '#ffffff', fontSize: '11px', fontWeight: 900, padding: '4px 8px', borderRadius: '6px' }}>
+                      SOS
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: Confirmed Safe View */}
+            {triageStep === 'safe' && (
+              <div
+                style={{
+                  background: 'rgba(0, 230, 118, 0.15)',
+                  border: '1.5px solid #00e676',
+                  borderRadius: '16px',
+                  padding: '20px 16px',
+                  margin: '14px 0',
+                  textAlign: 'center'
+                }}
+              >
+                <div style={{ fontSize: '38px', marginBottom: '8px' }}>🛡️</div>
+                <h3 style={{ fontSize: '17px', fontWeight: 900, margin: '0 0 6px', color: '#00e676' }}>
+                  Safety Status Confirmed!
+                </h3>
+                <p style={{ fontSize: '12px', color: '#cbd5e1', margin: '0 0 14px', lineHeight: '1.4' }}>
+                  Your safe status has been logged with Boat #14 and River Patrol. You will not be disturbed again for this water advisory.
+                </p>
+                <button
+                  type="button"
+                  onClick={close}
+                  style={{
+                    background: '#00e676',
+                    border: 'none',
+                    color: '#002e12',
+                    padding: '8px 18px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: 900,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Close Call Now
                 </button>
               </div>
-              <p style={{ fontSize: '12px', lineHeight: '1.45', margin: 0, color: '#f0f5f8' }}>
-                "{advisoryText || t.advisoryDanger}"
-              </p>
-            </div>
+            )}
 
-            {/* Connected Action Buttons */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  declineCall()
-                  onSos()
-                }}
+            {/* STEP 4: Emergency SOS / Stuck View */}
+            {triageStep === 'stuck' && (
+              <div
                 style={{
-                  background: 'rgba(255, 170, 0, 0.15)',
-                  border: '1px solid #ffaa00',
-                  color: '#ffbb11',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  fontSize: '12px',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
+                  background: 'linear-gradient(135deg, rgba(255, 51, 68, 0.25), rgba(30, 5, 10, 0.9))',
+                  border: '2px solid #ff3344',
+                  borderRadius: '16px',
+                  padding: '18px 14px',
+                  margin: '14px 0',
+                  textAlign: 'center'
                 }}
               >
-                <Siren style={{ width: '15px' }} /> {t.callSendGps}
-              </button>
+                <div style={{ fontSize: '36px', marginBottom: '6px' }}>🚨</div>
+                <h3 style={{ fontSize: '17px', fontWeight: 900, margin: '0 0 4px', color: '#ff4455' }}>
+                  RESCUE VESSEL DISPATCHED!
+                </h3>
+                <p style={{ fontSize: '12px', color: '#e2e8f0', margin: '0 0 10px', lineHeight: '1.4' }}>
+                  Nearest boat patrol <strong>Boat #14 · {boatmanName}</strong> has received your live GPS coordinates.
+                </p>
 
-              <button
-                type="button"
-                onClick={declineCall}
-                style={{
-                  background: 'linear-gradient(135deg, #ff3344, #cc1122)',
-                  border: 'none',
-                  color: '#fff',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  fontSize: '12.5px',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  boxShadow: '0 4px 14px rgba(255, 51, 68, 0.35)'
-                }}
-              >
-                <PhoneOff style={{ width: '15px' }} /> {t.callEnd}
-              </button>
-            </div>
+                <div
+                  style={{
+                    background: 'rgba(0,0,0,0.5)',
+                    borderRadius: '8px',
+                    padding: '8px 10px',
+                    marginBottom: '12px',
+                    fontSize: '11px',
+                    color: '#cbd5e1',
+                    textAlign: 'left'
+                  }}
+                >
+                  <div style={{ color: '#00d4ff', fontWeight: 800, marginBottom: '2px' }}>
+                    🧭 Direct Nautical Rescue Vector:
+                  </div>
+                  <div>Compass steer heading locked across open water.</div>
+                  <div style={{ color: '#94a3b8', fontSize: '10px', marginTop: '2px' }}>
+                    Target GPS: {(location?.lat || 25.3176).toFixed(5)}° N, {(location?.lon || 83.0060).toFixed(5)}° E
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={close}
+                    style={{
+                      background: '#00d4ff',
+                      border: 'none',
+                      color: '#001e28',
+                      padding: '10px',
+                      borderRadius: '10px',
+                      fontSize: '11.5px',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <Compass style={{ width: '14px', height: '14px' }} /> View Radar
+                  </button>
+                  <a
+                    href="tel:112"
+                    style={{
+                      background: '#ff3344',
+                      color: '#fff',
+                      padding: '10px',
+                      borderRadius: '10px',
+                      fontSize: '11.5px',
+                      fontWeight: 900,
+                      textDecoration: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <Phone style={{ width: '14px', height: '14px' }} /> Dial 112
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* End Call Footer Button */}
+            {triageStep !== 'safe' && triageStep !== 'stuck' && (
+              <div style={{ marginTop: '14px' }}>
+                <button
+                  type="button"
+                  onClick={declineCall}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: '#94a3b8',
+                    padding: '8px 16px',
+                    borderRadius: '10px',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <PhoneOff style={{ width: '13px', display: 'inline', marginRight: '6px' }} /> End Call
+                </button>
+              </div>
+            )}
           </>
         )}
       </section>
@@ -1274,6 +1784,7 @@ function TouristDashboard({
 }) {
   const t = UI_TRANSLATIONS[lang]
   const [status, setStatus] = useState<Status>(initialStatus || 'safe')
+  const [isVerifiedSafe, setIsVerifiedSafe] = useState(false)
   const [sos, setSos] = useState(false)
   const [showCallModal, setShowCallModal] = useState(false)
   const [callAutoAccept, setCallAutoAccept] = useState(false)
@@ -1462,6 +1973,10 @@ function TouristDashboard({
             // Trigger the incoming call ONLY when the fisherman broadcasts a NEW danger audio message
             if (msg.data.status === 'danger' && isFreshBroadcast) {
               lastHandledDispatchIdRef.current = incomingDispatchId
+              if (isVerifiedSafe) {
+                console.log('Tourist already marked safe. Suppressing disruptive call popup.')
+                return
+              }
               // Fire OS heads-up alert with SOS vibration over other apps & lock screen
               triggerOsEmergencyAlert(
                 `🚨 CoastGuard Emergency (112): ${msg.data.boatman_name || 'Boatman'} Alert!`,
@@ -1712,6 +2227,51 @@ function TouristDashboard({
           </button>
         )}
 
+                {/* Tourist Verified Safe Status Pill */}
+        {isVerifiedSafe && (
+          <div
+            style={{
+              background: 'rgba(5, 150, 105, 0.12)',
+              border: '1.5px solid #059669',
+              borderRadius: '12px',
+              padding: '10px 14px',
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '12px',
+              color: '#065f46',
+              fontWeight: 700
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShieldCheck style={{ width: '18px', height: '18px', color: '#059669', flexShrink: 0 }} />
+              <div>
+                <div style={{ fontWeight: 800 }}>✅ Safety Status: Marked Safe by You</div>
+                <div style={{ fontSize: '10.5px', color: '#047857' }}>
+                  River Patrol logged your safety. Repeat emergency calls are muted.
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsVerifiedSafe(false)}
+              style={{
+                background: 'rgba(5, 150, 105, 0.15)',
+                border: '1px solid #059669',
+                color: '#065f46',
+                borderRadius: '6px',
+                padding: '4px 8px',
+                fontSize: '10.5px',
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
+            >
+              Reset
+            </button>
+          </div>
+        )}
+
         <div className="tourist-top">
           <div className="tracked-sector">
             <span className="eyebrow">{t.liveTrackedLocation}</span>
@@ -1862,7 +2422,7 @@ function TouristDashboard({
               fontWeight: 800
             }}
           >
-            🚨 Test OS Emergency Alert & Voice Call (Overlays other apps)
+            🚨 Test Conversational Voice Triage Call (Advisory + "Are you safe?")
           </button>
         </div>
 
@@ -1878,6 +2438,10 @@ function TouristDashboard({
             boatmanName={boatmanName}
             lang={lang}
             advisoryText={t.advisoryDanger}
+            userName={userName}
+            phone={phone}
+            location={location}
+            onConfirmedSafe={() => setIsVerifiedSafe(true)}
             onSos={() => setSos(true)}
             autoAccept={callAutoAccept}
           />
@@ -1911,6 +2475,17 @@ function BoatmanDashboard({
 }) {
   const t = UI_TRANSLATIONS[lang]
   const [recording, setRecording] = useState(false)
+  const [activeRescue, setActiveRescue] = useState<{
+    touristName: string
+    phone: string
+    incident: string
+    lat: number
+    lon: number
+    distMeters: number
+    bearing: { degrees: number; compass: string; arrow: string }
+    time: string
+    locationName: string
+  } | null>(null)
   const [seconds, setSeconds] = useState(0)
   const [sent, setSent] = useState(false)
   const [sentText, setSentText] = useState(t.quoteSafe)
@@ -1925,6 +2500,57 @@ function BoatmanDashboard({
     const timer = setInterval(() => setSeconds((s) => s + 1), 1000)
     return () => clearInterval(timer)
   }, [recording])
+
+  // WebSocket listener for live SOS rescue dispatches from tourists
+  useEffect(() => {
+    let ws: WebSocket | null = null
+    try {
+      ws = new WebSocket(WS_URL)
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data)
+          if (msg.type === 'sos_alert' && msg.data) {
+            const sos = msg.data
+            const d = calculateHaversineDistance(location.lat, location.lon, sos.lat, sos.lon)
+            const b = calculateBearing(location.lat, location.lon, sos.lat, sos.lon)
+            setActiveRescue({
+              touristName: sos.tourist_name || 'Rahul Sharma (Tourist)',
+              phone: sos.phone || '9876543210',
+              incident: sos.incident || 'Emergency SOS / Trapped near Water',
+              lat: sos.lat,
+              lon: sos.lon,
+              distMeters: d,
+              bearing: b,
+              time: sos.time || new Date().toLocaleTimeString(),
+              locationName: sos.location || location.placeName
+            })
+            // Sound audible rescue alert chime
+            try {
+              const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+              if (AudioCtx) {
+                const ctx = new AudioCtx()
+                const osc = ctx.createOscillator()
+                const gain = ctx.createGain()
+                osc.type = 'sawtooth'
+                osc.frequency.setValueAtTime(520, ctx.currentTime)
+                osc.frequency.exponentialRampToValueAtTime(1040, ctx.currentTime + 0.35)
+                gain.gain.setValueAtTime(0.25, ctx.currentTime)
+                gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5)
+                osc.connect(gain)
+                gain.connect(ctx.destination)
+                osc.start()
+                osc.stop(ctx.currentTime + 0.5)
+              }
+            } catch {}
+          }
+        } catch {}
+      }
+    } catch {}
+
+    return () => {
+      if (ws) ws.close()
+    }
+  }, [location.lat, location.lon, location.placeName])
 
   // Center Mic Toggle (Real MediaRecorder with Hardware Noise Suppression + API Dispatch)
   const toggleMic = async () => {
@@ -2144,17 +2770,188 @@ function BoatmanDashboard({
             <AlertTriangle /> {t.reportSurge}
             <small>“Bahaav tez hai, naav ulat gayi ghat ke paas!”</small>
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              const targetLat = location.lat + 0.002
+              const targetLon = location.lon + 0.002
+              const d = calculateHaversineDistance(location.lat, location.lon, targetLat, targetLon)
+              const b = calculateBearing(location.lat, location.lon, targetLat, targetLon)
+              setActiveRescue({
+                touristName: 'Rahul Sharma',
+                phone: '9876543210',
+                incident: 'Trapped on lower river steps (Voice Triage SOS)',
+                lat: targetLat,
+                lon: targetLon,
+                distMeters: d,
+                bearing: b,
+                time: new Date().toLocaleTimeString(),
+                locationName: `${location.placeName} (Water Bank)`
+              })
+            }}
+            style={{
+              background: 'rgba(255, 51, 68, 0.15)',
+              borderColor: 'rgba(255, 51, 68, 0.4)',
+              color: '#ff4455'
+            }}
+          >
+            <Siren /> 🚨 Test SOS Rescue: Rahul Sharma (STUCK)
+            <small>“Simulate live GPS rescue vector & Steer-By-Compass HUD”</small>
+          </button>
         </section>
+
+        {/* TACTICAL NAUTICAL RESCUE NAVIGATION CARD (Steer-By-Compass HUD) */}
+        {activeRescue && (
+          <section
+            style={{
+              background: 'linear-gradient(135deg, rgba(255, 51, 68, 0.2), rgba(20, 6, 10, 0.95))',
+              border: '2px solid #ff3344',
+              borderRadius: '16px',
+              padding: '16px',
+              marginBottom: '14px',
+              boxShadow: '0 8px 32px rgba(255, 51, 68, 0.4)',
+              color: '#ffffff',
+              position: 'relative'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <span
+                style={{
+                  background: '#ff3344',
+                  color: '#ffffff',
+                  fontSize: '10px',
+                  fontWeight: 900,
+                  padding: '3px 8px',
+                  borderRadius: '5px',
+                  letterSpacing: '0.06em'
+                }}
+              >
+                🚨 IMMEDIATE RESCUE DISPATCH
+              </span>
+              <span style={{ fontSize: '11px', color: '#ff8899', fontWeight: 700 }}>
+                {activeRescue.time}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '12px' }}>
+              <div
+                style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '14px',
+                  background: 'rgba(255, 51, 68, 0.25)',
+                  border: '1.5px solid #ff4455',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '30px',
+                  flexShrink: 0
+                }}
+              >
+                {activeRescue.bearing.arrow}
+              </div>
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff' }}>
+                  {activeRescue.touristName} · {activeRescue.phone}
+                </div>
+                <div style={{ fontSize: '12.5px', color: '#ff6677', fontWeight: 900 }}>
+                  STEER: {activeRescue.bearing.compass.toUpperCase()} ({activeRescue.bearing.degrees}°)
+                </div>
+                <div style={{ fontSize: '11px', color: '#cbd5e1' }}>
+                  {activeRescue.distMeters < 1000 ? `${activeRescue.distMeters}m` : `${(activeRescue.distMeters / 1000).toFixed(1)}km`} direct across water · ~{Math.max(1, Math.round(activeRescue.distMeters / 180))} min at 6 knots
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: 'rgba(0,0,0,0.45)',
+                borderRadius: '10px',
+                padding: '8px 12px',
+                marginBottom: '12px',
+                fontSize: '11.5px',
+                color: '#e2e8f0'
+              }}
+            >
+              <div style={{ fontWeight: 700, color: '#ffaa00', marginBottom: '2px' }}>
+                Incident: {activeRescue.incident}
+              </div>
+              <div style={{ fontSize: '10.5px', color: '#94a3b8' }}>
+                Target: {activeRescue.locationName} ({activeRescue.lat.toFixed(5)}° N, {activeRescue.lon.toFixed(5)}° E)
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${activeRescue.lat},${activeRescue.lon}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  background: 'rgba(0, 212, 255, 0.15)',
+                  border: '1px solid #00d4ff',
+                  color: '#00d4ff',
+                  padding: '8px 6px',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px'
+                }}
+              >
+                <ExternalLink style={{ width: '12px', height: '12px' }} /> Satellite Pin
+              </a>
+              <a
+                href={`tel:${activeRescue.phone}`}
+                style={{
+                  background: 'rgba(0, 230, 118, 0.15)',
+                  border: '1px solid #00e676',
+                  color: '#00e676',
+                  padding: '8px 6px',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px'
+                }}
+              >
+                <Phone style={{ width: '12px', height: '12px' }} /> Call Tourist
+              </a>
+              <button
+                type="button"
+                onClick={() => setActiveRescue(null)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  color: '#fff',
+                  padding: '8px 6px',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Clear Target
+              </button>
+            </div>
+          </section>
+        )}
 
         {/* Live Sector Sonar Radar in Boatman View */}
         <MiniVisualRadar
-          status="safe"
-          distanceMeters={350}
+          status={activeRescue ? 'danger' : 'safe'}
+          distanceMeters={activeRescue ? activeRescue.distMeters : 350}
           placeName={location.placeName}
           boatmanName={userName}
           currentUserName={userName}
           mode="boatman"
           lang={lang}
+          rescueTarget={activeRescue}
         />
 
         {/* Last Sent Broadcast Card */}
