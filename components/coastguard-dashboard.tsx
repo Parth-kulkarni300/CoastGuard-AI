@@ -20,6 +20,7 @@ import {
   PhoneOff,
   Play,
   Radio,
+  Search,
   ShieldCheck,
   Siren,
   Volume2,
@@ -184,6 +185,23 @@ function useRealTimeLocation() {
     }
   }
 
+  const setCustomLocation = (newLat: number, newLon: number, newPlaceName: string) => {
+    setLat(newLat)
+    setLon(newLon)
+    setAccuracy(5)
+    setPlaceName(newPlaceName)
+    setIsLiveGPS(false)
+
+    // Register with backend
+    const fd = new FormData()
+    fd.append('phone', 'user')
+    fd.append('lat', newLat.toString())
+    fd.append('lon', newLon.toString())
+    fd.append('accuracy', '5')
+    fd.append('place_name', newPlaceName)
+    fetch('/api/location/update', { method: 'POST', body: fd }).catch(() => {})
+  }
+
   return {
     lat,
     lon,
@@ -193,6 +211,7 @@ function useRealTimeLocation() {
     geoError,
     presetIndex,
     setLocationPreset,
+    setCustomLocation,
     refreshGPS: requestDeviceGPS
   }
 }
@@ -430,6 +449,360 @@ function MiniVisualRadar({
 // ─────────────────────────────────────────────
 // 1. Role Login Component
 // ─────────────────────────────────────────────
+
+// ─────────────────────────────────────────────
+// Quick Distance Presets & Location Search Modal
+// ─────────────────────────────────────────────
+const QUICK_SIMULATION_SPOTS = [
+  {
+    name: 'Assi Ghat, Varanasi',
+    display: 'Assi Ghat (Ground Zero · 0m)',
+    lat: 25.2974,
+    lon: 83.0064,
+    inRange: true
+  },
+  {
+    name: 'Dashashwamedh Ghat, Varanasi',
+    display: 'Dashashwamedh Ghat (1.2 km)',
+    lat: 25.3076,
+    lon: 83.0104,
+    inRange: true
+  },
+  {
+    name: 'Namo Ghat (Rajghat), Varanasi',
+    display: 'Namo Ghat (3.8 km away)',
+    lat: 25.3340,
+    lon: 83.0410,
+    inRange: false
+  },
+  {
+    name: 'BHU Lanka Gate, Varanasi',
+    display: 'BHU Lanka (5.7 km away)',
+    lat: 25.2780,
+    lon: 82.9995,
+    inRange: false
+  },
+  {
+    name: 'Marine Drive, Mumbai',
+    display: 'Marine Drive Mumbai (1,400 km)',
+    lat: 18.9438,
+    lon: 72.8232,
+    inRange: false
+  }
+]
+
+function LocationSearchModal({
+  isOpen,
+  onClose,
+  currentPlaceName,
+  isLiveGPS,
+  onSelectLocation,
+  onUseLiveGps
+}: {
+  isOpen: boolean
+  onClose: () => void
+  currentPlaceName: string
+  isLiveGPS: boolean
+  onSelectLocation: (lat: number, lon: number, name: string) => void
+  onUseLiveGps: () => void
+}) {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [results, setResults] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const timer = setTimeout(async () => {
+      setLoading(true)
+      try {
+        const res = await fetch(`/api/location/search?q=${encodeURIComponent(searchQuery)}`)
+        if (res.ok) {
+          const data = await res.json()
+          setResults(data.results || [])
+        }
+      } catch (e) {
+        console.error('Failed to search locations:', e)
+      } finally {
+        setLoading(false)
+      }
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [searchQuery, isOpen])
+
+  if (!isOpen) return null
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(15, 23, 42, 0.65)',
+        backdropFilter: 'blur(5px)',
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px'
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: '#ffffff',
+          borderRadius: '20px',
+          width: '100%',
+          maxWidth: '460px',
+          maxHeight: '85vh',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          border: '1px solid #e2e8f0',
+          overflow: 'hidden'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: '16px 20px',
+            borderBottom: '1px solid #f1f5f9',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: '#fafbfc'
+          }}
+        >
+          <div>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>📍</span> Choose Emergency Grid Location
+            </div>
+            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+              Search Indian ghat, riverbank, beach, or address to test geofencing
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: '#f1f5f9',
+              border: 'none',
+              borderRadius: '50%',
+              width: '30px',
+              height: '30px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: '#64748b'
+            }}
+          >
+            <X style={{ width: '16px', height: '16px' }} />
+          </button>
+        </div>
+
+        {/* Live GPS Action Pill */}
+        <div style={{ padding: '12px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+          <button
+            type="button"
+            onClick={() => {
+              onUseLiveGps()
+              onClose()
+            }}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 14px',
+              borderRadius: '12px',
+              border: isLiveGPS ? '1.5px solid #059669' : '1px solid #cbd5e1',
+              background: isLiveGPS ? '#ecfdf5' : '#ffffff',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: isLiveGPS ? '#d1fae5' : '#f1f5f9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Navigation style={{ width: '16px', height: '16px', color: isLiveGPS ? '#059669' : '#0284c7' }} />
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <strong style={{ fontSize: '12.5px', color: isLiveGPS ? '#047857' : '#1e293b', display: 'block' }}>
+                  🟢 Use Real Device Live GPS
+                </strong>
+                <span style={{ fontSize: '10.5px', color: '#64748b' }}>
+                  Auto-detect satellite GPS coordinates from your device
+                </span>
+              </div>
+            </div>
+            {isLiveGPS && (
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  background: '#059669',
+                  color: '#ffffff',
+                  padding: '2px 8px',
+                  borderRadius: '10px'
+                }}
+              >
+                ACTIVE
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Search Input Bar (Google Maps style) */}
+        <div style={{ padding: '14px 20px 8px 20px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: '#f8fafc',
+              border: '1.5px solid #cbd5e1',
+              borderRadius: '12px',
+              padding: '8px 12px'
+            }}
+          >
+            <Search style={{ width: '18px', height: '18px', color: '#64748b', flexShrink: 0 }} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Type ghat, beach, or city (e.g. Namo, Dashashwamedh, Mumbai)..."
+              style={{
+                border: 'none',
+                background: 'transparent',
+                outline: 'none',
+                width: '100%',
+                fontSize: '13px',
+                color: '#0f172a'
+              }}
+              autoFocus
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
+              >
+                <X style={{ width: '14px', height: '14px' }} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Testing Chips Bar */}
+        <div style={{ padding: '6px 20px 10px 20px', borderBottom: '1px solid #f1f5f9' }}>
+          <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#64748b', marginBottom: '6px' }}>
+            ⚡ QUICK DISTANCE SIMULATION (From Assi Ground Zero):
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {QUICK_SIMULATION_SPOTS.map((spot) => (
+              <button
+                key={spot.name}
+                type="button"
+                onClick={() => {
+                  onSelectLocation(spot.lat, spot.lon, spot.name)
+                  onClose()
+                }}
+                style={{
+                  padding: '5px 9px',
+                  borderRadius: '8px',
+                  border: spot.inRange ? '1px solid #fca5a5' : '1px solid #bbf7d0',
+                  background: spot.inRange ? '#fff1f2' : '#f0fdf4',
+                  color: spot.inRange ? '#be123c' : '#15803d',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                {spot.display} {spot.inRange ? '🚨' : '🛡️'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Results List */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 20px 16px 20px' }}>
+          <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '6px' }}>
+            {loading ? 'Searching locations...' : `Suggested Locations (${results.length})`}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {results.map((loc, idx) => {
+              const isSelected = currentPlaceName === loc.name
+              return (
+                <button
+                  key={`${loc.name}-${idx}`}
+                  type="button"
+                  onClick={() => {
+                    onSelectLocation(loc.lat, loc.lon, loc.name)
+                    onClose()
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    border: isSelected ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
+                    background: isSelected ? '#f0f9ff' : '#ffffff',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', minWidth: 0, flex: 1 }}>
+                    <MapPin style={{ width: '16px', height: '16px', color: loc.in_danger_zone ? '#e11d48' : '#059669', marginTop: '2px', flexShrink: 0 }} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <strong style={{ fontSize: '12.5px', color: '#1e293b', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {loc.name}
+                      </strong>
+                      <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {loc.display_name}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '10px' }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        fontSize: '9.5px',
+                        fontWeight: 800,
+                        padding: '2px 6px',
+                        borderRadius: '6px',
+                        background: loc.in_danger_zone ? '#ffe4e6' : '#dcfce7',
+                        color: loc.in_danger_zone ? '#b91c1c' : '#15803d'
+                      }}
+                    >
+                      {loc.in_danger_zone ? '🚨 In Danger Radius' : '🛡️ Safe Perimeter'}
+                    </span>
+                    <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>
+                      {loc.distance_label}
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function RoleLogin({
   onContinue,
   location,
@@ -447,6 +820,7 @@ function RoleLogin({
   const [role, setRole] = useState<Mode>('tourist')
   const [phone, setPhone] = useState('9876543210')
   const [name, setName] = useState('')
+  const [showLocationModal, setShowLocationModal] = useState(false)
 
   return (
     <main className="login-page">
@@ -611,18 +985,102 @@ function RoleLogin({
           </div>
         )}
 
-        {/* Real-time Location Indicator */}
-        <div className="gps-badge" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
-            <MapPin style={{ color: location.isLiveGPS ? '#087a4b' : '#0088ff' }} />
-            <span>
-              {location.isLiveGPS ? t.realGps : `📍 ${t.locationLabel}:`}
+        {/* Location Selector Modal */}
+        <LocationSearchModal
+          isOpen={showLocationModal}
+          onClose={() => setShowLocationModal(false)}
+          currentPlaceName={location.placeName}
+          isLiveGPS={location.isLiveGPS}
+          onSelectLocation={(lat, lon, name) => location.setCustomLocation(lat, lon, name)}
+          onUseLiveGps={() => location.refreshGPS()}
+        />
+
+        {/* Real-time Location Indicator & Chooser */}
+        <div
+          style={{
+            background: '#f8fafc',
+            border: '1.5px solid #e2e8f0',
+            borderRadius: '14px',
+            padding: '12px',
+            margin: '10px 0'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '10.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#64748b' }}>
+              📍 {t.locationLabel}
             </span>
-            <strong style={{ marginLeft: 'auto' }}>{location.placeName}</strong>
+            <span
+              style={{
+                fontSize: '10px',
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: '6px',
+                background: location.isLiveGPS ? 'rgba(5, 150, 105, 0.12)' : 'rgba(2, 132, 199, 0.12)',
+                color: location.isLiveGPS ? '#059669' : '#0284c7'
+              }}
+            >
+              {location.isLiveGPS ? t.realGps : '📍 Custom Location'}
+            </span>
           </div>
-          <small style={{ color: '#66777b', fontSize: '10px' }}>
-            Coordinates: {location.lat.toFixed(4)}° N, {location.lon.toFixed(4)}° E (±{location.accuracy}m)
-          </small>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+            <MapPin style={{ width: '18px', height: '18px', color: location.isLiveGPS ? '#059669' : '#0284c7', flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {location.placeName}
+              </div>
+              <div style={{ fontSize: '10px', color: '#64748b' }}>
+                Coordinates: {location.lat.toFixed(4)}° N, {location.lon.toFixed(4)}° E (±{location.accuracy}m)
+              </div>
+            </div>
+          </div>
+
+          {/* Dual Action Buttons: Fetch Live GPS vs Choose Location */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => location.refreshGPS()}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                padding: '8px 10px',
+                borderRadius: '8px',
+                border: location.isLiveGPS ? '1.5px solid #059669' : '1px solid #cbd5e1',
+                background: location.isLiveGPS ? '#ecfdf5' : '#ffffff',
+                color: location.isLiveGPS ? '#047857' : '#334155',
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              <Navigation style={{ width: '13px', height: '13px', color: '#059669' }} />
+              <span>Fetch Live GPS</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowLocationModal(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                padding: '8px 10px',
+                borderRadius: '8px',
+                border: !location.isLiveGPS ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
+                background: !location.isLiveGPS ? '#f0f9ff' : '#ffffff',
+                color: !location.isLiveGPS ? '#0369a1' : '#334155',
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              <Search style={{ width: '13px', height: '13px', color: '#0284c7' }} />
+              <span>Choose Location 🔍</span>
+            </button>
+          </div>
         </div>
 
         <button
@@ -664,14 +1122,23 @@ function TopBar({
   isOnline?: boolean
 }) {
   const t = UI_TRANSLATIONS[lang]
-  const [showLocationMenu, setShowLocationMenu] = useState(false)
+  const [showLocationModal, setShowLocationModal] = useState(false)
 
   return (
     <header className="location-bar">
       <div className="identity" style={{ position: 'relative' }}>
+        <LocationSearchModal
+          isOpen={showLocationModal}
+          onClose={() => setShowLocationModal(false)}
+          currentPlaceName={location.placeName}
+          isLiveGPS={location.isLiveGPS}
+          onSelectLocation={(lat, lon, name) => location.setCustomLocation(lat, lon, name)}
+          onUseLiveGps={() => location.refreshGPS()}
+        />
+
         <button
           type="button"
-          onClick={() => setShowLocationMenu(!showLocationMenu)}
+          onClick={() => setShowLocationModal(true)}
           style={{
             background: 'transparent',
             border: 'none',
@@ -694,56 +1161,7 @@ function TopBar({
           <ChevronDown style={{ width: '13px', color: '#94a3b8' }} />
         </button>
 
-        {/* Location Dropdown Modal */}
-        {showLocationMenu && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '44px',
-              left: 0,
-              background: '#fff',
-              border: '1px solid #e2e8f0',
-              borderRadius: '12px',
-              padding: '8px',
-              boxShadow: '0 10px 25px rgba(0,0,0,0.12)',
-              zIndex: 100,
-              minWidth: '260px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '4px'
-            }}
-          >
-            <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#64748b', padding: '4px 6px' }}>
-              {t.chooseWaterOrGps}
-            </div>
-            {WATER_PRESETS.map((preset, idx) => (
-              <button
-                key={preset.name}
-                type="button"
-                onClick={() => {
-                  location.setLocationPreset(idx)
-                  setShowLocationMenu(false)
-                }}
-                style={{
-                  padding: '7px 9px',
-                  borderRadius: '7px',
-                  background: location.presetIndex === idx ? '#ecfdf5' : 'transparent',
-                  border: 'none',
-                  textAlign: 'left',
-                  fontSize: '11.5px',
-                  fontWeight: location.presetIndex === idx ? 700 : 500,
-                  color: location.presetIndex === idx ? '#059669' : '#1e293b',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-              >
-                {preset.isDevice ? <Navigation style={{ width: '13px' }} /> : <MapPin style={{ width: '13px' }} />}
-                {preset.name}
-              </button>
-            ))}
-          </div>
-        )}
+
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -2030,6 +2448,7 @@ function TouristDashboard({
 }) {
   const t = UI_TRANSLATIONS[lang]
   const [status, setStatus] = useState<Status>(initialStatus || 'safe')
+  const [outOfRangeNotice, setOutOfRangeNotice] = useState<{ location: string; distanceKm: string } | null>(null)
   const [isVerifiedSafe, setIsVerifiedSafe] = useState(false)
   const [sos, setSos] = useState(false)
   const [showCallModal, setShowCallModal] = useState(false)
@@ -2216,9 +2635,30 @@ function TouristDashboard({
             const incomingDispatchId = msg.data.dispatch_id || msg.data.timestamp || String(Date.now())
             const isFreshBroadcast = incomingDispatchId !== lastHandledDispatchIdRef.current
 
-            // Trigger the incoming call ONLY when the fisherman broadcasts a NEW danger audio message
+            // Check spatial blast radius (2.0 km) between boatman's incident coordinates and tourist's location
+            const broadcastLat = msg.data.lat ?? 25.2974
+            const broadcastLon = msg.data.lon ?? 83.0064
+            const currentDist = calculateHaversineDistance(location.lat, location.lon, broadcastLat, broadcastLon)
+            const isWithinPerimeter = currentDist <= 2000
+
+            // Trigger the incoming call ONLY when danger is within the 2.0 km perimeter
             if (msg.data.status === 'danger' && isFreshBroadcast) {
               lastHandledDispatchIdRef.current = incomingDispatchId
+
+              if (!isWithinPerimeter) {
+                console.log(`Tourist is ${(currentDist / 1000).toFixed(1)} km away (> 2.0 km perimeter). Suppressing disruptive call popup.`)
+                setStatus('safe')
+                setOutOfRangeNotice({
+                  location: msg.data.location || 'Assi Ghat Sector',
+                  distanceKm: (currentDist / 1000).toFixed(1)
+                })
+                setShowCallModal(false)
+                return
+              }
+
+              // Inside 2.0 km perimeter: Trigger Emergency Call
+              setStatus('danger')
+              setOutOfRangeNotice(null)
               if (isVerifiedSafe) {
                 console.log('Tourist already marked safe. Suppressing disruptive call popup.')
                 return
@@ -2248,17 +2688,30 @@ function TouristDashboard({
   }, [location.lat, location.lon, phone])
 
   const applySectorData = (data: any) => {
-    if (data.status) {
-      setStatus(data.status === 'safe' ? 'safe' : 'danger')
-    }
-    if (data.boatman_name) setBoatmanName(data.boatman_name)
+    let d = distanceMeters
     if (data.lat && data.lon) {
       setBoatmanLat(data.lat)
       setBoatmanLon(data.lon)
-      const d = calculateHaversineDistance(location.lat, location.lon, data.lat, data.lon)
+      d = calculateHaversineDistance(location.lat, location.lon, data.lat, data.lon)
       setDistanceMeters(d)
       setDistanceText(d < 1000 ? `${d} meters from your live GPS` : `${(d / 1000).toFixed(1)} km from your live GPS`)
     }
+    if (data.status) {
+      if (data.status === 'danger' && d > 2000) {
+        setStatus('safe')
+        setOutOfRangeNotice({
+          location: data.location || 'Assi Ghat Sector',
+          distanceKm: (d / 1000).toFixed(1)
+        })
+      } else if (data.status === 'danger') {
+        setStatus('danger')
+        setOutOfRangeNotice(null)
+      } else {
+        setStatus('safe')
+        setOutOfRangeNotice(null)
+      }
+    }
+    if (data.boatman_name) setBoatmanName(data.boatman_name)
     if (data.hindi_quote) setHindiQuote(`“${data.hindi_quote}”`)
     if (data.english_translation) setTranslation(data.english_translation)
     if (data.water_status_text) setWaterStatusText(data.water_status_text)
@@ -2266,6 +2719,23 @@ function TouristDashboard({
     if (data.boatman_raw_audio_url) setBoatmanRawAudioUrl(data.boatman_raw_audio_url)
     if (data.ai_audio_url) setAiAudioUrl(data.ai_audio_url)
   }
+
+  // Re-evaluate perimeter distance whenever location changes dynamically
+  useEffect(() => {
+    if (boatmanLat && boatmanLon) {
+      const d = calculateHaversineDistance(location.lat, location.lon, boatmanLat, boatmanLon)
+      setDistanceMeters(d)
+      setDistanceText(d < 1000 ? `${d} meters from your live GPS` : `${(d / 1000).toFixed(1)} km from your live GPS`)
+      if (d > 2000 && status === 'danger') {
+        setStatus('safe')
+        setOutOfRangeNotice({
+          location: 'Assi Ghat Sector',
+          distanceKm: (d / 1000).toFixed(1)
+        })
+        setShowCallModal(false)
+      }
+    }
+  }, [location.lat, location.lon, boatmanLat, boatmanLon])
 
   // Play / Pause Clean Boatman Audio
   const toggleBoatmanAudio = () => {
@@ -2542,11 +3012,22 @@ function TouristDashboard({
         </div>
 
         {/* 1. Dynamic Top Status Banner */}
-        <section className={`status-card ${status}`}>
-          <div className="status-label">
-            {status === 'safe' ? t.safeStatusBanner : t.dangerStatusBanner}
+        <section
+          className={`status-card ${status}`}
+          style={status === 'safe' && outOfRangeNotice ? { borderLeft: '5px solid #059669', background: '#ecfdf5' } : undefined}
+        >
+          <div className="status-label" style={status === 'safe' && outOfRangeNotice ? { color: '#047857' } : undefined}>
+            {status === 'safe'
+              ? (outOfRangeNotice
+                  ? `🛡️ Safe · Outside Hazard Perimeter (${outOfRangeNotice.distanceKm} km away)`
+                  : t.safeStatusBanner)
+              : t.dangerStatusBanner}
           </div>
-          <p>{waterStatusText}</p>
+          <p style={status === 'safe' && outOfRangeNotice ? { color: '#065f46' } : undefined}>
+            {status === 'safe' && outOfRangeNotice
+              ? `Water surge hazard was reported at ${outOfRangeNotice.location} (${outOfRangeNotice.distanceKm} km from you). You are outside the 2.0 km danger perimeter and completely safe.`
+              : waterStatusText}
+          </p>
         </section>
 
         {/* 2. LIVE VISUAL MINI-RADAR MAP */}
