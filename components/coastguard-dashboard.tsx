@@ -890,6 +890,220 @@ function SosModal({
 // ─────────────────────────────────────────────
 // 3.5. Interactive Incoming Emergency Call Modal
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// Strict Language-Specific Triage Localization Dictionaries
+// ─────────────────────────────────────────────
+interface TriageStrings {
+  headerBadge: string
+  gridTag: string
+  dangerAdvisoryTag: string
+  skipToTriage: string
+  audioPlayingNotice: string
+  step1Tag: string
+  step2Tag: string
+  questionText: string
+  instructionText: string
+  countdownText: (s: number) => string
+  micListening: string
+  tapPrompt: string
+  safeButtonTitle: string
+  safeButtonSub: string
+  safeBadge: string
+  stuckButtonTitle: string
+  stuckButtonSub: string
+  stuckBadge: string
+  safeScreenTitle: string
+  safeScreenDesc: (boatman: string) => string
+  safeCloseBtn: string
+  stuckScreenTitle: string
+  stuckScreenDesc: (boatman: string) => string
+  stuckVectorTitle: string
+  stuckVectorSub: string
+  viewRadarBtn: string
+  dial112Btn: string
+  endCallBtn: string
+  spokenQuestion: string
+  spokenSafeAck: string
+  spokenStuckAck: string
+  voiceLocale: string
+}
+
+const TRIAGE_LOCALES: Record<SupportedLang, TriageStrings> = {
+  en: {
+    headerBadge: '🚨 112 RIVER RESCUE PATROL',
+    gridTag: 'SOVEREIGN VOICE GRID',
+    dangerAdvisoryTag: '⚠️ URGENT WATER LEVEL / FLASH SURGE ADVISORY',
+    skipToTriage: 'Skip to Safety Check ⏭️',
+    audioPlayingNotice: '🔊 Playing safety advisory… Stay tuned for verification.',
+    step1Tag: '📢 STEP 1: SAFETY ADVISORY BROADCAST',
+    step2Tag: '❓ STEP 2: SAFETY VERIFICATION CHECK',
+    questionText: 'Are you in a safe place?',
+    instructionText: "Say 'Yes' or 'Need Help'",
+    countdownText: (s) => `⏳ Auto-dispatching rescue boat in ${s}s if no response`,
+    micListening: '🎙️ Mic active: Say "Safe" or "Need Help"',
+    tapPrompt: 'Or tap your response below:',
+    safeButtonTitle: "✅ Yes, I'm Safe",
+    safeButtonSub: 'At safe high ground · Cancel alert',
+    safeBadge: 'SAFE',
+    stuckButtonTitle: '🆘 Need Help / Stuck',
+    stuckButtonSub: 'Trapped near water · Dispatch boat patrol now',
+    stuckBadge: 'SOS',
+    safeScreenTitle: 'Safety Status Confirmed!',
+    safeScreenDesc: (boatman) => `Your safe status has been logged with Boat #14 (${boatman}) and River Patrol. You will not be disturbed again for this advisory.`,
+    safeCloseBtn: 'Close Call Now',
+    stuckScreenTitle: 'RESCUE VESSEL DISPATCHED!',
+    stuckScreenDesc: (boatman) => `Nearest boat patrol Boat #14 (${boatman}) has received your live GPS coordinates.`,
+    stuckVectorTitle: '🧭 Direct Nautical Rescue Vector:',
+    stuckVectorSub: 'Compass steer heading locked across open water.',
+    viewRadarBtn: 'View Radar',
+    dial112Btn: 'Dial 112',
+    endCallBtn: 'End Call',
+    spokenQuestion: 'Are you in a safe place? Say Yes or Need Help.',
+    spokenSafeAck: 'Thank you. Your safe status has been logged with river patrol.',
+    spokenStuckAck: 'Alert dispatched to nearest boat patrol with your live coordinates. Help is on the way.',
+    voiceLocale: 'en-IN'
+  },
+  hi: {
+    headerBadge: '🚨 112 नदी बचाव गश्ती दल',
+    gridTag: 'संप्रभु वॉइस ग्रिड',
+    dangerAdvisoryTag: '⚠️ जलस्तर वृद्धि एवं तेज बहाव की आपात सूचना',
+    skipToTriage: 'सीधे सुरक्षा जांच पर जाएं ⏭️',
+    audioPlayingNotice: '🔊 चेतावनी ऑडियो प्रसारित हो रहा है… कृपया सुनें।',
+    step1Tag: '📢 चरण 1: सुरक्षा चेतावनी प्रसारण',
+    step2Tag: '❓ चरण 2: सुरक्षा सत्यापन जांच',
+    questionText: 'क्या आप सुरक्षित स्थान पर हैं?',
+    instructionText: "बोलें 'हाँ' या 'मदद चाहिए'",
+    countdownText: (s) => `⏳ उत्तर न मिलने पर ${s} सेकंड में बचाव नौका भेजी जाएगी`,
+    micListening: "🎙️ माइक चालू: बोलें 'सुरक्षित' या 'मदद चाहिए'",
+    tapPrompt: 'या नीचे अपना उत्तर चुनें:',
+    safeButtonTitle: '✅ हाँ, मैं सुरक्षित हूँ',
+    safeButtonSub: 'ऊंचे स्थान पर सुरक्षित हूँ · अलर्ट बंद करें',
+    safeBadge: 'सुरक्षित',
+    stuckButtonTitle: '🆘 मदद चाहिए / फंसा हूँ',
+    stuckButtonSub: 'पानी के पास फंसा हूँ · तुरंत नाव भेजें',
+    stuckBadge: 'मदद',
+    safeScreenTitle: 'सुरक्षा स्थिति दर्ज कर ली गई!',
+    safeScreenDesc: (boatman) => `नाविक ${boatman} (नाव #14) और नदी पुलिस द्वारा आपकी सुरक्षा दर्ज कर ली गई है। आपको दोबारा परेशान नहीं किया जाएगा।`,
+    safeCloseBtn: 'कॉल समाप्त करें',
+    stuckScreenTitle: 'बचाव नौका रवाना कर दी गई है!',
+    stuckScreenDesc: (boatman) => `निकटतम गश्ती नाव #14 (${boatman}) को आपका लाइव GPS स्थान भेज दिया गया है।`,
+    stuckVectorTitle: '🧭 प्रत्यक्ष जल बचाव वेक्टर:',
+    stuckVectorSub: 'पानी में सीधी कंपास दिशा निर्धारित कर दी गई है।',
+    viewRadarBtn: 'रडार देखें',
+    dial112Btn: '112 डायल करें',
+    endCallBtn: 'कॉल समाप्त करें',
+    spokenQuestion: 'क्या आप सुरक्षित स्थान पर हैं? बोलें हाँ, या मदद चाहिए।',
+    spokenSafeAck: 'धन्यवाद। आपकी सुरक्षा स्थिति दर्ज कर ली गई है। सतर्क रहें।',
+    spokenStuckAck: 'नजदीकी नाव चालक को आपकी लोकेशन भेज दी गई है। मदद आ रही है।',
+    voiceLocale: 'hi-IN'
+  },
+  mr: {
+    headerBadge: '🚨 ११२ नदी बचाव गस्त दल',
+    gridTag: 'सार्वभौम व्हॉइस ग्रिड',
+    dangerAdvisoryTag: '⚠️ पाण्याचा प्रवाह वाढल्याचा तात्काळ इशारा',
+    skipToTriage: 'सुरक्षितता तपासणीवर जा ⏭️',
+    audioPlayingNotice: '🔊 धोक्याचा इशारा ऐकवला जात आहे…',
+    step1Tag: '📢 टप्पा १: सुरक्षा इशारा प्रसारण',
+    step2Tag: '❓ टप्पा २: सुरक्षितता पडताळणी',
+    questionText: 'तुम्ही सुरक्षित ठिकाणी आहात का?',
+    instructionText: "बोला 'हो' किंवा 'मदत हवी आहे'",
+    countdownText: (s) => `⏳ उत्तर न आल्यास ${s} सेकंदात बचाव बोट पाठवली जाईल`,
+    micListening: "🎙️ माइक सुरू: बोला 'सुरक्षित' किंवा 'मदत हवी'",
+    tapPrompt: 'किंवा खालील पर्याय निवडा:',
+    safeButtonTitle: '✅ हो, मी सुरक्षित आहे',
+    safeButtonSub: 'उंचावर सुरक्षित आहे · इशारा रद्द करा',
+    safeBadge: 'सुरक्षित',
+    stuckButtonTitle: '🆘 मदत हवी आहे / अडकलो आहे',
+    stuckButtonSub: 'पाण्यात अडकलो आहे · त्वरित बोट पाठवा',
+    stuckBadge: 'मदत',
+    safeScreenTitle: 'सुरक्षितता नोंदवली गेली!',
+    safeScreenDesc: (boatman) => `बोट #14 (${boatman}) आणि नदी पोलिसांनी तुमच्या सुरक्षिततेची नोंद घेतली आहे. तुम्हाला पुन्हा कॉल केला जाणार नाही.`,
+    safeCloseBtn: 'कॉल बंद करा',
+    stuckScreenTitle: 'बचाव बोट पाठवली गेली आहे!',
+    stuckScreenDesc: (boatman) => `जवळच्या गस्ती बोटीला #14 (${boatman}) तुमचे थेट GPS स्थान पाठवले आहे.`,
+    stuckVectorTitle: '🧭 थेट जल बचाव दिशा:',
+    stuckVectorSub: 'पाण्यात होकायंत्रानुसार थेट दिशा निश्चित केली आहे.',
+    viewRadarBtn: 'रडार पहा',
+    dial112Btn: '११२ कॉल करा',
+    endCallBtn: 'कॉल संपवा',
+    spokenQuestion: 'तुम्ही सुरक्षित ठिकाणी आहात का? बोला हो, किंवा मदत हवी आहे.',
+    spokenSafeAck: 'धन्यवाद. तुमची सुरक्षितता नोंदवली गेली आहे. काळजी घ्या.',
+    spokenStuckAck: 'जवळच्या गस्ती बोटीला तुमचे स्थान पाठवले आहे. मदत येत आहे.',
+    voiceLocale: 'mr-IN'
+  },
+  ta: {
+    headerBadge: '🚨 112 நதி மீட்புப் படை',
+    gridTag: 'குரல் பாதுகாப்பு கட்டமைப்பு',
+    dangerAdvisoryTag: '⚠️ திடீர் நீர்வரத்து அவசர எச்சரிக்கை',
+    skipToTriage: 'சரிபார்ப்புக்குச் செல்லவும் ⏭️',
+    audioPlayingNotice: '🔊 பாதுகாப்பு எச்சரிக்கை ஒலிக்கிறது…',
+    step1Tag: '📢 படி 1: பாதுகாப்பு எச்சரிக்கை ஒளிபரப்பு',
+    step2Tag: '❓ படி 2: பாதுகாப்பு சரிபார்ப்பு',
+    questionText: 'நீங்கள் பாதுகாப்பான இடத்தில் இருக்கிறீர்களா?',
+    instructionText: " 'ஆம்' அல்லது 'உதவி தேவை' என சொல்லவும்",
+    countdownText: (s) => `⏳ பதிலளிக்கவில்லை என்றால் ${s} வினாடிகளில் மீட்பு படகு வரும்`,
+    micListening: "🎙️ மைக் செயலில்: 'பாதுகாப்பு' அல்லது 'உதவி' என சொல்லவும்",
+    tapPrompt: 'அல்லது கீழே அழுத்தவும்:',
+    safeButtonTitle: '✅ ஆம், நான் பாதுகாப்பாக உள்ளேன்',
+    safeButtonSub: 'மேடான பாதுகாப்பான இடம் · எச்சரிக்கையை ரத்து செய்',
+    safeBadge: 'பாதுகாப்பு',
+    stuckButtonTitle: '🆘 உதவி தேவை / சிக்கியுள்ளேன்',
+    stuckButtonSub: 'நீரில் சிக்கியுள்ளேன் · படகை உடனே அனுப்பவும்',
+    stuckBadge: 'உதவி',
+    safeScreenTitle: 'பாதுகாப்பு உறுதி செய்யப்பட்டது!',
+    safeScreenDesc: (boatman) => `படகு #14 (${boatman}) மற்றும் நதி பாதுகாப்பு படையினரால் உங்கள் பாதுகாப்பு பதிவு செய்யப்பட்டது.`,
+    safeCloseBtn: 'அழைப்பை முடிக்கவும்',
+    stuckScreenTitle: 'மீட்புப் படகு அனுப்பப்பட்டது!',
+    stuckScreenDesc: (boatman) => `அருகிலுள்ள படகு #14 (${boatman}) குழுவுக்கு உங்கள் GPS இருப்பிடம் அனுப்பப்பட்டுள்ளது.`,
+    stuckVectorTitle: '🧭 நேரடி நீர் மீட்பு திசை:',
+    stuckVectorSub: 'திசைகாட்டி வழிகாட்டுதல் நீரில் கணக்கிடப்பட்டுள்ளது.',
+    viewRadarBtn: 'ரேடாரைப் பார்க்கவும்',
+    dial112Btn: '112 ஐ அழைக்கவும்',
+    endCallBtn: 'அழைப்பை முடிக்கவும்',
+    spokenQuestion: 'நீங்கள் பாதுகாப்பான இடத்தில் இருக்கிறீர்களா? ஆம் அல்லது உதவி தேவை என்று சொல்லுங்கள்.',
+    spokenSafeAck: 'நன்றி. உங்கள் பாதுகாப்பு நிலை பதிவு செய்யப்பட்டுள்ளது.',
+    spokenStuckAck: 'அருகிலுள்ள மீட்பு படகுக்கு உங்கள் இருப்பிடம் அனுப்பப்பட்டுள்ளது. உதவி வருகிறது.',
+    voiceLocale: 'ta-IN'
+  },
+  bn: {
+    headerBadge: '🚨 ১১২ নদী উদ্ধারকারী টহল',
+    gridTag: 'সার্বভৌম ভয়েস গ্রিড',
+    dangerAdvisoryTag: '⚠️ জলস্তর বৃদ্ধি ও তীব্র স্রোতের সতর্কতা',
+    skipToTriage: 'সরাসরি যাচাইকরণে যান ⏭️',
+    audioPlayingNotice: '🔊 সতর্কতা বার্তা শোনানো হচ্ছে…',
+    step1Tag: '📢 ধাপ ১: নিরাপত্তা সতর্কতা সম্প্রচার',
+    step2Tag: '❓ ধাপ ২: সুরক্ষা যাচাইকরণ',
+    questionText: 'আপনি কি নিরাপদ স্থানে আছেন?',
+    instructionText: " 'হ্যাঁ' বা 'সাহায্য চাই' বলুন",
+    countdownText: (s) => `⏳ উত্তর না দিলে ${s} সেকেন্ডের মধ্যে উদ্ধারকারী নৌকা পাঠানো হবে`,
+    micListening: "🎙️ মাইক সক্রিয়: 'নিরাপদ' বা 'সাহায্য চাই' বলুন",
+    tapPrompt: 'অথবা নিচে স্পর্শ করুন:',
+    safeButtonTitle: '✅ হ্যাঁ, আমি নিরাপদ আছি',
+    safeButtonSub: 'উঁচু স্থানে নিরাপদ · সতর্কতা বাতিল করুন',
+    safeBadge: 'নিরাপদ',
+    stuckButtonTitle: '🆘 সাহায্য চাই / আটকে গেছি',
+    stuckButtonSub: 'জলে আটকে গেছি · অবিলম্বে নৌকা পাঠান',
+    stuckBadge: 'সাহায্য',
+    safeScreenTitle: 'নিরাপত্তা নিশ্চিত করা হয়েছে!',
+    safeScreenDesc: (boatman) => `নৌকা #14 (${boatman}) এবং রিভার প্যাট্রোল আপনার নিরাপত্তা নথিভুক্ত করেছে। আপনাকে আর কল করা হবে না।`,
+    safeCloseBtn: 'কল শেষ করুন',
+    stuckScreenTitle: 'উদ্ধারকারী নৌকা পাঠানো হয়েছে!',
+    stuckScreenDesc: (boatman) => `নিকটতম টহল নৌকা #14 (${boatman})-এ আপনার লাইভ GPS অবস্থান পাঠানো হয়েছে।`,
+    stuckVectorTitle: '🧭 সরাসরি জল উদ্ধার ভেক্টর:',
+    stuckVectorSub: 'কম্পাস দিকনির্দেশনা প্রস্তুত করা হয়েছে।',
+    viewRadarBtn: 'রাডার দেখুন',
+    dial112Btn: '১১২ ডায়াল করুন',
+    endCallBtn: 'কল শেষ করুন',
+    spokenQuestion: 'আপনি কি নিরাপদ স্থানে আছেন? হ্যাঁ বা সাহায্য চাই বলুন।',
+    spokenSafeAck: 'ধন্যবাদ। আপনার নিরাপদ অবস্থা নথিভুক্ত করা হয়েছে।',
+    spokenStuckAck: 'কাছের টহল নৌকায় আপনার অবস্থান পাঠানো হয়েছে। সাহায্য আসছে।',
+    voiceLocale: 'bn-IN'
+  }
+}
+
+// ─────────────────────────────────────────────
+// 3.5. Interactive Conversational Emergency Call Modal (Strictly Localized)
+// ─────────────────────────────────────────────
 function EmergencyCallModal({
   close,
   placeName,
@@ -916,6 +1130,8 @@ function EmergencyCallModal({
   autoAccept?: boolean
 }) {
   const t = UI_TRANSLATIONS[lang]
+  const tr = TRIAGE_LOCALES[lang] || TRIAGE_LOCALES.en
+
   const [callState, setCallState] = useState<'ringing' | 'connected'>(autoAccept ? 'connected' : 'ringing')
   const [triageStep, setTriageStep] = useState<'advisory' | 'asking' | 'safe' | 'stuck'>('advisory')
   const [countdown, setCountdown] = useState(15)
@@ -929,7 +1145,7 @@ function EmergencyCallModal({
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null)
   const advisoryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Start synthesized telecom ringtone (440Hz + 480Hz dual-tone) on mount if ringing
+  // Synthesized telecom ringtone on mount if ringing
   useEffect(() => {
     if (autoAccept) {
       startAdvisoryFlow()
@@ -1028,7 +1244,7 @@ function EmergencyCallModal({
     }
   }, [triageStep])
 
-  // Web Speech API for hands-free voice response ("Yes" / "Need Help")
+  // Web Speech API for hands-free voice response strictly in the chosen language
   useEffect(() => {
     if (triageStep !== 'asking') {
       if (recognitionRef.current) {
@@ -1044,19 +1260,19 @@ function EmergencyCallModal({
         const rec = new SpeechRec()
         rec.continuous = true
         rec.interimResults = true
-        rec.lang = lang === 'hi' ? 'hi-IN' : (lang === 'mr' ? 'mr-IN' : (lang === 'ta' ? 'ta-IN' : (lang === 'bn' ? 'bn-IN' : 'en-IN')))
+        rec.lang = tr.voiceLocale
 
         rec.onresult = (event: any) => {
           const results = event.results
           const transcript = results[results.length - 1][0].transcript.toLowerCase().trim()
           setVoiceHeard(transcript)
 
-          // Check for safe keywords
-          if (/yes|haan|ha|safe|surakshit|theek|thik|fine|aam|ho|accha|okay/i.test(transcript)) {
+          // Language-specific safe words
+          if (/yes|haan|ha|safe|surakshit|theek|thik|fine|aam|am|ho|accha|okay|sari|thik/i.test(transcript)) {
             handleSafe()
           }
-          // Check for stuck / emergency keywords
-          else if (/help|no|nahi|madad|stuck|fasa|fas|trapped|bachao|illai|na|danger/i.test(transcript)) {
+          // Language-specific stuck / emergency words
+          else if (/help|no|nahi|madad|stuck|fasa|fas|trapped|bachao|illai|na|danger|uthavi|sahajjo|adaklo/i.test(transcript)) {
             handleStuck('voice_detected')
           }
         }
@@ -1083,15 +1299,26 @@ function EmergencyCallModal({
     }
   }, [triageStep, lang])
 
-  // Step 1: Play Advisory Voice Announcement
+  // Step 1: Play Advisory Voice Announcement Strictly In The Selected Language
   const startAdvisoryFlow = () => {
     setTriageStep('advisory')
     try {
-      const primaryUrl = `/audio/timbre_advisory_${lang === 'en' ? 'en' : 'hi'}_danger.wav`
       if (audioRef.current) {
         audioRef.current.pause()
       }
-      const audio = new Audio(primaryUrl)
+
+      // Exact audio file / endpoint for the selected language
+      let audioUrl = ''
+      if (lang === 'en') {
+        audioUrl = '/audio/timbre_advisory_en_danger.wav'
+      } else if (lang === 'hi') {
+        audioUrl = '/audio/timbre_advisory_hi_danger.wav'
+      } else {
+        // Marathi, Tamil, Bengali: Dynamic Gnani Timbre multi-lingual TTS
+        audioUrl = `/api/tourist/tts?lang=${lang}&status=danger`
+      }
+
+      const audio = new Audio(audioUrl)
       audio.volume = 1.0
       audioRef.current = audio
 
@@ -1107,13 +1334,11 @@ function EmergencyCallModal({
       const promise = audio.play()
       if (promise !== undefined) {
         promise.catch(() => {
-          // Fallback to speech synthesis
+          // Fallback to browser SpeechSynthesis strictly in the selected language
           if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
             window.speechSynthesis.cancel()
-            const msg = advisoryText || 'सावधान! नाव चालकों ने नदी में अचानक बहाव की चेतावनी दी है। कृपया तुरंत घाट की ऊपरी सीढ़ियों पर जाएं।'
-            const utterance = new SpeechSynthesisUtterance(msg)
-            const voiceLocale = lang === 'hi' ? 'hi-IN' : (lang === 'mr' ? 'mr-IN' : (lang === 'ta' ? 'ta-IN' : (lang === 'bn' ? 'bn-IN' : 'en-IN')))
-            utterance.lang = voiceLocale
+            const utterance = new SpeechSynthesisUtterance(t.advisoryDanger)
+            utterance.lang = tr.voiceLocale
             utterance.onend = () => proceedToAsking()
             window.speechSynthesis.speak(utterance)
           } else {
@@ -1138,23 +1363,12 @@ function EmergencyCallModal({
     }
   }
 
-  // Speak the conversational triage question
+  // Speak the conversational triage question strictly in the chosen language
   const speakTriageQuestion = () => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel()
-      const questionText = lang === 'hi'
-        ? 'क्या आप सुरक्षित स्थान पर हैं? बोलें हाँ, या मदद चाहिए।'
-        : (lang === 'mr'
-          ? 'तुम्ही सुरक्षित ठिकाणी आहात का? बोला हो, किंवा मदत हवी आहे.'
-          : (lang === 'ta'
-            ? 'நீங்கள் பாதுகாப்பான இடத்தில் இருக்கிறீர்களா? ஆம் அல்லது உதவி தேவை என்று சொல்லுங்கள்.'
-            : (lang === 'bn'
-              ? 'আপনি কি নিরাপদ স্থানে আছেন? হ্যাঁ বা সাহায্য চাই বলুন।'
-              : 'Are you in a safe place? Say Yes, or Need Help.')))
-
-      const utterance = new SpeechSynthesisUtterance(questionText)
-      const voiceLocale = lang === 'hi' ? 'hi-IN' : (lang === 'mr' ? 'mr-IN' : (lang === 'ta' ? 'ta-IN' : (lang === 'bn' ? 'bn-IN' : 'en-IN')))
-      utterance.lang = voiceLocale
+      const utterance = new SpeechSynthesisUtterance(tr.spokenQuestion)
+      utterance.lang = tr.voiceLocale
       utterance.rate = 1.0
       window.speechSynthesis.speak(utterance)
     }
@@ -1185,11 +1399,8 @@ function EmergencyCallModal({
 
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel()
-      const safeAck = lang === 'hi'
-        ? 'धन्यवाद। आपकी सुरक्षा स्थिति दर्ज कर ली गई है। सतर्क रहें।'
-        : 'Thank you. Your safe status has been logged with river patrol.'
-      const u = new SpeechSynthesisUtterance(safeAck)
-      u.lang = lang === 'hi' ? 'hi-IN' : 'en-IN'
+      const u = new SpeechSynthesisUtterance(tr.spokenSafeAck)
+      u.lang = tr.voiceLocale
       window.speechSynthesis.speak(u)
     }
 
@@ -1219,14 +1430,11 @@ function EmergencyCallModal({
     fd.append('location_name', location?.placeName || placeName)
     fetch('/api/tourist/sos', { method: 'POST', body: fd }).catch(() => {})
 
-    // Voice announcement
+    // Voice announcement strictly in the selected language
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel()
-      const stuckAck = lang === 'hi'
-        ? 'नजदीकी नाव चालक को आपकी लोकेशन भेज दी गई है। मदद आ रही है।'
-        : 'Alert dispatched to nearest boat patrol with your live coordinates. Help is coming.'
-      const u = new SpeechSynthesisUtterance(stuckAck)
-      u.lang = lang === 'hi' ? 'hi-IN' : 'en-IN'
+      const u = new SpeechSynthesisUtterance(tr.spokenStuckAck)
+      u.lang = tr.voiceLocale
       window.speechSynthesis.speak(u)
     }
 
@@ -1294,7 +1502,7 @@ function EmergencyCallModal({
               border: callState === 'ringing' ? '1px solid #ff3344' : '1px solid #00e676'
             }}
           >
-            {callState === 'ringing' ? '🚨 112 RIVER RESCUE PATROL' : (triageStep === 'stuck' ? '🆘 RESCUE DISPATCHED' : (triageStep === 'safe' ? '✅ VERIFIED SAFE' : '⚡ TWO-WAY VOICE TRIAGE'))}
+            {callState === 'ringing' ? tr.headerBadge : (triageStep === 'stuck' ? tr.stuckScreenTitle : (triageStep === 'safe' ? tr.safeScreenTitle : tr.step2Tag))}
           </span>
           <span
             style={{
@@ -1306,7 +1514,7 @@ function EmergencyCallModal({
               color: '#94a3b8'
             }}
           >
-            SOVEREIGN GRID
+            {tr.gridTag}
           </span>
         </div>
 
@@ -1353,7 +1561,7 @@ function EmergencyCallModal({
               Boat #14 · {boatmanName}
             </h2>
             <p style={{ fontSize: '12.5px', color: '#94a3b8', margin: '0 0 4px', fontWeight: 600 }}>
-              Sector: {placeName}
+              {t.callSector(placeName)}
             </p>
             <div style={{
               background: 'rgba(255, 51, 68, 0.12)',
@@ -1365,7 +1573,7 @@ function EmergencyCallModal({
               color: '#ff6677',
               fontWeight: 700
             }}>
-              ⚠️ URGENT WATER LEVEL / FLASH SURGE ADVISORY
+              {tr.dangerAdvisoryTag}
             </div>
 
             {/* Answer / Decline Buttons */}
@@ -1420,7 +1628,7 @@ function EmergencyCallModal({
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#00e676' }} />
                 <span style={{ fontSize: '12px', color: '#00e676', fontWeight: 800 }}>
-                  00:{String(duration).padStart(2, '0')} · Priority Lifeline Active
+                  00:{String(duration).padStart(2, '0')} · {t.callActiveChannel}
                 </span>
               </div>
               <span style={{ fontSize: '11px', color: '#94a3b8' }}>
@@ -1460,7 +1668,7 @@ function EmergencyCallModal({
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <span style={{ fontSize: '10px', fontWeight: 800, color: '#00d4ff', letterSpacing: '0.08em' }}>
-                    📢 STEP 1: SAFETY ADVISORY BROADCAST
+                    {tr.step1Tag}
                   </span>
                   <button
                     type="button"
@@ -1480,14 +1688,14 @@ function EmergencyCallModal({
                       cursor: 'pointer'
                     }}
                   >
-                    Skip to Triage ⏭️
+                    {tr.skipToTriage}
                   </button>
                 </div>
                 <p style={{ fontSize: '13px', lineHeight: '1.45', margin: 0, color: '#f0f5f8', fontWeight: 500 }}>
-                  "{advisoryText || t.advisoryDanger}"
+                  "{t.advisoryDanger}"
                 </p>
                 <div style={{ marginTop: '10px', fontSize: '10.5px', color: '#94a3b8', fontStyle: 'italic' }}>
-                  🔊 Playing warning audio… Stay tuned for safety check.
+                  {tr.audioPlayingNotice}
                 </div>
               </div>
             )}
@@ -1495,7 +1703,7 @@ function EmergencyCallModal({
             {/* STEP 2: Conversational Triage Question ("Are you safe?") */}
             {triageStep === 'asking' && (
               <div style={{ margin: '12px 0' }}>
-                {/* Triage Question Banner */}
+                {/* Triage Question Banner (Strictly in the selected language) */}
                 <div
                   style={{
                     background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(9, 18, 29, 0.8))',
@@ -1507,13 +1715,13 @@ function EmergencyCallModal({
                   }}
                 >
                   <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#00d4ff', letterSpacing: '0.06em' }}>
-                    ❓ STEP 2: TWO-WAY SAFETY TRIAGE
+                    {tr.step2Tag}
                   </span>
-                  <h3 style={{ fontSize: '16px', fontWeight: 900, margin: '6px 0 2px', color: '#ffffff' }}>
-                    "Are you in a safe place?"
+                  <h3 style={{ fontSize: '17px', fontWeight: 900, margin: '8px 0 4px', color: '#ffffff' }}>
+                    "{tr.questionText}"
                   </h3>
-                  <div style={{ fontSize: '13px', color: '#cbd5e1', fontWeight: 700 }}>
-                    क्या आप सुरक्षित स्थान पर हैं?
+                  <div style={{ fontSize: '13px', color: '#00d4ff', fontWeight: 700 }}>
+                    {tr.instructionText}
                   </div>
 
                   {/* Auto-dispatch countdown */}
@@ -1529,14 +1737,14 @@ function EmergencyCallModal({
                       color: '#ff6677'
                     }}
                   >
-                    ⏳ Auto-dispatching rescue in <strong>{countdown}s</strong> if unanswered
+                    {tr.countdownText(countdown)}
                   </div>
 
                   {/* Hands-free voice recognition listener pill */}
                   <div style={{ marginTop: '8px', fontSize: '10.5px', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                     <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isListeningVoice ? '#00e676' : '#ffaa00' }} />
                     <span>
-                      {isListeningVoice ? '🎙️ Mic active: Say "Yes / Safe" or "Need Help"' : 'Tap your response below:'}
+                      {isListeningVoice ? tr.micListening : tr.tapPrompt}
                     </span>
                   </div>
                   {voiceHeard && (
@@ -1546,7 +1754,7 @@ function EmergencyCallModal({
                   )}
                 </div>
 
-                {/* Two Large High-Contrast Decision Cards */}
+                {/* Two Large High-Contrast Decision Cards (Strictly in the selected language) */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
                   {/* Option A: SAFE */}
                   <button
@@ -1567,14 +1775,14 @@ function EmergencyCallModal({
                   >
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: 900, color: '#00e676' }}>
-                        ✅ हाँ, मैं सुरक्षित हूँ (I'm Safe)
+                        {tr.safeButtonTitle}
                       </div>
                       <div style={{ fontSize: '10.5px', color: '#cbd5e1', marginTop: '2px' }}>
-                        At safe high ground · Mute future alerts
+                        {tr.safeButtonSub}
                       </div>
                     </div>
                     <span style={{ background: '#00e676', color: '#003314', fontSize: '11px', fontWeight: 900, padding: '4px 8px', borderRadius: '6px' }}>
-                      TAP
+                      {tr.safeBadge}
                     </span>
                   </button>
 
@@ -1597,14 +1805,14 @@ function EmergencyCallModal({
                   >
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: 900, color: '#ff4455' }}>
-                        🆘 मदद चाहिए / फंसा हूँ (Need Help)
+                        {tr.stuckButtonTitle}
                       </div>
                       <div style={{ fontSize: '10.5px', color: '#cbd5e1', marginTop: '2px' }}>
-                        Trapped near water · Dispatch boat patrol now
+                        {tr.stuckButtonSub}
                       </div>
                     </div>
                     <span style={{ background: '#ff3344', color: '#ffffff', fontSize: '11px', fontWeight: 900, padding: '4px 8px', borderRadius: '6px' }}>
-                      SOS
+                      {tr.stuckBadge}
                     </span>
                   </button>
                 </div>
@@ -1625,10 +1833,10 @@ function EmergencyCallModal({
               >
                 <div style={{ fontSize: '38px', marginBottom: '8px' }}>🛡️</div>
                 <h3 style={{ fontSize: '17px', fontWeight: 900, margin: '0 0 6px', color: '#00e676' }}>
-                  Safety Status Confirmed!
+                  {tr.safeScreenTitle}
                 </h3>
                 <p style={{ fontSize: '12px', color: '#cbd5e1', margin: '0 0 14px', lineHeight: '1.4' }}>
-                  Your safe status has been logged with Boat #14 and River Patrol. You will not be disturbed again for this water advisory.
+                  {tr.safeScreenDesc(boatmanName)}
                 </p>
                 <button
                   type="button"
@@ -1644,7 +1852,7 @@ function EmergencyCallModal({
                     cursor: 'pointer'
                   }}
                 >
-                  Close Call Now
+                  {tr.safeCloseBtn}
                 </button>
               </div>
             )}
@@ -1663,10 +1871,10 @@ function EmergencyCallModal({
               >
                 <div style={{ fontSize: '36px', marginBottom: '6px' }}>🚨</div>
                 <h3 style={{ fontSize: '17px', fontWeight: 900, margin: '0 0 4px', color: '#ff4455' }}>
-                  RESCUE VESSEL DISPATCHED!
+                  {tr.stuckScreenTitle}
                 </h3>
                 <p style={{ fontSize: '12px', color: '#e2e8f0', margin: '0 0 10px', lineHeight: '1.4' }}>
-                  Nearest boat patrol <strong>Boat #14 · {boatmanName}</strong> has received your live GPS coordinates.
+                  {tr.stuckScreenDesc(boatmanName)}
                 </p>
 
                 <div
@@ -1681,9 +1889,9 @@ function EmergencyCallModal({
                   }}
                 >
                   <div style={{ color: '#00d4ff', fontWeight: 800, marginBottom: '2px' }}>
-                    🧭 Direct Nautical Rescue Vector:
+                    {tr.stuckVectorTitle}
                   </div>
-                  <div>Compass steer heading locked across open water.</div>
+                  <div>{tr.stuckVectorSub}</div>
                   <div style={{ color: '#94a3b8', fontSize: '10px', marginTop: '2px' }}>
                     Target GPS: {(location?.lat || 25.3176).toFixed(5)}° N, {(location?.lon || 83.0060).toFixed(5)}° E
                   </div>
@@ -1708,7 +1916,7 @@ function EmergencyCallModal({
                       gap: '4px'
                     }}
                   >
-                    <Compass style={{ width: '14px', height: '14px' }} /> View Radar
+                    <Compass style={{ width: '14px', height: '14px' }} /> {tr.viewRadarBtn}
                   </button>
                   <a
                     href="tel:112"
@@ -1726,7 +1934,7 @@ function EmergencyCallModal({
                       gap: '4px'
                     }}
                   >
-                    <Phone style={{ width: '14px', height: '14px' }} /> Dial 112
+                    <Phone style={{ width: '14px', height: '14px' }} /> {tr.dial112Btn}
                   </a>
                 </div>
               </div>
@@ -1749,7 +1957,7 @@ function EmergencyCallModal({
                     cursor: 'pointer'
                   }}
                 >
-                  <PhoneOff style={{ width: '13px', display: 'inline', marginRight: '6px' }} /> End Call
+                  <PhoneOff style={{ width: '13px', display: 'inline', marginRight: '6px' }} /> {tr.endCallBtn}
                 </button>
               </div>
             )}
@@ -2247,9 +2455,11 @@ function TouristDashboard({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <ShieldCheck style={{ width: '18px', height: '18px', color: '#059669', flexShrink: 0 }} />
               <div>
-                <div style={{ fontWeight: 800 }}>✅ Safety Status: Marked Safe by You</div>
+                <div style={{ fontWeight: 800 }}>
+                  {lang === 'hi' ? '✅ सुरक्षा स्थिति: सुरक्षित दर्ज' : (lang === 'mr' ? '✅ स्थिती: सुरक्षित नोंदवले' : (lang === 'ta' ? '✅ நிலை: பாதுகாப்பாக பதிவு செய்யப்பட்டது' : (lang === 'bn' ? '✅ স্থিতি: নিরাপদ হিসেবে চিহ্নিত' : "✅ Safety Status: Marked Safe by You")))}
+                </div>
                 <div style={{ fontSize: '10.5px', color: '#047857' }}>
-                  River Patrol logged your safety. Repeat emergency calls are muted.
+                  {lang === 'hi' ? 'रिवर पेट्रोल ने आपकी सुरक्षा दर्ज कर ली है। दोबारा कॉल म्यूट हैं।' : (lang === 'mr' ? 'रिव्हर पेट्रोलने नोंद घेतली आहे. कॉल म्यूट केले आहेत.' : (lang === 'ta' ? 'பாதுகாப்பு பதிவு செய்யப்பட்டது. எச்சரிக்கை முடக்கப்பட்டுள்ளது.' : (lang === 'bn' ? 'রিভার প্যাট্রোল নিরাপত্তা নথিভুক্ত করেছে। পুনরায় কল নিঃশব্দ।' : 'River Patrol logged your safety. Repeat emergency calls are muted.')))}
                 </div>
               </div>
             </div>
@@ -2267,7 +2477,7 @@ function TouristDashboard({
                 cursor: 'pointer'
               }}
             >
-              Reset
+              {lang === 'hi' ? 'रीसेट' : (lang === 'mr' ? 'रीसेट' : (lang === 'ta' ? 'மீட்டமை' : (lang === 'bn' ? 'রিসেট' : 'Reset')))}
             </button>
           </div>
         )}
