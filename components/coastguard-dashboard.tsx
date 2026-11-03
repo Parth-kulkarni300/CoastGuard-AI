@@ -202,28 +202,28 @@ function MiniVisualRadar({
       style={{
         background: '#060d15',
         border: isDanger ? '1px solid rgba(255, 51, 68, 0.4)' : '1px solid rgba(0, 212, 255, 0.25)',
-        borderRadius: '18px',
-        padding: '16px',
-        marginBottom: '14px',
+        borderRadius: '14px',
+        padding: '12px 14px',
+        marginBottom: '12px',
         color: '#fff',
-        boxShadow: isDanger ? '0 8px 30px rgba(255, 51, 68, 0.2)' : '0 8px 30px rgba(0, 212, 255, 0.1)',
+        boxShadow: isDanger ? '0 6px 24px rgba(255, 51, 68, 0.15)' : '0 6px 24px rgba(0, 212, 255, 0.08)',
         position: 'relative',
         overflow: 'hidden'
       }}
     >
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Compass style={{ width: '16px', color: isDanger ? '#ff4444' : '#00d4ff' }} />
-          <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', color: isDanger ? '#ff6677' : '#00d4ff' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Compass style={{ width: '14px', height: '14px', color: isDanger ? '#ff4444' : '#00d4ff' }} />
+          <span style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '0.06em', color: isDanger ? '#ff6677' : '#00d4ff' }}>
             {t.radarTitle}
           </span>
         </div>
         <span
           style={{
-            fontSize: '10px',
+            fontSize: '9.5px',
             fontWeight: 800,
-            padding: '2px 8px',
+            padding: '2px 7px',
             borderRadius: '4px',
             background: isDanger ? 'rgba(255,51,68,0.2)' : 'rgba(0,230,118,0.15)',
             color: isDanger ? '#ff4444' : '#00e676',
@@ -236,7 +236,7 @@ function MiniVisualRadar({
 
       {/* SVG Sonar Scope */}
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
-        <svg viewBox="0 0 260 260" width="220" height="220" style={{ overflow: 'visible' }}>
+        <svg viewBox="0 0 260 260" width="180" height="180" style={{ overflow: 'visible' }}>
           <defs>
             <linearGradient id="sweepGrad" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor={isDanger ? '#ff4444' : '#00d4ff'} stopOpacity="0.45" />
@@ -565,16 +565,16 @@ function TopBar({
             textAlign: 'left'
           }}
         >
-          <Crosshair style={{ color: location.isLiveGPS ? '#087a4b' : '#0088ff', width: '16px' }} />
+          <Crosshair style={{ color: location.isLiveGPS ? '#059669' : '#0284c7', width: '15px' }} />
           <div>
-            <div style={{ fontSize: '13px', fontWeight: 800 }}>
+            <div style={{ fontSize: '12px', fontWeight: 700 }}>
               {`${t.locationLabel}: ${location.placeName}`}
             </div>
-            <div style={{ fontSize: '10px', color: '#778899', fontWeight: 600 }}>
+            <div style={{ fontSize: '9.5px', color: '#64748b', fontWeight: 500 }}>
               {location.lat.toFixed(4)}° N, {location.lon.toFixed(4)}° E · {location.isLiveGPS ? t.realGps : t.presetWater}
             </div>
           </div>
-          <ChevronDown style={{ width: '14px', color: '#8899aa' }} />
+          <ChevronDown style={{ width: '13px', color: '#94a3b8' }} />
         </button>
 
         {/* Location Dropdown Modal */}
@@ -582,21 +582,21 @@ function TopBar({
           <div
             style={{
               position: 'absolute',
-              top: '48px',
+              top: '44px',
               left: 0,
               background: '#fff',
-              border: '1px solid #dce5df',
-              borderRadius: '14px',
-              padding: '10px',
-              boxShadow: '0 12px 30px rgba(0,0,0,0.15)',
+              border: '1px solid #e2e8f0',
+              borderRadius: '12px',
+              padding: '8px',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.12)',
               zIndex: 100,
-              minWidth: '280px',
+              minWidth: '260px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '6px'
+              gap: '4px'
             }}
           >
-            <div style={{ fontSize: '11px', fontWeight: 800, color: '#64736f', padding: '4px 6px' }}>
+            <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#64748b', padding: '4px 6px' }}>
               {t.chooseWaterOrGps}
             </div>
             {WATER_PRESETS.map((preset, idx) => (
@@ -608,20 +608,20 @@ function TopBar({
                   setShowLocationMenu(false)
                 }}
                 style={{
-                  padding: '8px 10px',
-                  borderRadius: '8px',
-                  background: location.presetIndex === idx ? '#eef8f2' : 'transparent',
+                  padding: '7px 9px',
+                  borderRadius: '7px',
+                  background: location.presetIndex === idx ? '#ecfdf5' : 'transparent',
                   border: 'none',
                   textAlign: 'left',
-                  fontSize: '12px',
-                  fontWeight: location.presetIndex === idx ? 800 : 500,
-                  color: location.presetIndex === idx ? '#087a4b' : '#112233',
+                  fontSize: '11.5px',
+                  fontWeight: location.presetIndex === idx ? 700 : 500,
+                  color: location.presetIndex === idx ? '#059669' : '#1e293b',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px'
                 }}
               >
-                {preset.isDevice ? <Navigation style={{ width: '14px' }} /> : <MapPin style={{ width: '14px' }} />}
+                {preset.isDevice ? <Navigation style={{ width: '13px' }} /> : <MapPin style={{ width: '13px' }} />}
                 {preset.name}
               </button>
             ))}
@@ -629,7 +629,7 @@ function TopBar({
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
         {/* Dynamic Logged-in User Real-time Pill */}
         {userName && (
           <div
@@ -637,14 +637,14 @@ function TopBar({
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
-              background: mode === 'boatman' ? '#e6f4ea' : '#e8f0fe',
-              padding: '4px 8px',
-              borderRadius: '10px',
-              border: mode === 'boatman' ? '1px solid #b7e1cd' : '1px solid #c2e7ff'
+              background: mode === 'boatman' ? '#ecfdf5' : '#f0f9ff',
+              padding: '3px 7px',
+              borderRadius: '7px',
+              border: mode === 'boatman' ? '1px solid #a7f3d0' : '1px solid #bae6fd'
             }}
           >
-            <span style={{ fontSize: '11px' }}>{mode === 'boatman' ? '🎣' : '🎒'}</span>
-            <span style={{ fontSize: '11px', fontWeight: 800, color: mode === 'boatman' ? '#087a4b' : '#1967d2' }}>
+            <span style={{ fontSize: '10.5px' }}>{mode === 'boatman' ? '🎣' : '🎒'}</span>
+            <span style={{ fontSize: '10.5px', fontWeight: 700, color: mode === 'boatman' ? '#047857' : '#0369a1' }}>
               {userName}
             </span>
           </div>
@@ -655,28 +655,28 @@ function TopBar({
           style={{
             fontSize: '9px',
             fontWeight: 800,
-            padding: '2px 6px',
-            borderRadius: '6px',
-            background: isOnline ? 'rgba(8, 122, 75, 0.12)' : 'rgba(217, 119, 6, 0.15)',
-            color: isOnline ? '#087a4b' : '#d97706',
-            border: isOnline ? '1px solid rgba(8, 122, 75, 0.3)' : '1px solid rgba(217, 119, 6, 0.4)'
+            padding: '2px 5px',
+            borderRadius: '5px',
+            background: isOnline ? 'rgba(5, 150, 105, 0.12)' : 'rgba(217, 119, 6, 0.15)',
+            color: isOnline ? '#059669' : '#d97706',
+            border: isOnline ? '1px solid rgba(5, 150, 105, 0.25)' : '1px solid rgba(217, 119, 6, 0.35)'
           }}
         >
           {isOnline ? t.onlineBadge : t.offlineBadge}
         </span>
 
         {/* Language selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#eef6f1', padding: '4px 8px', borderRadius: '10px' }}>
-          <Globe style={{ width: '13px', color: '#087a4b' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', background: '#ecfdf5', padding: '3px 6px', borderRadius: '7px' }}>
+          <Globe style={{ width: '12px', color: '#059669' }} />
           <select
             value={lang}
             onChange={(e) => onLangChange(e.target.value as SupportedLang)}
             style={{
               background: 'transparent',
               border: 'none',
-              fontSize: '11px',
-              fontWeight: 800,
-              color: '#087a4b',
+              fontSize: '10.5px',
+              fontWeight: 700,
+              color: '#059669',
               cursor: 'pointer',
               outline: 'none'
             }}
@@ -690,7 +690,20 @@ function TopBar({
           </select>
         </div>
 
-        <button type="button" className="switch-role" onClick={onSwitch}>
+        <button
+          type="button"
+          onClick={onSwitch}
+          style={{
+            border: '1px solid #e2e8f0',
+            background: '#ffffff',
+            borderRadius: '7px',
+            padding: '4px 8px',
+            fontSize: '10px',
+            fontWeight: 700,
+            color: '#334155',
+            cursor: 'pointer'
+          }}
+        >
           {t.switchRole}
         </button>
       </div>
@@ -763,10 +776,10 @@ function SosModal({
         </p>
 
         {/* Live Pin Link */}
-        <div style={{ margin: '8px 0 14px', padding: '8px 12px', background: '#f5f8f6', borderRadius: '10px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ margin: '8px 0 12px', padding: '6px 10px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '10.5px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span>📍 {location.placeName}</span>
-          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#087a4b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-            {t.sosOpenPin} <ExternalLink style={{ width: '12px' }} />
+          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}>
+            {t.sosOpenPin} <ExternalLink style={{ width: '11px', height: '11px' }} />
           </a>
         </div>
 
@@ -987,13 +1000,13 @@ function EmergencyCallModal({
         style={{
           background: '#09121d',
           border: callState === 'ringing' ? '2px solid #ff3344' : '1px solid #00d4ff',
-          borderRadius: '26px',
-          maxWidth: '430px',
+          borderRadius: '18px',
+          maxWidth: '380px',
           width: '100%',
-          padding: '30px 22px',
+          padding: '22px 18px',
           textAlign: 'center',
           color: '#ffffff',
-          boxShadow: callState === 'ringing' ? '0 0 60px rgba(255, 51, 68, 0.35)' : '0 0 50px rgba(0, 212, 255, 0.25)',
+          boxShadow: callState === 'ringing' ? '0 0 45px rgba(255, 51, 68, 0.3)' : '0 0 35px rgba(0, 212, 255, 0.2)',
           position: 'relative',
           overflow: 'hidden'
         }}
@@ -1001,14 +1014,14 @@ function EmergencyCallModal({
         aria-modal="true"
       >
         {/* Top Priority Badge */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '14px' }}>
           <span
             style={{
-              fontSize: '10px',
+              fontSize: '9.5px',
               fontWeight: 800,
-              letterSpacing: '0.08em',
-              padding: '4px 10px',
-              borderRadius: '6px',
+              letterSpacing: '0.06em',
+              padding: '3px 8px',
+              borderRadius: '5px',
               background: callState === 'ringing' ? 'rgba(255, 51, 68, 0.25)' : 'rgba(0, 230, 118, 0.2)',
               color: callState === 'ringing' ? '#ff4455' : '#00e676',
               border: callState === 'ringing' ? '1px solid #ff3344' : '1px solid #00e676'
@@ -1024,9 +1037,9 @@ function EmergencyCallModal({
             <div
               style={{
                 position: 'relative',
-                width: '96px',
-                height: '96px',
-                margin: '0 auto 20px',
+                width: '74px',
+                height: '74px',
+                margin: '0 auto 16px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -1035,7 +1048,7 @@ function EmergencyCallModal({
               <div
                 style={{
                   position: 'absolute',
-                  inset: -14,
+                  inset: -10,
                   borderRadius: '50%',
                   background: 'rgba(255, 51, 68, 0.25)',
                   animation: 'ringPulse 1.8s infinite'
@@ -1043,32 +1056,32 @@ function EmergencyCallModal({
               />
               <div
                 style={{
-                  width: '84px',
-                  height: '84px',
+                  width: '64px',
+                  height: '64px',
                   borderRadius: '50%',
                   background: 'linear-gradient(135deg, #ff3344, #cc1122)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 0 35px rgba(255, 51, 68, 0.65)'
+                  boxShadow: '0 0 25px rgba(255, 51, 68, 0.65)'
                 }}
               >
-                <PhoneCall style={{ width: '40px', height: '40px', color: '#fff' }} />
+                <PhoneCall style={{ width: '30px', height: '30px', color: '#fff' }} />
               </div>
             </div>
 
-            <h2 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 6px', color: '#ffffff' }}>
+            <h2 style={{ fontSize: '17px', fontWeight: 800, margin: '0 0 4px', color: '#ffffff' }}>
               {t.callTitle}
             </h2>
-            <p style={{ fontSize: '13px', color: '#88a0b0', margin: '0 0 4px', fontWeight: 600 }}>
+            <p style={{ fontSize: '12px', color: '#88a0b0', margin: '0 0 4px', fontWeight: 600 }}>
               {t.callSector(placeName)}
             </p>
-            <p style={{ fontSize: '11px', color: '#ff6677', margin: '0 0 24px', fontWeight: 700 }}>
+            <p style={{ fontSize: '10.5px', color: '#ff6677', margin: '0 0 18px', fontWeight: 700 }}>
               {t.callDangerNotice(boatmanName)}
             </p>
 
             {/* Answer / Decline Buttons */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <button
                 type="button"
                 onClick={declineCall}
@@ -1076,18 +1089,18 @@ function EmergencyCallModal({
                   background: 'rgba(255, 51, 68, 0.15)',
                   border: '1px solid rgba(255, 51, 68, 0.4)',
                   color: '#ff4455',
-                  padding: '14px',
-                  borderRadius: '16px',
-                  fontSize: '14px',
+                  padding: '11px',
+                  borderRadius: '12px',
+                  fontSize: '12.5px',
                   fontWeight: 800,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '8px'
+                  gap: '6px'
                 }}
               >
-                <PhoneOff style={{ width: '18px' }} /> {t.callDecline}
+                <PhoneOff style={{ width: '15px' }} /> {t.callDecline}
               </button>
               <button
                 type="button"
@@ -1096,19 +1109,19 @@ function EmergencyCallModal({
                   background: 'linear-gradient(135deg, #00e676, #00b050)',
                   border: 'none',
                   color: '#002812',
-                  padding: '14px',
-                  borderRadius: '16px',
-                  fontSize: '14px',
+                  padding: '11px',
+                  borderRadius: '12px',
+                  fontSize: '12.5px',
                   fontWeight: 900,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '8px',
-                  boxShadow: '0 4px 20px rgba(0, 230, 118, 0.4)'
+                  gap: '6px',
+                  boxShadow: '0 4px 16px rgba(0, 230, 118, 0.35)'
                 }}
               >
-                <PhoneCall style={{ width: '18px' }} /> {t.callAccept}
+                <PhoneCall style={{ width: '15px' }} /> {t.callAccept}
               </button>
             </div>
           </>
@@ -1183,7 +1196,7 @@ function EmergencyCallModal({
             </div>
 
             {/* Connected Action Buttons */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
               <button
                 type="button"
                 onClick={() => {
@@ -1194,18 +1207,18 @@ function EmergencyCallModal({
                   background: 'rgba(255, 170, 0, 0.15)',
                   border: '1px solid #ffaa00',
                   color: '#ffbb11',
-                  padding: '12px',
-                  borderRadius: '14px',
-                  fontSize: '13px',
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  fontSize: '12px',
                   fontWeight: 800,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '8px'
+                  gap: '6px'
                 }}
               >
-                <Siren style={{ width: '16px' }} /> {t.callSendGps}
+                <Siren style={{ width: '15px' }} /> {t.callSendGps}
               </button>
 
               <button
@@ -1215,19 +1228,19 @@ function EmergencyCallModal({
                   background: 'linear-gradient(135deg, #ff3344, #cc1122)',
                   border: 'none',
                   color: '#fff',
-                  padding: '12px',
-                  borderRadius: '14px',
-                  fontSize: '14px',
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  fontSize: '12.5px',
                   fontWeight: 800,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '8px',
-                  boxShadow: '0 4px 18px rgba(255, 51, 68, 0.4)'
+                  gap: '6px',
+                  boxShadow: '0 4px 14px rgba(255, 51, 68, 0.35)'
                 }}
               >
-                <PhoneOff style={{ width: '16px' }} /> {t.callEnd}
+                <PhoneOff style={{ width: '15px' }} /> {t.callEnd}
               </button>
             </div>
           </>
@@ -1614,35 +1627,35 @@ function TouristDashboard({
         {notificationPerm === 'granted' ? (
           <div
             style={{
-              background: 'rgba(0, 230, 118, 0.08)',
-              border: '1px solid rgba(0, 230, 118, 0.3)',
-              borderRadius: '12px',
-              padding: '8px 12px',
-              marginBottom: '12px',
+              background: 'rgba(5, 150, 105, 0.08)',
+              border: '1px solid rgba(5, 150, 105, 0.25)',
+              borderRadius: '10px',
+              padding: '7px 10px',
+              marginBottom: '10px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               fontSize: '11px',
-              color: '#a0aec0'
+              color: '#065f46'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <BellRing style={{ width: '15px', height: '15px', color: '#00e676', flexShrink: 0 }} />
-              <span style={{ color: '#e2e8f0', fontWeight: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <BellRing style={{ width: '13px', height: '13px', color: '#059669', flexShrink: 0 }} />
+              <span style={{ color: '#065f46', fontWeight: 700 }}>
                 OS Emergency Grid: Active
               </span>
             </div>
             <span
               style={{
-                color: '#00e676',
-                fontSize: '10px',
+                color: '#047857',
+                fontSize: '9.5px',
                 fontWeight: 700,
-                background: 'rgba(0,230,118,0.15)',
-                padding: '2px 8px',
+                background: 'rgba(5, 150, 105, 0.12)',
+                padding: '2px 7px',
                 borderRadius: '4px'
               }}
             >
-              Interrupts Other Apps
+              Alerts Over Other Apps
             </span>
           </div>
         ) : (
@@ -1663,34 +1676,34 @@ function TouristDashboard({
             }}
             style={{
               width: '100%',
-              background: 'rgba(255, 170, 0, 0.12)',
-              border: '1px solid rgba(255, 170, 0, 0.4)',
-              borderRadius: '12px',
-              padding: '10px 12px',
-              marginBottom: '12px',
+              background: '#fffbeb',
+              border: '1px solid #fde68a',
+              borderRadius: '10px',
+              padding: '8px 10px',
+              marginBottom: '10px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               fontSize: '11px',
-              color: '#ffb300',
+              color: '#92400e',
               cursor: 'pointer',
               textAlign: 'left'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Bell style={{ width: '16px', height: '16px', color: '#ffaa00', flexShrink: 0 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Bell style={{ width: '14px', height: '14px', color: '#d97706', flexShrink: 0 }} />
               <span>
-                <strong>Enable Heads-Up Alerts:</strong> Pop up over Instagram, YouTube & Lock Screen
+                <strong>Enable Heads-Up Alerts:</strong> Pop up over other apps & lock screen
               </span>
             </div>
             <span
               style={{
-                background: '#ffaa00',
-                color: '#000',
-                padding: '3px 8px',
+                background: '#d97706',
+                color: '#fff',
+                padding: '2px 7px',
                 borderRadius: '4px',
                 fontWeight: 800,
-                fontSize: '10px',
+                fontSize: '9.5px',
                 flexShrink: 0
               }}
             >
