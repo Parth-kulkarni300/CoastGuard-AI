@@ -821,3 +821,76 @@ button {
     padding: 12px 14px 40px;
   }
 }
+
+
+/* ── World-Class Visual Masterpiece Extensions ───────────────────────── */
+@keyframes pulseRing {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.08); opacity: 0.3; }
+  100% { transform: scale(1.15); opacity: 0; }
+}
+
+@keyframes radarSweepSmooth {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes beaconPulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.4; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Enhanced walkie button with 3D specular shine */
+.walkie-button {
+  width: 140px;
+  height: 140px;
+  border: 4px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 25%, #ff2d55 0%, #d1123f 55%, #7a041f 100%);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  margin: auto;
+  box-shadow: 0 12px 35px rgba(225, 29, 72, 0.45), 0 0 0 5px rgba(225, 29, 72, 0.18), inset 0 3px 6px rgba(255, 255, 255, 0.4);
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+}
+
+.walkie-button:hover {
+  transform: scale(1.03);
+  box-shadow: 0 16px 42px rgba(225, 29, 72, 0.55), 0 0 0 8px rgba(225, 29, 72, 0.25), inset 0 3px 6px rgba(255, 255, 255, 0.5);
+}
+
+.walkie-button:active {
+  transform: scale(0.96);
+}
+
+.walkie.recording .walkie-button {
+  background: radial-gradient(circle at 35% 25%, #10b981 0%, #059669 60%, #064e3b 100%);
+  box-shadow: 0 14px 40px rgba(16, 185, 129, 0.55), 0 0 0 8px rgba(16, 185, 129, 0.25), inset 0 3px 6px rgba(255, 255, 255, 0.5);
+}
+
+.walkie.sent .walkie-button {
+  background: radial-gradient(circle at 35% 25%, #06b6d4 0%, #0891b2 60%, #164e63 100%);
+  box-shadow: 0 12px 35px rgba(6, 182, 212, 0.45), 0 0 0 6px rgba(6, 182, 212, 0.2);
+}
+
+/* Boatman app bridge backdrop */
+.boatman-app {
+  min-height: calc(100vh - 56px);
+  max-width: 580px;
+  margin: 0 auto;
+  padding: 16px 18px 60px;
+  background: radial-gradient(ellipse at 50% -10%, #0e1e32 0%, #080d16 70%, #04070b 100%);
+  color: #f1f5f9;
+}
+
+/* Tourist app container */
+.tourist-app {
+  max-width: 540px;
+  margin: 0 auto;
+  padding: 16px 18px 60px;
+}
