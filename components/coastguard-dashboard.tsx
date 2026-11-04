@@ -609,17 +609,11 @@ function LocationSearchModal({
               const parts = [p.name, p.street, p.district, p.city, p.state, p.country].filter(Boolean)
               const uniqueParts = parts.filter((item: string, pos: number) => parts.indexOf(item) === pos)
               const displayName = uniqueParts.join(', ') || name
-              const dMeters = calculateHaversineDistance(25.2974, 83.0064, lat, lon)
-              const dKm = dMeters / 1000
-
               return {
                 name,
                 display_name: displayName,
                 lat,
-                lon,
-                distance_km: Math.round(dKm * 10) / 10,
-                distance_label: dKm < 1 ? `${Math.round(dMeters)}m from Assi Sector` : `${dKm.toFixed(1)} km from Assi Sector`,
-                in_danger_zone: dMeters <= 2000
+                lon
               }
             })
           }
@@ -653,17 +647,12 @@ function LocationSearchModal({
               found = data.map((item: any) => {
                 const lat = parseFloat(item.lat)
                 const lon = parseFloat(item.lon)
-                const dMeters = calculateHaversineDistance(25.2974, 83.0064, lat, lon)
-                const dKm = dMeters / 1000
                 const shortName = item.name || item.display_name.split(',')[0]
                 return {
                   name: shortName,
                   display_name: item.display_name,
                   lat,
-                  lon,
-                  distance_km: Math.round(dKm * 10) / 10,
-                  distance_label: dKm < 1 ? `${Math.round(dMeters)}m from Assi Sector` : `${dKm.toFixed(1)} km from Assi Sector`,
-                  in_danger_zone: dMeters <= 2000
+                  lon
                 }
               })
             }
@@ -918,18 +907,18 @@ function LocationSearchModal({
                       <span
                         style={{
                           display: 'inline-block',
-                          fontSize: '9.5px',
+                          fontSize: '11px',
                           fontWeight: 800,
-                          padding: '2px 6px',
-                          borderRadius: '6px',
-                          background: loc.in_danger_zone ? '#ffe4e6' : '#dcfce7',
-                          color: loc.in_danger_zone ? '#b91c1c' : '#15803d'
+                          padding: '4px 10px',
+                          borderRadius: '8px',
+                          background: '#0284c7',
+                          color: '#ffffff'
                         }}
                       >
-                        {loc.in_danger_zone ? '🚨 Danger Radius (<2km)' : '🛡️ Safe Perimeter'}
+                        Select
                       </span>
-                      <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>
-                        {loc.distance_label}
+                      <div style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace', marginTop: '3px' }}>
+                        {loc.lat.toFixed(4)}°, {loc.lon.toFixed(4)}°
                       </div>
                     </div>
                   </button>
@@ -1012,9 +1001,7 @@ function RoleLogin({
         <h1>
           CoastGuard <em>AI</em>
         </h1>
-        <p className="login-intro">
-          {t.tagline}
-        </p>
+
 
         {/* Name Input Field (Real-time dynamic display across app) */}
         <label className="login-label" htmlFor="name" style={{ marginTop: '8px' }}>
@@ -2694,6 +2681,7 @@ function TouristDashboard({
   const [status, setStatus] = useState<Status>(initialStatus || 'safe')
   const [outOfRangeNotice, setOutOfRangeNotice] = useState<{ location: string; distanceKm: string } | null>(null)
   const [isVerifiedSafe, setIsVerifiedSafe] = useState(false)
+  const [hasActiveBroadcast, setHasActiveBroadcast] = useState(false)
   const [sosAutoDispatched, setSosAutoDispatched] = useState(false)
   const [sos, setSos] = useState(false)
   const [showCallModal, setShowCallModal] = useState(false)
@@ -2950,6 +2938,9 @@ function TouristDashboard({
   }, [location.lat, location.lon, phone])
 
   const applySectorData = (data: any) => {
+    if (data.has_broadcast || (data.dispatch_id && data.dispatch_id !== 'none' && data.dispatch_id !== 'initial_safe')) {
+      setHasActiveBroadcast(true)
+    }
     let d = distanceMeters
     if (data.lat && data.lon) {
       setBoatmanLat(data.lat)
@@ -3198,24 +3189,27 @@ function TouristDashboard({
             </div>
           </div>
 
-          {/* Card 2: Sector Safety Status Banner */}
+          {/* Card 2: Sector Safety Status Banner (Prominent, High-Contrast & Vibrant) */}
           <div
             style={{
               background: status === 'safe'
-                ? 'linear-gradient(135deg, rgba(6, 78, 59, 0.5) 0%, rgba(4, 47, 46, 0.8) 100%)'
-                : 'linear-gradient(135deg, rgba(185, 28, 28, 0.5) 0%, rgba(127, 29, 29, 0.8) 100%)',
-              border: status === 'safe' ? '1.5px solid rgba(16, 185, 129, 0.55)' : '1.5px solid rgba(239, 68, 68, 0.65)',
-              borderRadius: '20px',
-              padding: '18px 20px',
+                ? 'linear-gradient(135deg, #059669 0%, #047857 55%, #064e3b 100%)'
+                : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 55%, #7f1d1d 100%)',
+              border: status === 'safe' ? '2.5px solid #34d399' : '2.5px solid #f87171',
+              borderRadius: '22px',
+              padding: '20px 24px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              boxShadow: status === 'safe' ? '0 8px 30px rgba(5, 150, 105, 0.25)' : '0 8px 30px rgba(220, 38, 38, 0.35)'
+              boxShadow: status === 'safe'
+                ? '0 10px 35px rgba(5, 150, 105, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25)'
+                : '0 12px 45px rgba(220, 38, 38, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
+              position: 'relative'
             }}
           >
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', fontWeight: 900, color: status === 'safe' ? '#34d399' : '#f87171' }}>
-                <ShieldCheck style={{ width: '22px', height: '22px', flexShrink: 0 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '18px', fontWeight: 900, color: '#ffffff', letterSpacing: '-0.01em' }}>
+                <ShieldCheck style={{ width: '28px', height: '28px', flexShrink: 0, color: '#ffffff' }} />
                 <span>
                   {status === 'safe'
                     ? (outOfRangeNotice
@@ -3224,7 +3218,7 @@ function TouristDashboard({
                     : t.dangerStatusBanner}
                 </span>
               </div>
-              <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#e2e8f0', lineHeight: '1.4', fontWeight: 500 }}>
+              <p style={{ margin: '6px 0 0', fontSize: '13px', color: status === 'safe' ? '#ecfdf5' : '#fee2e2', lineHeight: '1.45', fontWeight: 600 }}>
                 {status === 'safe' && outOfRangeNotice
                   ? `Water surge hazard was reported at ${outOfRangeNotice.location} (${outOfRangeNotice.distanceKm} km from you). You are outside the 2.0 km danger perimeter and completely safe.`
                   : waterStatusText}
@@ -3233,17 +3227,19 @@ function TouristDashboard({
 
             <span
               style={{
-                fontSize: '11px',
+                fontSize: '12px',
                 fontWeight: 900,
-                padding: '6px 12px',
-                borderRadius: '20px',
-                background: status === 'safe' ? '#10b981' : '#ef4444',
-                color: '#ffffff',
+                padding: '8px 16px',
+                borderRadius: '30px',
+                background: '#ffffff',
+                color: status === 'safe' ? '#047857' : '#991b1b',
+                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.25)',
                 flexShrink: 0,
-                marginLeft: '12px'
+                marginLeft: '16px',
+                letterSpacing: '0.04em'
               }}
             >
-              {status === 'safe' ? 'ALL CLEAR' : 'HAZARD ALERT'}
+              {status === 'safe' ? '✅ SAFE TO ROAM' : '⚠️ DANGER ALERT'}
             </span>
           </div>
         </div>
@@ -3308,7 +3304,7 @@ function TouristDashboard({
                 boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5)'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: hasActiveBroadcast ? '14px' : '0' }}>
                 <div
                   style={{
                     width: '42px',
@@ -3328,146 +3324,186 @@ function TouristDashboard({
                     {t.voiceUpdateHeading}
                   </span>
                   <h2 style={{ fontSize: '16px', fontWeight: 900, margin: '2px 0 0', color: '#f8fafc' }}>
-                    {boatmanName} <small style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 500 }}>· {t.fromYou(distanceText)}</small>
+                    {hasActiveBroadcast ? `${boatmanName} · ${t.fromYou(distanceText)}` : 'Live River Voice Grid · Standby'}
                   </h2>
                 </div>
               </div>
 
-              <blockquote
-                style={{
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  borderLeft: '4px solid #22d3ee',
-                  padding: '12px 16px',
-                  borderRadius: '0 14px 14px 0',
-                  margin: '0 0 10px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: '#f1f5f9',
-                  lineHeight: '1.5'
-                }}
-              >
-                &ldquo;{hindiQuote}&rdquo;
-              </blockquote>
-              <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 16px', lineHeight: '1.45' }}>
-                {translation}
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {/* Clean Voice (Noise Stripped) */}
-                <button
-                  type="button"
-                  onClick={toggleBoatmanAudio}
-                  style={{
-                    background: 'rgba(16, 185, 129, 0.12)',
-                    border: '1.5px solid rgba(16, 185, 129, 0.4)',
-                    borderRadius: '14px',
-                    padding: '12px 16px',
-                    color: '#f8fafc',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    textAlign: 'left'
-                  }}
-                >
-                  <span
+              {hasActiveBroadcast ? (
+                <>
+                  <blockquote
                     style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '10px',
-                      background: '#10b981',
-                      color: '#ffffff',
-                      display: 'grid',
-                      placeItems: 'center',
-                      flexShrink: 0
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      borderLeft: '4px solid #22d3ee',
+                      padding: '12px 16px',
+                      borderRadius: '0 14px 14px 0',
+                      margin: '14px 0 10px',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: '#f1f5f9',
+                      lineHeight: '1.5'
                     }}
                   >
-                    {playingBoatman ? <Pause style={{ width: '18px', height: '18px' }} /> : <Play style={{ width: '18px', height: '18px' }} />}
-                  </span>
-                  <div>
-                    <strong style={{ fontSize: '13px', color: '#34d399', display: 'block' }}>{t.listenCleanVoice}</strong>
-                    <small style={{ fontSize: '10.5px', color: '#94a3b8' }}>{t.listenCleanVoiceSub}</small>
-                  </div>
-                </button>
+                    &ldquo;{hindiQuote}&rdquo;
+                  </blockquote>
+                  <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 16px', lineHeight: '1.45' }}>
+                    {translation}
+                  </p>
 
-                {/* AI Synthesized Voice */}
-                <button
-                  type="button"
-                  onClick={toggleAiAudio}
-                  style={{
-                    background: 'rgba(34, 211, 238, 0.12)',
-                    border: '1.5px solid rgba(34, 211, 238, 0.4)',
-                    borderRadius: '14px',
-                    padding: '12px 16px',
-                    color: '#f8fafc',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    textAlign: 'left'
-                  }}
-                >
-                  <span
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '10px',
-                      background: '#0284c7',
-                      color: '#ffffff',
-                      display: 'grid',
-                      placeItems: 'center',
-                      flexShrink: 0
-                    }}
-                  >
-                    {playingAi ? <Pause style={{ width: '18px', height: '18px' }} /> : <Volume2 style={{ width: '18px', height: '18px' }} />}
-                  </span>
-                  <div>
-                    <strong style={{ fontSize: '13px', color: '#38bdf8', display: 'block' }}>
-                      {t.listenAiAdvisory(LANGUAGES.find((l) => l.code === lang)?.label || 'Regional')}
-                    </strong>
-                    <small style={{ fontSize: '10.5px', color: '#94a3b8' }}>{t.listenAiAdvisorySub}</small>
-                  </div>
-                </button>
-
-                {/* Noise Canceller Comparison Link */}
-                {boatmanRawAudioUrl && (
-                  <button
-                    type="button"
-                    onClick={toggleRawAudio}
-                    style={{
-                      background: 'rgba(255, 170, 0, 0.08)',
-                      border: '1px solid rgba(255, 170, 0, 0.3)',
-                      borderRadius: '14px',
-                      padding: '10px 14px',
-                      color: '#f8fafc',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      textAlign: 'left'
-                    }}
-                  >
-                    <span
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {/* Clean Voice (Noise Stripped) */}
+                    <button
+                      type="button"
+                      onClick={toggleBoatmanAudio}
                       style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '8px',
-                        background: '#d97706',
-                        color: '#ffffff',
-                        display: 'grid',
-                        placeItems: 'center',
-                        flexShrink: 0
+                        background: 'rgba(16, 185, 129, 0.12)',
+                        border: '1.5px solid rgba(16, 185, 129, 0.4)',
+                        borderRadius: '14px',
+                        padding: '12px 16px',
+                        color: '#f8fafc',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        textAlign: 'left'
                       }}
                     >
-                      {playingRaw ? <Pause style={{ width: '16px', height: '16px' }} /> : <Play style={{ width: '16px', height: '16px' }} />}
-                    </span>
-                    <div>
-                      <strong style={{ fontSize: '12px', color: '#fbbf24', display: 'block' }}>{t.compareRawAudio}</strong>
-                      <small style={{ fontSize: '10px', color: '#94a3b8' }}>{t.compareRawAudioSub}</small>
-                    </div>
-                  </button>
-                )}
-              </div>
+                      <span
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          background: '#10b981',
+                          color: '#ffffff',
+                          display: 'grid',
+                          placeItems: 'center',
+                          flexShrink: 0
+                        }}
+                      >
+                        {playingBoatman ? <Pause style={{ width: '18px', height: '18px' }} /> : <Play style={{ width: '18px', height: '18px' }} />}
+                      </span>
+                      <div>
+                        <strong style={{ fontSize: '13px', color: '#34d399', display: 'block' }}>{t.listenCleanVoice}</strong>
+                        <small style={{ fontSize: '10.5px', color: '#94a3b8' }}>{t.listenCleanVoiceSub}</small>
+                      </div>
+                    </button>
+
+                    {/* AI Synthesized Voice */}
+                    <button
+                      type="button"
+                      onClick={toggleAiAudio}
+                      style={{
+                        background: 'rgba(34, 211, 238, 0.12)',
+                        border: '1.5px solid rgba(34, 211, 238, 0.4)',
+                        borderRadius: '14px',
+                        padding: '12px 16px',
+                        color: '#f8fafc',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        textAlign: 'left'
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          background: '#0284c7',
+                          color: '#ffffff',
+                          display: 'grid',
+                          placeItems: 'center',
+                          flexShrink: 0
+                        }}
+                      >
+                        {playingAi ? <Pause style={{ width: '18px', height: '18px' }} /> : <Volume2 style={{ width: '18px', height: '18px' }} />}
+                      </span>
+                      <div>
+                        <strong style={{ fontSize: '13px', color: '#38bdf8', display: 'block' }}>
+                          {t.listenAiAdvisory(LANGUAGES.find((l) => l.code === lang)?.label || 'Regional')}
+                        </strong>
+                        <small style={{ fontSize: '10.5px', color: '#94a3b8' }}>{t.listenAiAdvisorySub}</small>
+                      </div>
+                    </button>
+
+                    {/* Noise Canceller Comparison Link */}
+                    {boatmanRawAudioUrl && (
+                      <button
+                        type="button"
+                        onClick={toggleRawAudio}
+                        style={{
+                          background: 'rgba(255, 170, 0, 0.08)',
+                          border: '1px solid rgba(255, 170, 0, 0.3)',
+                          borderRadius: '14px',
+                          padding: '10px 14px',
+                          color: '#f8fafc',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            background: '#d97706',
+                            color: '#ffffff',
+                            display: 'grid',
+                            placeItems: 'center',
+                            flexShrink: 0
+                          }}
+                        >
+                          {playingRaw ? <Pause style={{ width: '16px', height: '16px' }} /> : <Play style={{ width: '16px', height: '16px' }} />}
+                        </span>
+                        <div>
+                          <strong style={{ fontSize: '12px', color: '#fbbf24', display: 'block' }}>{t.compareRawAudio}</strong>
+                          <small style={{ fontSize: '10px', color: '#94a3b8' }}>{t.compareRawAudioSub}</small>
+                        </div>
+                      </button>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px dashed rgba(56, 189, 248, 0.25)',
+                    borderRadius: '16px',
+                    padding: '24px 18px',
+                    marginTop: '14px',
+                    textAlign: 'center'
+                  }}
+                >
+                  <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 10px', lineHeight: '1.5' }}>
+                    {lang === 'hi'
+                      ? 'इस जल क्षेत्र में अभी कोई नया वॉइस प्रसारण नहीं हुआ है। जब कोई नाविक वॉक-टॉकी पर बोलेगा, तो उनका सत्यापित वॉइस संदेश और ऑडियो विकल्प यहां तुरंत सक्रिय हो जाएगा।'
+                      : (lang === 'mr'
+                        ? 'या जलक्षेत्रात अद्याप नवीन ऑडिओ संदेश प्रसारित झालेला नाही. नाविक वॉक-टॉकीवर बोलताच, त्यांचे थेट रेकॉर्डिंग आणि ऑडिओ पर्याय येथे सक्रिय होतील.'
+                        : 'No voice broadcast recorded in this water sector yet. When a boatman speaks via the walkie-talkie grid, their live verified voice recording and audio options will appear here in real time.')}
+                  </p>
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: 'rgba(16, 185, 129, 0.1)',
+                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                      borderRadius: '20px',
+                      padding: '4px 12px',
+                      fontSize: '11px',
+                      color: '#34d399',
+                      fontWeight: 700
+                    }}
+                  >
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', animation: 'beaconPulse 1.5s infinite' }} />
+                    {lang === 'hi' ? '3.0 किमी परिधि में लाइव चैनल सक्रिय' : (lang === 'mr' ? '३.० किमी कक्षेत थेट ऑडिओ चॅनेल सक्रिय' : 'Live Channel Active · Listening on 3.0 km Perimeter')}
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* Emergency SOS Button */}

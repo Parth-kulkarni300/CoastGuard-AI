@@ -147,26 +147,7 @@ async def serve_audio(filename: str):
 # ─────────────────────────────────────────────
 ACTIVE_DEVICES: Dict[str, Dict[str, Any]] = {}
 
-LATEST_SECTOR_STATE = {
-    "dispatch_id": "initial_safe",
-    "status": "safe",
-    "severity": "INFO",
-    "location": "Assi Ghat, Varanasi",
-    "lat": 25.3176,
-    "lon": 83.0060,
-    "boatman_name": "Ramesh Nishad",
-    "boat_id": "Boat #14",
-    "distance": "350 meters from you",
-    "distance_km": 0.35,
-    "time_ago": "2 mins ago",
-    "timestamp": datetime.now().isoformat(),
-    "hindi_quote": "भैया! पानी बिल्कुल शांत है, अभी आराम से नौका विहार कर सकते हैं, कोई खतरा नहीं है।",
-    "english_translation": "Water is completely calm. Boating permitted.",
-    "boatman_audio_url": "/api/audio/boatman_sample_safe.wav",
-    "ai_audio_url": "/api/audio/ai_advisory_safe.wav",
-    "recipients_notified": 18,
-    "water_status_text": "Local boatmen report calm waters. Boating permitted."
-}
+LATEST_SECTOR_STATE = None
 
 
 @app.post("/api/location/update")
@@ -240,9 +221,7 @@ async def search_locations(q: str = ""):
                     "display_name": display,
                     "lat": lat_f,
                     "lon": lon_f,
-                    "distance_km": round(d_km, 2),
-                    "distance_label": f"{d_km:.1f} km from Assi Sector" if d_km >= 1.0 else f"{int(d_km * 1000)}m from Assi Sector",
-                    "in_danger_zone": d_km <= 2.0
+                    "distance_km": round(d_km, 2)
                 })
     except Exception as e:
         print(f"[LocationSearch] Photon error: {e}")
@@ -280,39 +259,47 @@ async def search_locations(q: str = ""):
 
 @app.get("/api/tourist/status")
 async def get_tourist_status(lat: float = 25.3176, lon: float = 83.0060):
-    """Fetch real-time safety status for tourist's current GPS location (strict 3.0 km hyper-local sector radius)."""
-    state = dict(LATEST_SECTOR_STATE)
-    boatman_lat = state.get("lat", 25.3176)
-    boatman_lon = state.get("lon", 83.0060)
+    """Fetch real-time safety status for tourist's current GPS location."""
+    global LATEST_SECTOR_STATE
 
-    # Compute real spatial distance between tourist live GPS and latest incident GPS
-    dist_km = haversine_km(lat, lon, boatman_lat, boatman_lon)
-
-    # If latest incident in system happened > 3.0 km away (e.g. Nagpur while tourist is in Pune/Swargate):
-    # Do NOT contaminate local tourist dashboard with distant city's hazard!
-    if dist_km > 3.0:
+    if not LATEST_SECTOR_STATE or not LATEST_SECTOR_STATE.get("has_broadcast"):
         return JSONResponse(content={
-            "dispatch_id": "local_calm",
+            "has_broadcast": False,
+            "dispatch_id": "none",
             "status": "safe",
             "severity": "INFO",
             "location": "Local River Sector",
             "lat": lat,
             "lon": lon,
-            "boatman_name": "Local River Patrol",
-            "boat_id": "Patrol #01",
-            "distance": "Within your sector",
             "distance_km": 0.0,
-            "time_ago": "Just now",
+            "time_ago": "Standby",
             "timestamp": datetime.now().isoformat(),
-            "hindi_quote": "स्थानीय जल क्षेत्र पूरी तरह शांत और सुरक्षित है। कोई आपातकालीन चेतावनी नहीं है।",
-            "english_translation": "Local water sector is calm and clear. No river hazard reported within 3.0 km.",
-            "boatman_audio_url": "/api/audio/boatman_sample_safe.wav",
-            "ai_audio_url": "/api/audio/ai_advisory_safe.wav",
-            "recipients_notified": 12,
             "water_status_text": "Local sector reports calm waters. Boating permitted.",
             "in_radius": True
         })
 
+    boatman_lat = LATEST_SECTOR_STATE.get("lat", lat)
+    boatman_lon = LATEST_SECTOR_STATE.get("lon", lon)
+    dist_km = haversine_km(lat, lon, boatman_lat, boatman_lon)
+
+    if dist_km > 3.0:
+        return JSONResponse(content={
+            "has_broadcast": False,
+            "dispatch_id": "none",
+            "status": "safe",
+            "severity": "INFO",
+            "location": "Local River Sector",
+            "lat": lat,
+            "lon": lon,
+            "distance_km": 0.0,
+            "time_ago": "Standby",
+            "timestamp": datetime.now().isoformat(),
+            "water_status_text": "Local sector reports calm waters. Boating permitted.",
+            "in_radius": True
+        })
+
+    state = dict(LATEST_SECTOR_STATE)
+    state["has_broadcast"] = True
     state["tourist_lat"] = lat
     state["tourist_lon"] = lon
     state["distance_km"] = round(dist_km, 3)
@@ -449,6 +436,7 @@ async def fisherman_broadcast(
 
     # Step 3: Update Sector State with Live GPS
     LATEST_SECTOR_STATE = {
+        "has_broadcast": True,
         "dispatch_id": dispatch_id,
         "status": status,
         "severity": severity,
