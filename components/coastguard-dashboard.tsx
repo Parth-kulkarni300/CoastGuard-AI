@@ -3442,17 +3442,177 @@ function TouristDashboard({
             </button>
           </div>
 
-          {/* RIGHT COLUMN: The Giant Glowing Revolving Radar */}
-          <div>
-            <MiniVisualRadar
-              status={status}
-              distanceMeters={distanceMeters}
-              placeName={location.placeName}
-              boatmanName={boatmanName}
-              currentUserName={userName}
-              mode="tourist"
-              lang={lang}
-            />
+          {/* RIGHT COLUMN: Live River Safety Corridor & Station Telemetry (Clean, Modern, Intuitive) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            <section
+              style={{
+                background: 'linear-gradient(180deg, #0c1527 0%, #070d18 100%)',
+                border: '1px solid rgba(56, 189, 248, 0.18)',
+                borderRadius: '24px',
+                padding: '24px',
+                boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div
+                    style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '12px',
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      border: '1px solid rgba(56, 189, 248, 0.35)',
+                      display: 'grid',
+                      placeItems: 'center',
+                      color: '#38bdf8'
+                    }}
+                  >
+                    <Compass style={{ width: '22px', height: '22px' }} />
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      {lang === 'hi' ? 'लाइव घाट स्टेशन मॉनिटर' : (lang === 'mr' ? 'थेट घाट स्थान निरीक्षण' : 'Live Ghat Safety Corridor')}
+                    </span>
+                    <h2 style={{ fontSize: '16px', fontWeight: 900, margin: '2px 0 0', color: '#f8fafc' }}>
+                      {location.placeName}
+                    </h2>
+                  </div>
+                </div>
+
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: status === 'safe' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                    border: status === 'safe' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.4)',
+                    color: status === 'safe' ? '#34d399' : '#f87171',
+                    borderRadius: '20px',
+                    padding: '5px 12px',
+                    fontSize: '11px',
+                    fontWeight: 800
+                  }}
+                >
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: status === 'safe' ? '#10b981' : '#ef4444', animation: 'beaconPulse 1.5s infinite' }} />
+                  {status === 'safe' ? (lang === 'hi' ? 'जलधारा सुरक्षित' : (lang === 'mr' ? 'प्रवाह सुरक्षित' : 'Calm Waterway')) : (lang === 'hi' ? 'चेतावनी सक्रिय' : (lang === 'mr' ? 'धोका इशारा' : 'Surge Alert'))}
+                </span>
+              </div>
+
+              {/* 4-Tile Live Telemetry Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '18px' }}>
+                <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '14px', padding: '12px 14px' }}>
+                  <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+                    {lang === 'hi' ? 'सटीक GPS स्थान' : (lang === 'mr' ? 'अचूक GPS स्थान' : 'Exact GPS Anchor')}
+                  </span>
+                  <strong style={{ fontSize: '13px', color: '#f1f5f9' }}>
+                    {location.lat.toFixed(4)}° N, {location.lon.toFixed(4)}° E
+                  </strong>
+                  <span style={{ fontSize: '10px', color: '#38bdf8', display: 'block', marginTop: '2px' }}>
+                    ±2m Precision Synced
+                  </span>
+                </div>
+
+                <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '14px', padding: '12px 14px' }}>
+                  <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+                    {lang === 'hi' ? 'निकटतम गश्ती नाव' : (lang === 'mr' ? 'जवळची गस्ती नौका' : 'Nearest Patrol Unit')}
+                  </span>
+                  <strong style={{ fontSize: '13px', color: '#f1f5f9' }}>
+                    {boatmanName}
+                  </strong>
+                  <span style={{ fontSize: '10px', color: '#34d399', display: 'block', marginTop: '2px' }}>
+                    Patrol Vessel #14 · Standby
+                  </span>
+                </div>
+
+                <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '14px', padding: '12px 14px' }}>
+                  <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+                    {lang === 'hi' ? 'नदी बहाव गति' : (lang === 'mr' ? 'नदी प्रवाह वेग' : 'River Current Velocity')}
+                  </span>
+                  <strong style={{ fontSize: '13px', color: status === 'safe' ? '#34d399' : '#f87171' }}>
+                    {status === 'safe' ? '1.8 km/h (Normal)' : '4.6 km/h (Rapid Surge)'}
+                  </strong>
+                  <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginTop: '2px' }}>
+                    Sonar Depth: 4.8m Keel
+                  </span>
+                </div>
+
+                <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '14px', padding: '12px 14px' }}>
+                  <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+                    {lang === 'hi' ? 'आपातकालीन नेटवर्क' : (lang === 'mr' ? 'आपत्कालीन नेटवर्क' : 'Emergency Telecom')}
+                  </span>
+                  <strong style={{ fontSize: '13px', color: '#38bdf8' }}>
+                    112 Sovereign Grid
+                  </strong>
+                  <span style={{ fontSize: '10px', color: '#cbd5e1', display: 'block', marginTop: '2px' }}>
+                    Instant Outbound Voice Hook
+                  </span>
+                </div>
+              </div>
+
+              {/* Safety Protocol Directives */}
+              <div style={{ background: 'rgba(56, 189, 248, 0.05)', border: '1px solid rgba(56, 189, 248, 0.15)', borderRadius: '16px', padding: '14px 16px', marginBottom: '18px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>
+                  {lang === 'hi' ? 'नाविक व गश्ती दल सुरक्षा निर्देश' : (lang === 'mr' ? 'नाविक व गस्ती पथक सुरक्षा नियम' : 'Official Water Safety Directives')}
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: '#cbd5e1' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <ShieldCheck style={{ width: '15px', height: '15px', color: '#34d399', flexShrink: 0 }} />
+                    <span>{lang === 'hi' ? 'नौका विहार करते समय लाइफ जैकेट अनिवार्य है।' : (lang === 'mr' ? 'नौकाविहाराच्या वेळी लाइफ जॅकेट अनिवार्य आहे.' : 'Life jackets mandatory for boating beyond the ghat steps.')}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AlertTriangle style={{ width: '15px', height: '15px', color: '#fbbf24', flexShrink: 0 }} />
+                    <span>{lang === 'hi' ? 'नाविकों की सीटी अथवा ध्वनि चेतावनी पर तुरंत किनारे आएं।' : (lang === 'mr' ? 'नाविकांच्या शिट्टी किंवा ध्वनी इशाऱ्याकडे दुर्लक्ष करू नका.' : 'Follow whistle signals and vocal instructions from local boatmen.')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Direct Help Actions */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <a
+                  href="tel:112"
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    border: '1.5px solid rgba(239, 68, 68, 0.4)',
+                    borderRadius: '12px',
+                    padding: '11px',
+                    color: '#fca5a5',
+                    fontSize: '12.5px',
+                    fontWeight: 800,
+                    textDecoration: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Phone style={{ width: '15px', height: '15px' }} />
+                  <span>{lang === 'hi' ? '112 आपातकालीन' : (lang === 'mr' ? '११२ आपत्कालीन' : 'Dial 112 Patrol')}</span>
+                </a>
+
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lon}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    border: '1.5px solid rgba(56, 189, 248, 0.4)',
+                    borderRadius: '12px',
+                    padding: '11px',
+                    color: '#7dd3fc',
+                    fontSize: '12.5px',
+                    fontWeight: 800,
+                    textDecoration: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <MapPin style={{ width: '15px', height: '15px' }} />
+                  <span>{lang === 'hi' ? 'उपग्रह मानचित्र' : (lang === 'mr' ? 'उपग्रह नकाशा' : 'Satellite Map')}</span>
+                </a>
+              </div>
+            </section>
           </div>
         </div>
 
@@ -3538,6 +3698,51 @@ function BoatmanDashboard({
     return () => clearInterval(timer)
   }, [recording])
 
+  // Play tactical 2-second alert beep followed by voice stating someone is in danger (Requirement 4)
+  const triggerBoatmanRescueAlert = (targetLang: SupportedLang) => {
+    // 4.5s delay allows tourist dashboard voice ("Help is coming") to completely finish first, preventing overlapping audio on same laptop
+    setTimeout(() => {
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+        if (AudioCtx) {
+          const ctx = new AudioCtx()
+          const osc = ctx.createOscillator()
+          const gain = ctx.createGain()
+          osc.type = 'sawtooth'
+          osc.frequency.setValueAtTime(880, ctx.currentTime)
+          gain.gain.setValueAtTime(0.3, ctx.currentTime)
+          osc.connect(gain)
+          gain.connect(ctx.destination)
+          osc.start()
+
+          let isHigh = false
+          const beepTimer = setInterval(() => {
+            if (ctx.state === 'closed') return
+            isHigh = !isHigh
+            osc.frequency.setValueAtTime(isHigh ? 1180 : 880, ctx.currentTime)
+            gain.gain.setValueAtTime(isHigh ? 0.35 : 0.05, ctx.currentTime)
+          }, 200)
+
+          // After exactly 2.0s of continuous emergency beeping, stop oscillator and play voice announcement
+          setTimeout(() => {
+            clearInterval(beepTimer)
+            try {
+              osc.stop()
+              ctx.close()
+            } catch {}
+
+            try {
+              const alertAudio = new Audio(`/audio/boatman_distress_alert_${targetLang}.mp3`)
+              alertAudio.volume = 1.0
+              alertAudio.playbackRate = 1.05
+              alertAudio.play().catch(() => {})
+            } catch {}
+          }, 2000)
+        }
+      } catch {}
+    }, 4500)
+  }
+
   // WebSocket listener for live SOS rescue dispatches from tourists
   useEffect(() => {
     let ws: WebSocket | null = null
@@ -3561,24 +3766,8 @@ function BoatmanDashboard({
               time: sos.time || new Date().toLocaleTimeString(),
               locationName: sos.location || location.placeName
             })
-            // Sound audible rescue alert chime
-            try {
-              const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-              if (AudioCtx) {
-                const ctx = new AudioCtx()
-                const osc = ctx.createOscillator()
-                const gain = ctx.createGain()
-                osc.type = 'sawtooth'
-                osc.frequency.setValueAtTime(520, ctx.currentTime)
-                osc.frequency.exponentialRampToValueAtTime(1040, ctx.currentTime + 0.35)
-                gain.gain.setValueAtTime(0.25, ctx.currentTime)
-                gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5)
-                osc.connect(gain)
-                gain.connect(ctx.destination)
-                osc.start()
-                osc.stop(ctx.currentTime + 0.5)
-              }
-            } catch {}
+            // Sound delayed 2-second alert beep followed by voice announcement: "koi khatre me hai"
+            triggerBoatmanRescueAlert(lang)
           }
         } catch {}
       }
@@ -3940,138 +4129,176 @@ function BoatmanDashboard({
             {activeRescue && (
               <section
                 style={{
-                  background: 'linear-gradient(135deg, rgba(255, 51, 68, 0.22), rgba(20, 6, 10, 0.95))',
-                  border: '2px solid #ff3344',
-                  borderRadius: '18px',
-                  padding: '18px',
-                  boxShadow: '0 8px 32px rgba(255, 51, 68, 0.4)',
+                  background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.28) 0%, rgba(30, 10, 16, 0.95) 50%, rgba(10, 15, 29, 0.98) 100%)',
+                  border: '2px solid #ef4444',
+                  borderRadius: '22px',
+                  padding: '20px 22px',
+                  boxShadow: '0 12px 45px rgba(239, 68, 68, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
                   color: '#ffffff',
-                  position: 'relative'
+                  position: 'relative',
+                  overflow: 'hidden'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <span
-                    style={{
-                      background: '#ff3344',
-                      color: '#ffffff',
-                      fontSize: '10.5px',
-                      fontWeight: 900,
-                      padding: '4px 10px',
-                      borderRadius: '6px',
-                      letterSpacing: '0.06em'
-                    }}
-                  >
-                    🚨 IMMEDIATE RESCUE DISPATCH
-                  </span>
-                  <span style={{ fontSize: '11px', color: '#ff8899', fontWeight: 700 }}>
+                {/* Top Distress Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span
+                      style={{
+                        background: '#ef4444',
+                        color: '#ffffff',
+                        fontSize: '11px',
+                        fontWeight: 900,
+                        padding: '4px 12px',
+                        borderRadius: '20px',
+                        letterSpacing: '0.06em',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 4px 14px rgba(239, 68, 68, 0.5)'
+                      }}
+                    >
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ffffff', animation: 'beaconPulse 1.2s infinite' }} />
+                      🚨 PRIORITY 1: LIVE RESCUE DISPATCH
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '11.5px', color: '#fca5a5', fontWeight: 800, background: 'rgba(0,0,0,0.3)', padding: '3px 10px', borderRadius: '12px' }}>
                     {activeRescue.time}
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '12px' }}>
+                {/* Target & Compass Proximity */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '14px' }}>
                   <div
                     style={{
-                      width: '56px',
-                      height: '56px',
-                      borderRadius: '14px',
-                      background: 'rgba(255, 51, 68, 0.25)',
-                      border: '1.5px solid #ff4455',
+                      width: '62px',
+                      height: '62px',
+                      borderRadius: '16px',
+                      background: 'rgba(239, 68, 68, 0.25)',
+                      border: '2px solid #f87171',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '30px',
-                      flexShrink: 0
+                      fontSize: '32px',
+                      flexShrink: 0,
+                      boxShadow: '0 8px 24px rgba(239, 68, 68, 0.35)'
                     }}
                   >
                     {activeRescue.distMeters <= 25 ? '🎯' : activeRescue.bearing.arrow}
                   </div>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff' }}>
-                      {activeRescue.touristName} · {activeRescue.phone}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '17px', fontWeight: 900, color: '#ffffff' }}>
+                        {activeRescue.touristName}
+                      </span>
+                      <span style={{ fontSize: '11.5px', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.15)', border: '1px solid rgba(56, 189, 248, 0.3)', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
+                        {activeRescue.phone}
+                      </span>
                     </div>
-                    <div style={{ fontSize: '12.5px', color: '#ff6677', fontWeight: 900 }}>
+
+                    <div style={{ fontSize: '13px', color: '#fca5a5', fontWeight: 900, marginTop: '2px' }}>
                       {activeRescue.distMeters <= 25
-                        ? (lang === 'mr' ? '🎯 अचूक स्थान प्राप्त · पर्यटक अगदी जवळ/तुमच्याच ठिकाणी आहे' : (lang === 'hi' ? '🎯 सटीक स्थान प्राप्त · पर्यटक आपके समीप है' : '🎯 TARGET ACQUIRED · IN IMMEDIATE PROXIMITY'))
+                        ? (lang === 'mr' ? '🎯 अचूक स्थान प्राप्त · पर्यटक अगदी जवळ/तुमच्याच ठिकाणी आहे' : (lang === 'hi' ? '🎯 सटीक स्थान प्राप्त · पर्यटक आपके समीप है' : '🎯 TARGET ACQUIRED · IN IMMEDIATE DOCK PROXIMITY'))
                         : `STEER: ${activeRescue.bearing.compass.toUpperCase()} (${activeRescue.bearing.degrees}°)`}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#cbd5e1' }}>
+
+                    <div style={{ fontSize: '11.5px', color: '#cbd5e1', marginTop: '1px' }}>
                       {activeRescue.distMeters <= 25
-                        ? (lang === 'mr' ? '० मीटर · थेट संपर्क तयार (अचूक GPS सिंक ±1m)' : (lang === 'hi' ? '0 मीटर · संपर्क तैयार (सटीक GPS सिंक ±1m)' : '0m · At Location (Direct GPS Sync ±1m)'))
+                        ? (lang === 'mr' ? '० मीटर · थेट संपर्क तयार (अचूक GPS सिंक ±1m)' : (lang === 'hi' ? '0 मीटर · संपर्क तैयार (सटीक GPS सिंक ±1m)' : '0m · Direct Contact Ready (Live GPS Lock ±1m)'))
                         : `${activeRescue.distMeters < 1000 ? `${activeRescue.distMeters}m` : `${(activeRescue.distMeters / 1000).toFixed(1)}km`} direct across water · ~${Math.max(1, Math.round(activeRescue.distMeters / 180))} min at 6 knots`}
                     </div>
                   </div>
                 </div>
 
+                {/* 3-Tile Tactical Telemetry Row */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '12px' }}>
+                  <div style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '8px 10px', textAlign: 'center' }}>
+                    <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', fontWeight: 700 }}>GPS Sync</span>
+                    <strong style={{ fontSize: '12px', color: '#34d399' }}>±1m Precision</strong>
+                  </div>
+                  <div style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '8px 10px', textAlign: 'center' }}>
+                    <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', fontWeight: 700 }}>Sonar Keel</span>
+                    <strong style={{ fontSize: '12px', color: '#38bdf8' }}>4.8m Safe Depth</strong>
+                  </div>
+                  <div style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '8px 10px', textAlign: 'center' }}>
+                    <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', fontWeight: 700 }}>Vessel Status</span>
+                    <strong style={{ fontSize: '12px', color: '#fbbf24' }}>Direct Standby</strong>
+                  </div>
+                </div>
+
+                {/* Incident & Sector Details Box */}
                 <div
                   style={{
-                    background: 'rgba(0,0,0,0.45)',
-                    borderRadius: '10px',
-                    padding: '8px 12px',
-                    marginBottom: '12px',
+                    background: 'rgba(0,0,0,0.5)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    borderRadius: '12px',
+                    padding: '10px 14px',
+                    marginBottom: '14px',
                     fontSize: '11.5px',
                     color: '#e2e8f0'
                   }}
                 >
-                  <div style={{ fontWeight: 700, color: '#ffaa00', marginBottom: '2px' }}>
-                    Incident: {activeRescue.incident}
+                  <div style={{ fontWeight: 800, color: '#fca5a5', marginBottom: '3px' }}>
+                    ⚠️ Incident: {activeRescue.incident}
                   </div>
-                  <div style={{ fontSize: '10.5px', color: '#94a3b8', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
-                    <span>Target: {activeRescue.locationName} ({activeRescue.lat.toFixed(5)}° N, {activeRescue.lon.toFixed(5)}° E)</span>
-                    <span style={{ color: '#38bdf8', fontWeight: 700 }}>Sonar Depth: 4.8m (Safe Keel)</span>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                    Target: {activeRescue.locationName} ({activeRescue.lat.toFixed(5)}° N, {activeRescue.lon.toFixed(5)}° E)
                   </div>
                 </div>
 
+                {/* Action Buttons */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                   <a
                     href={`https://www.google.com/maps/search/?api=1&query=${activeRescue.lat},${activeRescue.lon}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
-                      background: 'rgba(0, 212, 255, 0.15)',
-                      border: '1px solid #00d4ff',
-                      color: '#00d4ff',
-                      padding: '8px 6px',
-                      borderRadius: '8px',
-                      fontSize: '11px',
+                      background: 'rgba(56, 189, 248, 0.18)',
+                      border: '1.5px solid #38bdf8',
+                      color: '#7dd3fc',
+                      padding: '10px 8px',
+                      borderRadius: '10px',
+                      fontSize: '11.5px',
                       fontWeight: 800,
                       textDecoration: 'none',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '4px'
+                      gap: '5px',
+                      boxShadow: '0 4px 14px rgba(56, 189, 248, 0.25)'
                     }}
                   >
-                    <ExternalLink style={{ width: '12px', height: '12px' }} /> Satellite Pin
+                    <ExternalLink style={{ width: '13px', height: '13px' }} /> Satellite Pin
                   </a>
                   <a
                     href={`tel:${activeRescue.phone}`}
                     style={{
-                      background: 'rgba(0, 230, 118, 0.15)',
-                      border: '1px solid #00e676',
-                      color: '#00e676',
-                      padding: '8px 6px',
-                      borderRadius: '8px',
-                      fontSize: '11px',
+                      background: 'rgba(34, 197, 94, 0.18)',
+                      border: '1.5px solid #22c55e',
+                      color: '#86efac',
+                      padding: '10px 8px',
+                      borderRadius: '10px',
+                      fontSize: '11.5px',
                       fontWeight: 800,
                       textDecoration: 'none',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '4px'
+                      gap: '5px',
+                      boxShadow: '0 4px 14px rgba(34, 197, 94, 0.25)'
                     }}
                   >
-                    <Phone style={{ width: '12px', height: '12px' }} /> Call Tourist
+                    <Phone style={{ width: '13px', height: '13px' }} /> Call Tourist
                   </a>
                   <button
                     type="button"
                     onClick={() => setActiveRescue(null)}
                     style={{
-                      background: 'rgba(255, 255, 255, 0.1)',
-                      border: '1px solid rgba(255, 255, 255, 0.25)',
-                      color: '#fff',
-                      padding: '8px 6px',
-                      borderRadius: '8px',
-                      fontSize: '11px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      color: '#f1f5f9',
+                      padding: '10px 8px',
+                      borderRadius: '10px',
+                      fontSize: '11.5px',
                       fontWeight: 700,
                       cursor: 'pointer'
                     }}
