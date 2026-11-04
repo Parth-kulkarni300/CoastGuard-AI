@@ -3504,58 +3504,6 @@ function TouristDashboard({
           </div>
         </div>
 
-        {/* Demo toggles at bottom */}
-        <div className="demo-controls" style={{ marginTop: '24px' }}>
-          <span>Demo controls:</span>
-          <button
-            type="button"
-            onClick={() => {
-              setStatus('safe')
-              setWaterStatusText(t.safeStatusDesc(location.placeName))
-              setHindiQuote(t.quoteSafe)
-              setTranslation(t.advisorySafe)
-              setBoatmanAudioUrl('/api/audio/boatman_sample_safe.wav')
-              setAiAudioUrl('/api/audio/ai_advisory_safe.wav')
-            }}
-          >
-            Show Safe State
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setStatus('danger')
-              setWaterStatusText(t.dangerStatusDesc(location.placeName))
-              setHindiQuote(t.quoteDanger)
-              setTranslation(t.advisoryDanger)
-              setBoatmanAudioUrl('/api/audio/boatman_sample_danger.wav')
-              setAiAudioUrl('/api/audio/ai_advisory_danger.wav')
-            }}
-          >
-            Show Danger State
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              triggerOsEmergencyAlert()
-              setCallAutoAccept(false)
-              setShowCallModal(true)
-              const fd = new FormData()
-              fd.append('phone', phone)
-              fd.append('status', 'danger')
-              fd.append('language', lang)
-              fetch('/api/tourist/call', { method: 'POST', body: fd }).catch(() => {})
-            }}
-            style={{
-              background: 'rgba(255, 51, 68, 0.15)',
-              color: '#ff4455',
-              border: '1px solid rgba(255, 51, 68, 0.4)',
-              fontWeight: 800
-            }}
-          >
-            🚨 Test Conversational Voice Triage Call (Advisory + "Are you safe?")
-          </button>
-        </div>
-
         {sos && <SosModal phone={phone} location={location} close={() => setSos(false)} lang={lang} />}
 
         {showCallModal && (
@@ -3812,26 +3760,7 @@ function BoatmanDashboard({
     }
   }
 
-  // Quick scenario triggers with real GPS
-  const triggerSafeScenario = () => {
-    const text = lang === 'mr'
-      ? `${location.placeName} येथे पाणी शांत आहे, पर्यटक सुरक्षितपणे फिरू शकतात.`
-      : (lang === 'en'
-        ? `Water is completely calm near ${location.placeName}. Normal boating permitted.`
-        : `${location.placeName} पर पानी शांत है, सभी पर्यटक सुरक्षित हैं।`)
-    setSentText(`"${text}"`)
-    sendVoiceBroadcast(null, text, 'safe')
-  }
 
-  const triggerDangerScenario = () => {
-    const text = lang === 'mr'
-      ? `सावधान! ${location.placeName} येथे पाण्याचा प्रवाह अचानक वाढला आहे, लगेच काठापासून दूर व्हा!`
-      : (lang === 'en'
-        ? `Warning! High water surge reported near ${location.placeName}. Please stay away from river bank!`
-        : `सावधान! ${location.placeName} पर पानी का बहाव बहुत तेज हो गया है, तुरंत किनारे से दूर हटें!`)
-    setSentText(`"${text}"`)
-    sendVoiceBroadcast(null, text, 'danger')
-  }
 
   return (
     <>
@@ -4063,93 +3992,6 @@ function BoatmanDashboard({
                 <span>Hardware Noise Suppression Active · 3.0 km Blast Radius</span>
               </div>
             </section>
-
-            {/* Tactical One-Click State Actions */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-              <button
-                type="button"
-                onClick={triggerSafeScenario}
-                style={{
-                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.16) 0%, rgba(6, 78, 59, 0.28) 100%)',
-                  border: '1.5px solid rgba(16, 185, 129, 0.5)',
-                  borderRadius: '18px',
-                  padding: '16px',
-                  color: '#f8fafc',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '12px',
-                  boxShadow: '0 6px 20px rgba(16, 185, 129, 0.15)',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <div
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '10px',
-                    background: '#10b981',
-                    color: '#fff',
-                    display: 'grid',
-                    placeItems: 'center',
-                    flexShrink: 0
-                  }}
-                >
-                  <Check style={{ width: '20px', height: '20px' }} />
-                </div>
-                <div>
-                  <strong style={{ display: 'block', fontSize: '13.5px', color: '#34d399', fontWeight: 800 }}>
-                    {lang === 'hi' ? 'सब सुरक्षित / शांत जल' : (lang === 'mr' ? 'शांत जल / सर्व सुरक्षित' : 'All Clear · Calm Waters')}
-                  </strong>
-                  <small style={{ fontSize: '10.5px', color: '#a7f3d0', display: 'block', marginTop: '3px', lineHeight: '1.3' }}>
-                    {lang === 'hi' ? 'सामान्य नौका विहार की अनुमति' : (lang === 'mr' ? 'पर्यटनासाठी सुरक्षित परिस्थिती' : 'Normal water navigation active')}
-                  </small>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={triggerDangerScenario}
-                style={{
-                  background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.18) 0%, rgba(153, 27, 27, 0.3) 100%)',
-                  border: '1.5px solid rgba(239, 68, 68, 0.55)',
-                  borderRadius: '18px',
-                  padding: '16px',
-                  color: '#f8fafc',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '12px',
-                  boxShadow: '0 6px 20px rgba(239, 68, 68, 0.15)',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <div
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '10px',
-                    background: '#ef4444',
-                    color: '#fff',
-                    display: 'grid',
-                    placeItems: 'center',
-                    flexShrink: 0
-                  }}
-                >
-                  <AlertTriangle style={{ width: '20px', height: '20px' }} />
-                </div>
-                <div>
-                  <strong style={{ display: 'block', fontSize: '13.5px', color: '#f87171', fontWeight: 800 }}>
-                    {lang === 'hi' ? 'जल बहाव वृद्धि चेतावनी' : (lang === 'mr' ? 'पाण्याचा प्रवाह वाढ - धोका' : 'Water Surge Alert')}
-                  </strong>
-                  <small style={{ fontSize: '10.5px', color: '#fca5a5', display: 'block', marginTop: '3px', lineHeight: '1.3' }}>
-                    {lang === 'hi' ? 'पर्यटकों को किनारे से दूर हटाएं' : (lang === 'mr' ? 'काठावरील पर्यटकांना इशारा' : 'Dispatch flash hazard alert')}
-                  </small>
-                </div>
-              </button>
-            </div>
 
             {/* TACTICAL NAUTICAL RESCUE NAVIGATION CARD (Steer-By-Compass HUD) */}
             {activeRescue && (

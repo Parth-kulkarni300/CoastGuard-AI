@@ -161,11 +161,11 @@ LATEST_SECTOR_STATE = {
     "time_ago": "2 mins ago",
     "timestamp": datetime.now().isoformat(),
     "hindi_quote": "भैया! पानी बिल्कुल शांत है, अभी आराम से नौका विहार कर सकते हैं, कोई खतरा नहीं है।",
-    "english_translation": "Water is completely calm, tourists can safely enjoy boat rides until evening.",
+    "english_translation": "Water is completely calm. Boating permitted.",
     "boatman_audio_url": "/api/audio/boatman_sample_safe.wav",
     "ai_audio_url": "/api/audio/ai_advisory_safe.wav",
     "recipients_notified": 18,
-    "water_status_text": "Local boatmen report calm waters. Boating permitted until 5:30 PM."
+    "water_status_text": "Local boatmen report calm waters. Boating permitted."
 }
 
 
@@ -426,7 +426,7 @@ async def fisherman_broadcast(
     if status_type == "safe" or any(w in transcript.lower() for w in ["shaant", "safe", "theek", "shanti", "sukoon", "normal"]):
         status = "safe"
         severity = "INFO"
-        water_status_text = f"Local boatmen at {sector_place} report calm waters. Boating permitted until 5:30 PM."
+        water_status_text = f"Local boatmen at {sector_place} report calm waters. Boating permitted."
         english_trans = f"Water is completely calm near {sector_place}. Tourists can safely enjoy boat rides."
         hindi_quote = transcript if transcript != "Update received" else "भैया! पानी बिल्कुल शांत है, अभी आराम से नौका विहार कर सकते हैं।"
         if not audio:
