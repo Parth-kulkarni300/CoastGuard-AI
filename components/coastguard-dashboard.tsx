@@ -1840,50 +1840,114 @@ function EmergencyCallModal({
   const tr = TRIAGE_LOCALES[lang] || TRIAGE_LOCALES.en
 
   const [callState, setCallState] = useState<'ringing' | 'connected'>(autoAccept ? 'connected' : 'ringing')
-  const [ringingCountdown, setRingingCountdown] = useState(20)
-  const [countdown, setCountdown] = useState(15)
   const [voiceHeard, setVoiceHeard] = useState<string>('')
-  const [duration, setDuration] = useState(0)
+  const [liveTime, setLiveTime] = useState<string>('12:35 PM')
 
   const buzzerAudioRef = useRef<HTMLAudioElement | null>(null)
+  const sirenCtxRef = useRef<AudioContext | null>(null)
+  const sirenIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const ringTimerRef = useRef<NodeJS.Timeout | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const recognitionRef = useRef<any>(null)
-  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const timeout20sRef = useRef<NodeJS.Timeout | null>(null)
 
-  const stopBuzzer = () => {
+  useEffect(() => {
+    const updateTime = () => {
+      try {
+        const now = new Date()
+        setLiveTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
+      } catch {}
+    }
+    updateTime()
+    const tInterval = setInterval(updateTime, 30000)
+    return () => clearInterval(tInterval)
+  }, [])
+
+  // High intensity emergency siren and buzzer
+  const startEmergencyRingtone = () => {
+    try {
+      const buzzer = new Audio('/audio/buzzer.mp3')
+      buzzer.loop = true
+      buzzer.volume = 1.0
+      buzzer.playbackRate = 1.35 // Higher speed & frequency for visceral urgency
+      buzzerAudioRef.current = buzzer
+      buzzer.play().catch(() => {})
+    } catch {}
+
+    // Add high-frequency emergency dual-tone siren oscillator
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+      if (AudioCtx) {
+        const ctx = new AudioCtx()
+        sirenCtxRef.current = ctx
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'sawtooth'
+        osc.frequency.setValueAtTime(960, ctx.currentTime)
+        gain.gain.setValueAtTime(0.2, ctx.currentTime)
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.start()
+
+        let isHigh = false
+        sirenIntervalRef.current = setInterval(() => {
+          if (ctx.state === 'closed') return
+          osc.frequency.setValueAtTime(isHigh ? 960 : 1380, ctx.currentTime)
+          isHigh = !isHigh
+        }, 130)
+      }
+    } catch {}
+  }
+
+  const stopEmergencyAudio = () => {
     if (buzzerAudioRef.current) {
       try {
         buzzerAudioRef.current.pause()
         buzzerAudioRef.current.currentTime = 0
       } catch {}
     }
-  }
-
-  const playHelpComingVoice = () => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      try {
-        window.speechSynthesis.cancel()
-        const messages: Record<string, { text: string; locale: string }> = {
-          mr: { text: 'कृपया सुरक्षित राहा, मदत तुमच्याकडे येत आहे.', locale: 'mr-IN' },
-          hi: { text: 'कृपया सुरक्षित रहें, सहायता आपके पास आ रही है।', locale: 'hi-IN' },
-          en: { text: 'Please be safe, help is coming for you.', locale: 'en-IN' },
-          ta: { text: 'தயவுசெய்து பாதுகாப்பாக இருங்கள், உங்களுக்கு உதவி வருகிறது.', locale: 'ta-IN' },
-          bn: { text: 'দয়া করে নিরাপদ থাকুন, সাহায্য আপনার কাছে আসছে।', locale: 'bn-IN' }
-        }
-        const item = messages[lang] || messages.en
-        const utt = new SpeechSynthesisUtterance(item.text)
-        utt.lang = item.locale
-        utt.rate = 0.95
-        window.speechSynthesis.speak(utt)
-      } catch {}
+    if (sirenIntervalRef.current) {
+      clearInterval(sirenIntervalRef.current)
+      sirenIntervalRef.current = null
+    }
+    if (sirenCtxRef.current) {
+      try { sirenCtxRef.current.close() } catch {}
+      sirenCtxRef.current = null
     }
   }
 
+  const playHelpComingVoice = () => {
+    try {
+      const helpAudio = new Audio(`/audio/help_coming_${lang}.mp3`)
+      helpAudio.volume = 1.0
+      helpAudio.playbackRate = 1.15
+      helpAudio.play().catch(() => {
+        // Fallback to browser SpeechSynthesis only if audio fails
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+          try {
+            window.speechSynthesis.cancel()
+            const messages: Record<string, { text: string; locale: string }> = {
+              mr: { text: 'कृपया सुरक्षित राहा, मदत तुमच्याकडे येत आहे.', locale: 'mr-IN' },
+              hi: { text: 'कृपया सुरक्षित रहें, सहायता आपके पास आ रही है।', locale: 'hi-IN' },
+              en: { text: 'Please be safe, help is coming for you.', locale: 'en-IN' },
+              ta: { text: 'தயவுசெய்து பாதுகாப்பாக இருங்கள், உங்களுக்கு உதவி வருகிறது.', locale: 'ta-IN' },
+              bn: { text: 'দয়া করে নিরাপদ থাকুন, সাহায্য আপনার কাছে আসছে।', locale: 'bn-IN' }
+            }
+            const item = messages[lang] || messages.en
+            const utt = new SpeechSynthesisUtterance(item.text)
+            utt.lang = item.locale
+            utt.rate = 1.0
+            window.speechSynthesis.speak(utt)
+          } catch {}
+        }
+      })
+    } catch {}
+  }
+
   const handleStuck = (reason?: string) => {
-    stopBuzzer()
-    if (ringTimerRef.current) clearInterval(ringTimerRef.current)
-    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
+    stopEmergencyAudio()
+    if (ringTimerRef.current) clearTimeout(ringTimerRef.current)
+    if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
     if (recognitionRef.current) {
       try { recognitionRef.current.stop() } catch {}
     }
@@ -1907,9 +1971,9 @@ function EmergencyCallModal({
   }
 
   const handleSafe = () => {
-    stopBuzzer()
-    if (ringTimerRef.current) clearInterval(ringTimerRef.current)
-    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
+    stopEmergencyAudio()
+    if (ringTimerRef.current) clearTimeout(ringTimerRef.current)
+    if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
     if (recognitionRef.current) {
       try { recognitionRef.current.stop() } catch {}
     }
@@ -1920,107 +1984,74 @@ function EmergencyCallModal({
   }
 
   const declineCall = () => {
-    stopBuzzer()
-    if (ringTimerRef.current) clearInterval(ringTimerRef.current)
+    stopEmergencyAudio()
+    if (ringTimerRef.current) clearTimeout(ringTimerRef.current)
+    if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
     if (audioRef.current) audioRef.current.pause()
     close()
   }
 
   const acceptCall = () => {
-    stopBuzzer()
-    if (ringTimerRef.current) clearInterval(ringTimerRef.current)
+    stopEmergencyAudio()
+    if (ringTimerRef.current) clearTimeout(ringTimerRef.current)
     setCallState('connected')
     startAdvisoryFlow()
   }
 
+  // Ringing timeout (20s) if tourist doesn't pick up
   useEffect(() => {
     if (autoAccept) {
       startAdvisoryFlow()
       return
     }
 
-    try {
-      const buzzer = new Audio('/audio/buzzer.mp3')
-      buzzer.loop = true
-      buzzer.volume = 1.0
-      buzzerAudioRef.current = buzzer
-      buzzer.play().catch(() => {})
-    } catch {}
+    startEmergencyRingtone()
 
-    setRingingCountdown(20)
-    const timer = setInterval(() => {
-      setRingingCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer)
-          handleStuck('unanswered_ringing_20s_timeout')
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-    ringTimerRef.current = timer
+    const ringTimeout = setTimeout(() => {
+      handleStuck('unanswered_ringing_20s_timeout')
+    }, 20000)
+    ringTimerRef.current = ringTimeout
 
     return () => {
-      stopBuzzer()
-      if (timer) clearInterval(timer)
+      stopEmergencyAudio()
+      if (ringTimeout) clearTimeout(ringTimeout)
       if (audioRef.current) audioRef.current.pause()
-      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
+      if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
       if (recognitionRef.current) {
         try { recognitionRef.current.stop() } catch {}
       }
     }
   }, [autoAccept])
 
-  useEffect(() => {
-    if (callState === 'connected') {
-      const timer = setInterval(() => {
-        setDuration((d) => d + 1)
-      }, 1000)
-      return () => clearInterval(timer)
-    }
-  }, [callState])
-
   const spokenWarnings: Record<string, { warning: string; question: string; locale: string }> = {
     mr: {
-      warning: 'सावधान! नाविक आणि अधिकाऱ्यांनी पाण्याच्या पातळीत अचानक वाढ झाल्याचा इशारा दिला आहे. कृपया तात्काळ पाण्यापासून व घाटापासून दूर जा.',
+      warning: 'सावधान! स्थानिक नाविक आणि अधिकाऱ्यांनी पाणी वाढल्याचा इशारा दिला आहे. कृपया तात्काळ पाण्यापासून दूर व्हा.',
       question: 'तुम्ही सुरक्षित आहात का?',
       locale: 'mr-IN'
     },
     hi: {
-      warning: 'सावधान! नाव चालकों और अधिकारियों ने जल स्तर में अचानक वृद्धि की चेतावनी दी है। कृपया तुरंत पानी और घाट से दूर रहें।',
+      warning: 'सावधान! स्थानीय नाविकों और अधिकारियों ने जलस्तर बढ़ने की चेतावनी दी है। कृपया तुरंत पानी से दूर हट जाएं।',
       question: 'क्या आप सुरक्षित हैं?',
       locale: 'hi-IN'
     },
     en: {
-      warning: 'Warning! Local boatmen and officials reported rising water levels. Please move away from the river bank immediately.',
+      warning: 'Warning! Boatmen and patrol officers reported rapid water surge. Please move away from the water immediately.',
       question: 'Are you safe?',
       locale: 'en-IN'
     },
     ta: {
-      warning: 'எச்சரிக்கை! படகோட்டிகள் திடீர் நீர்வரத்து குறித்து எச்சரித்துள்ளனர். தண்ணீரை விட்டு உடனடியாக விலகி இருங்கள்.',
+      warning: 'எச்சரிக்கை! நீர்மட்டம் வேகமாக உயர்ந்து வருவதாக படகோட்டிகள் எச்சரித்துள்ளனர். உடனடியாக கரையிலிருந்து விலகிச் செல்லுங்கள்.',
       question: 'நீங்கள் பாதுகாப்பாக இருக்கிறீர்களா?',
       locale: 'ta-IN'
     },
     bn: {
-      warning: 'সতর্কতা! মাঝিরা নদীতে দ্রুত जलবৃদ্ধির সতর্কতা জারি করেছে। অবিলম্বে নদীর ঘাট ও জল থেকে দূরে সরে যান।',
-      question: 'আপনি কি নিরাপদ?',
+      warning: 'জরুরি সতর্কতা! নদীতে দ্রুত जलবৃদ্ধির সতর্কবার্তা দেওয়া হয়েছে। অবিলম্বে নদীর ঘাট ও জল থেকে দূরে সরে যান।',
+      question: 'আপনি কি নিরাপদ আছেন?',
       locale: 'bn-IN'
     }
   }
 
   const activeMsg = spokenWarnings[lang] || spokenWarnings.en
-
-  const speakAdvisoryViaTTS = () => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      try {
-        window.speechSynthesis.cancel()
-        const utt = new SpeechSynthesisUtterance(`${activeMsg.warning} ${activeMsg.question}`)
-        utt.lang = activeMsg.locale
-        utt.rate = 0.95
-        window.speechSynthesis.speak(utt)
-      } catch {}
-    }
-  }
 
   const startAdvisoryFlow = () => {
     try {
@@ -2028,27 +2059,19 @@ function EmergencyCallModal({
       const audioUrl = `/audio/timbre_advisory_${lang}_danger.mp3`
       const audio = new Audio(audioUrl)
       audio.volume = 1.0
+      // 1.15x speed gives punchy, energetic, fast emergency timbre
+      audio.playbackRate = 1.15
+      audio.preservesPitch = true
       audioRef.current = audio
-      audio.play().catch(() => {
-        speakAdvisoryViaTTS()
-      })
-    } catch {
-      speakAdvisoryViaTTS()
-    }
+      audio.play().catch(() => {})
+    } catch {}
 
-    setCountdown(15)
-    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-    const tTimer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(tTimer)
-          handleStuck('unanswered_15s_timeout')
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-    countdownTimerRef.current = tTimer
+    // Wait 20 seconds after question is asked (silent background timer, no visible timer display)
+    if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
+    const timeout20s = setTimeout(() => {
+      handleStuck('unanswered_20s_timeout')
+    }, 20000)
+    timeout20sRef.current = timeout20s
 
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (SpeechRec) {
@@ -2075,14 +2098,16 @@ function EmergencyCallModal({
     }
   }
 
+  const callTitle = lang === 'mr' ? 'आपत्कालीन कॉल' : (lang === 'hi' ? 'आपातकालीन कॉल' : (lang === 'ta' ? 'அவசர அழைப்பு' : (lang === 'bn' ? 'জরুরি কল' : 'Emergency Call')))
+
   return (
     <div
       style={{
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        background: 'rgba(3, 7, 18, 0.94)',
-        backdropFilter: 'blur(24px)',
+        background: 'rgba(5, 10, 24, 0.92)',
+        backdropFilter: 'blur(28px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -2090,184 +2115,175 @@ function EmergencyCallModal({
       }}
     >
       <style>{`
-        @keyframes ringPulse {
-          0% { transform: scale(0.95); opacity: 0.9; }
-          50% { transform: scale(1.35); opacity: 0.15; }
-          100% { transform: scale(0.95); opacity: 0.9; }
+        @keyframes phoneRingingHalo {
+          0% { transform: scale(0.95); opacity: 0.8; }
+          50% { transform: scale(1.28); opacity: 0.15; }
+          100% { transform: scale(0.95); opacity: 0.8; }
         }
-        @keyframes ringRadarPulse {
-          0% { transform: scale(0.85); opacity: 0.8; }
-          100% { transform: scale(1.6); opacity: 0; }
+        @keyframes aiOrbPulse {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 25px rgba(56, 189, 248, 0.45), inset 0 0 15px rgba(56, 189, 248, 0.3); }
+          50% { transform: scale(1.08); box-shadow: 0 0 45px rgba(56, 189, 248, 0.8), inset 0 0 25px rgba(56, 189, 248, 0.6); }
         }
-        @keyframes ringPhoneShake {
+        @keyframes soundWaveBar {
+          0% { height: 6px; }
+          50% { height: 26px; }
+          100% { height: 6px; }
+        }
+        @keyframes phoneIconVibrate {
           0%, 100% { transform: rotate(0deg); }
-          20% { transform: rotate(-15deg); }
-          40% { transform: rotate(15deg); }
-          60% { transform: rotate(-10deg); }
-          80% { transform: rotate(10deg); }
-        }
-        @keyframes waveScale {
-          0% { transform: scaleY(0.25); }
-          100% { transform: scaleY(1.0); }
-        }
-        @keyframes beaconPulse {
-          0%, 100% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.06); opacity: 0.85; }
+          25% { transform: rotate(-12deg); }
+          75% { transform: rotate(12deg); }
         }
       `}</style>
 
+      {/* Realistic Smartphone Handset matching user reference image */}
       <section
         style={{
-          background: 'linear-gradient(180deg, #0d1726 0%, #060b14 100%)',
-          border: callState === 'ringing'
-            ? '2.5px solid #ef4444'
-            : '2px solid rgba(56, 189, 248, 0.4)',
-          borderRadius: '28px',
-          maxWidth: '430px',
           width: '100%',
-          padding: '28px 24px',
-          color: '#ffffff',
-          boxShadow: callState === 'ringing'
-            ? '0 25px 60px rgba(239, 68, 68, 0.45), 0 0 40px rgba(239, 68, 68, 0.3)'
-            : '0 25px 60px rgba(0, 0, 0, 0.7)',
+          maxWidth: '380px',
+          height: '680px',
+          borderRadius: '46px',
+          background: 'linear-gradient(180deg, #5b64d8 0%, #4850c4 40%, #353cae 100%)',
+          border: '9px solid #111827',
+          boxShadow: '0 25px 70px rgba(0, 0, 0, 0.85), 0 0 45px rgba(91, 100, 216, 0.35)',
           position: 'relative',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          padding: '18px 24px 34px',
+          color: '#ffffff',
+          boxSizing: 'border-box'
         }}
         role="dialog"
         aria-modal="true"
       >
-        {callState === 'ringing' ? (
-          <div style={{ textAlign: 'center', padding: '10px 0 6px' }}>
-            {/* Top Network Badge */}
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                background: 'rgba(239, 68, 68, 0.15)',
-                border: '1px solid rgba(239, 68, 68, 0.45)',
-                borderRadius: '20px',
-                padding: '6px 14px',
-                marginBottom: '26px'
-              }}
-            >
-              <span
-                style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  background: '#ef4444',
-                  animation: 'ringPulse 1.2s infinite'
-                }}
-              />
-              <span style={{ fontSize: '11px', fontWeight: 900, color: '#fca5a5', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                🚨 112 SOVEREIGN EMERGENCY GRID
-              </span>
+        {/* Top Smartphone Status Bar */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontSize: '12.5px',
+            fontWeight: 700,
+            color: 'rgba(255, 255, 255, 0.95)',
+            letterSpacing: '0.02em',
+            padding: '2px 8px 0'
+          }}
+        >
+          <span>{liveTime}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Cellular Signal bars */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '11px' }}>
+              <span style={{ width: '2.5px', height: '4px', background: '#ffffff', borderRadius: '1px' }} />
+              <span style={{ width: '2.5px', height: '6px', background: '#ffffff', borderRadius: '1px' }} />
+              <span style={{ width: '2.5px', height: '8px', background: '#ffffff', borderRadius: '1px' }} />
+              <span style={{ width: '2.5px', height: '11px', background: '#ffffff', borderRadius: '1px' }} />
             </div>
-
-            {/* Glowing Avatar */}
-            <div
-              style={{
-                position: 'relative',
-                width: '110px',
-                height: '110px',
-                margin: '0 auto 22px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: -18,
-                  borderRadius: '50%',
-                  background: 'rgba(239, 68, 68, 0.25)',
-                  animation: 'ringRadarPulse 1.8s infinite'
-                }}
-              />
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: -8,
-                  borderRadius: '50%',
-                  background: 'rgba(239, 68, 68, 0.35)',
-                  animation: 'ringRadarPulse 1.8s infinite 0.5s'
-                }}
-              />
-              <div
-                style={{
-                  width: '88px',
-                  height: '88px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 0 45px rgba(239, 68, 68, 0.8)',
-                  border: '3px solid #ffffff'
-                }}
-              >
-                <PhoneCall style={{ width: '40px', height: '40px', color: '#ffffff', animation: 'ringPhoneShake 0.6s infinite' }} />
+            {/* Wifi Icon */}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+              <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+              <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+              <line x1="12" y1="20" x2="12.01" y2="20"/>
+            </svg>
+            {/* Battery Indicator */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800 }}>97%</span>
+              <div style={{ width: '19px', height: '10px', border: '1.5px solid #ffffff', borderRadius: '3px', padding: '1px', display: 'flex', alignItems: 'center' }}>
+                <div style={{ width: '85%', height: '100%', background: '#ffffff', borderRadius: '1px' }} />
               </div>
             </div>
+          </div>
+        </div>
 
-            {/* Caller Header */}
-            <h1 style={{ fontSize: '24px', fontWeight: 900, margin: '0 0 4px', color: '#ffffff', letterSpacing: '-0.02em' }}>
-              {lang === 'mr' ? 'आपत्कालीन कॉल' : (lang === 'hi' ? 'आपातकालीन कॉल' : 'EMERGENCY CALL')}
-            </h1>
-            <div style={{ fontSize: '14.5px', color: '#38bdf8', fontWeight: 800, marginBottom: '4px' }}>
-              {lang === 'mr' ? 'नदी गस्त व आपत्ती बचाव दल' : (lang === 'hi' ? 'नदी गश्ती व राहत दल' : 'River Patrol & Disaster Alert Grid')}
-            </div>
-            <div style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 600, marginBottom: '16px' }}>
-              {boatmanName} (Boat #14) · {placeName}
-            </div>
+        {callState === 'ringing' ? (
+          /* RINGING STATE (Matching user's attached screenshot media_1793779372072_fc744426.png) */
+          <>
+            <div style={{ textAlign: 'center', marginTop: '38px' }}>
+              <h1
+                style={{
+                  fontSize: '32px',
+                  fontWeight: 800,
+                  margin: '0 0 44px',
+                  color: '#ffffff',
+                  letterSpacing: '-0.02em',
+                  textShadow: '0 2px 10px rgba(0, 0, 0, 0.2)'
+                }}
+              >
+                {callTitle}
+              </h1>
 
-            {/* Ringing Timer Chip */}
-            <div
-              style={{
-                display: 'inline-block',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                borderRadius: '12px',
-                padding: '8px 16px',
-                fontSize: '12px',
-                color: '#fca5a5',
-                fontWeight: 700,
-                marginBottom: '32px'
-              }}
-            >
-              🔔 {lang === 'mr' ? `कॉल वाजत आहे... (${ringingCountdown} सेकंदात आपोआप मदत पाठवली जाईल)` : (lang === 'hi' ? `कॉल बज रहा है... (${ringingCountdown}s में स्वतः बचाव)` : `Ringing... (Auto-rescue dispatched in ${ringingCountdown}s)`)}
-            </div>
-
-            {/* Realistic Accept / Decline Buttons */}
-            <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', maxWidth: '300px', margin: '0 auto' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                <button
-                  type="button"
-                  onClick={declineCall}
+              {/* Central Avatar with Soft Silhouette */}
+              <div
+                style={{
+                  position: 'relative',
+                  width: '124px',
+                  height: '124px',
+                  margin: '0 auto 36px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                {/* Soft Animated Pulsing Ring */}
+                <div
                   style={{
-                    width: '68px',
-                    height: '68px',
+                    position: 'absolute',
+                    inset: -14,
                     borderRadius: '50%',
-                    background: '#dc2626',
-                    border: 'none',
-                    color: '#ffffff',
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    animation: 'phoneRingingHalo 1.5s infinite ease-out'
+                  }}
+                />
+                {/* Clean White Circle Avatar */}
+                <div
+                  style={{
+                    width: '116px',
+                    height: '116px',
+                    borderRadius: '50%',
+                    background: '#e0e7ff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    cursor: 'pointer',
-                    boxShadow: '0 8px 25px rgba(220, 38, 38, 0.5)'
+                    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.25)',
+                    overflow: 'hidden'
                   }}
                 >
-                  <PhoneOff style={{ width: '28px', height: '28px' }} />
-                </button>
-                <span style={{ fontSize: '12px', color: '#fca5a5', fontWeight: 800 }}>
-                  {lang === 'mr' ? 'नाकारा' : (lang === 'hi' ? 'काटें' : 'Decline')}
-                </span>
+                  {/* Clean SVG Silhouette Avatar matching user image */}
+                  <svg width="68" height="68" viewBox="0 0 24 24" fill="#4349bf">
+                    <circle cx="12" cy="7" r="4.5" />
+                    <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8v1H4v-1z" />
+                  </svg>
+                </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+              {/* Calling Text with letterspacing */}
+              <div
+                style={{
+                  fontSize: '15.5px',
+                  fontWeight: 700,
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  letterSpacing: '0.18em',
+                  textTransform: 'uppercase'
+                }}
+              >
+                CALLING...
+              </div>
+            </div>
+
+            {/* Bottom Controls matching screenshot */}
+            <div style={{ marginTop: 'auto', marginBottom: '12px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-around',
+                  alignItems: 'center',
+                  padding: '0 16px',
+                  marginBottom: '26px'
+                }}
+              >
+                {/* Accept Button (Left - Circular White with Green Phone) */}
                 <button
                   type="button"
                   onClick={acceptCall}
@@ -2275,109 +2291,279 @@ function EmergencyCallModal({
                     width: '68px',
                     height: '68px',
                     borderRadius: '50%',
-                    background: '#16a34a',
+                    background: '#ffffff',
                     border: 'none',
-                    color: '#ffffff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
-                    boxShadow: '0 8px 30px rgba(22, 163, 74, 0.7)',
-                    animation: 'beaconPulse 1.5s infinite'
+                    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.25)',
+                    transition: 'transform 0.15s ease'
+                  }}
+                  title="Accept Call"
+                >
+                  <PhoneCall
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      color: '#16a34a',
+                      animation: 'phoneIconVibrate 1.2s infinite'
+                    }}
+                  />
+                </button>
+
+                {/* Decline Button (Right - Circular White with Red End-Call) */}
+                <button
+                  type="button"
+                  onClick={declineCall}
+                  style={{
+                    width: '68px',
+                    height: '68px',
+                    borderRadius: '50%',
+                    background: '#ffffff',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.25)',
+                    transition: 'transform 0.15s ease'
+                  }}
+                  title="Decline Call"
+                >
+                  <PhoneOff
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      color: '#dc2626'
+                    }}
+                  />
+                </button>
+              </div>
+
+              {/* Bottom Subtle Pill matching "Send Message" in user's image */}
+              <div style={{ textAlign: 'center' }}>
+                <div
+                  style={{
+                    display: 'inline-block',
+                    background: 'rgba(255, 255, 255, 0.22)',
+                    backdropFilter: 'blur(8px)',
+                    borderRadius: '16px',
+                    padding: '8px 24px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#ffffff',
+                    letterSpacing: '0.04em'
                   }}
                 >
-                  <PhoneCall style={{ width: '28px', height: '28px' }} />
-                </button>
-                <span style={{ fontSize: '12px', color: '#86efac', fontWeight: 800 }}>
-                  {lang === 'mr' ? 'उचला' : (lang === 'hi' ? 'उत्तर दें' : 'Accept')}
-                </span>
+                  🚨 Emergency Safety Alert
+                </div>
               </div>
             </div>
-          </div>
+          </>
         ) : (
-          <div style={{ padding: '6px 2px' }}>
-            {/* Connected Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', animation: 'beaconPulse 1.2s infinite' }} />
-                <span style={{ fontSize: '12px', fontWeight: 800, color: '#34d399', fontFamily: 'monospace' }}>
-                  00:{String(duration).padStart(2, '0')} · {lang === 'mr' ? 'थेट ऑडिओ जोडला' : (lang === 'hi' ? 'लाइव ऑडियो कनेक्टेड' : 'CONNECTED')}
-                </span>
-              </div>
-              <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>
-                {boatmanName} (Boat #14)
-              </span>
-            </div>
-
-            {/* Equalizer Soundwave */}
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px', height: '28px', margin: '14px 0 20px' }}>
-              {[0.3, 0.75, 0.5, 1.0, 0.4, 0.85, 0.6, 0.9, 0.35].map((scale, i) => (
+          /* CONNECTED AI VOICE STATE (AI speaking live, NO timer visible, waiting 20s for safe response) */
+          <>
+            <div style={{ textAlign: 'center', marginTop: '20px' }}>
+              <h1
+                style={{
+                  fontSize: '24px',
+                  fontWeight: 800,
+                  margin: '0 0 4px',
+                  color: '#ffffff',
+                  letterSpacing: '-0.01em'
+                }}
+              >
+                {callTitle}
+              </h1>
+              <div
+                style={{
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  color: '#93c5fd',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  marginBottom: '20px'
+                }}
+              >
                 <span
-                  key={i}
                   style={{
-                    width: '4px',
-                    height: '24px',
-                    borderRadius: '2px',
-                    background: '#38bdf8',
-                    transform: `scaleY(${scale})`,
-                    animation: 'waveScale 0.75s ease-in-out infinite alternate',
-                    animationDelay: `${i * 0.08}s`
+                    width: '7px',
+                    height: '7px',
+                    borderRadius: '50%',
+                    background: '#34d399',
+                    display: 'inline-block'
                   }}
                 />
-              ))}
+                AI Emergency Assistant
+              </div>
+
+              {/* Animated AI Voice Orb & Soundwaves */}
+              <div
+                style={{
+                  position: 'relative',
+                  width: '96px',
+                  height: '96px',
+                  margin: '0 auto 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <div
+                  style={{
+                    width: '84px',
+                    height: '84px',
+                    borderRadius: '50%',
+                    background: 'radial-gradient(circle at 35% 35%, #38bdf8 0%, #2563eb 60%, #1e1b4b 100%)',
+                    animation: 'aiOrbPulse 1.8s infinite ease-in-out',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <Volume2 style={{ width: '32px', height: '32px', color: '#ffffff' }} />
+                </div>
+              </div>
+
+              {/* Dynamic Soundwave Equalizer */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                  height: '28px',
+                  marginBottom: '16px'
+                }}
+              >
+                {[0.4, 0.85, 0.6, 1.0, 0.5, 0.9, 0.35, 0.75, 0.45].map((scale, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      width: '3.5px',
+                      height: '24px',
+                      borderRadius: '2px',
+                      background: '#38bdf8',
+                      animation: 'soundWaveBar 0.8s ease-in-out infinite',
+                      animationDelay: `${i * 0.09}s`
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Spoken Warning Message & Bold Question (Clean & uncluttered) */}
+              <div
+                style={{
+                  background: 'rgba(0, 0, 0, 0.28)',
+                  backdropFilter: 'blur(10px)',
+                  borderRadius: '20px',
+                  padding: '16px 18px',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  marginBottom: '16px',
+                  textAlign: 'center'
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: '13.5px',
+                    fontWeight: 600,
+                    color: 'rgba(255, 255, 255, 0.92)',
+                    lineHeight: '1.45',
+                    margin: '0 0 12px'
+                  }}
+                >
+                  {activeMsg.warning}
+                </p>
+                <div
+                  style={{
+                    fontSize: '18px',
+                    fontWeight: 900,
+                    color: '#67e8f9',
+                    letterSpacing: '-0.01em'
+                  }}
+                >
+                  {activeMsg.question}
+                </div>
+              </div>
+
+              {/* Voice Listening Status */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  fontSize: '11.5px',
+                  color: 'rgba(255, 255, 255, 0.8)',
+                  marginBottom: '8px'
+                }}
+              >
+                <Mic style={{ width: '14px', height: '14px', color: '#67e8f9' }} />
+                <span>
+                  {voiceHeard
+                    ? `"${voiceHeard}"`
+                    : (lang === 'mr' ? 'ऐकत आहे... "होय / सुरक्षित" बोला' : (lang === 'hi' ? 'सुन रहा है... "हाँ / सुरक्षित" बोलें' : 'Listening... Speak "Yes / I am safe"'))}
+                </span>
+              </div>
             </div>
 
-            {/* Warning + Question Card */}
-            <div style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1.5px solid rgba(239, 68, 68, 0.45)', borderRadius: '18px', padding: '18px 20px', marginBottom: '18px', textAlign: 'center' }}>
-              <div style={{ fontSize: '11px', fontWeight: 900, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
-                ⚠️ {lang === 'mr' ? 'जल सुरक्षेचा इशारा' : (lang === 'hi' ? 'जल सुरक्षा चेतावनी' : 'WATER HAZARD WARNING')}
-              </div>
-              <p style={{ fontSize: '14.5px', fontWeight: 700, color: '#ffffff', lineHeight: '1.45', margin: '0 0 14px' }}>
-                {activeMsg.warning}
-              </p>
-              <div style={{ fontSize: '19px', fontWeight: 900, color: '#38bdf8' }}>
-                {activeMsg.question}
-              </div>
-            </div>
+            {/* Response Buttons at Bottom */}
+            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={handleSafe}
+                style={{
+                  width: '100%',
+                  background: '#16a34a',
+                  border: 'none',
+                  borderRadius: '16px',
+                  padding: '15px 18px',
+                  color: '#ffffff',
+                  fontSize: '15px',
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 8px 25px rgba(22, 163, 74, 0.45)'
+                }}
+              >
+                <ShieldCheck style={{ width: '20px', height: '20px' }} />
+                <span>
+                  {lang === 'mr' ? 'होय, मी सुरक्षित आहे (Yes, I am safe)' : (lang === 'hi' ? 'हाँ, मैं सुरक्षित हूँ (Yes, I am safe)' : 'Yes, I am safe')}
+                </span>
+              </button>
 
-            {/* 15s Timer & Voice Recognition Indicator */}
-            <div style={{ textAlign: 'center', marginBottom: '18px' }}>
-              <div style={{ fontSize: '12px', color: '#fca5a5', fontWeight: 800, marginBottom: '6px' }}>
-                ⏳ {lang === 'mr' ? `प्रतिसाद वेळ: ${countdown} सेकंद शिल्लक` : (lang === 'hi' ? `उत्तर देने का समय: ${countdown}s शेष` : `Response timer: ${countdown}s remaining`)}
-              </div>
-              <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                <Mic style={{ width: '13px', height: '13px', color: '#38bdf8', animation: 'beaconPulse 1.2s infinite' }} />
-                <span>{voiceHeard ? `"${voiceHeard}"` : (lang === 'mr' ? 'ऐकत आहे... "होय / सुरक्षित" बोला किंवा खाली दाबा' : (lang === 'hi' ? 'सुन रहा है... "हाँ / सुरक्षित" बोलें या नीचे दबाएं' : 'Listening... Speak "Yes / I am safe" or tap below'))}</span>
-              </div>
+              <button
+                type="button"
+                onClick={() => handleStuck('user_requested_help_button')}
+                style={{
+                  width: '100%',
+                  background: 'rgba(239, 68, 68, 0.2)',
+                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                  borderRadius: '16px',
+                  padding: '10px 14px',
+                  color: '#fca5a5',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <PhoneOff style={{ width: '14px', height: '14px' }} />
+                <span>
+                  {lang === 'mr' ? 'मला मदत हवी आहे (I need help)' : (lang === 'hi' ? 'मुझे सहायता चाहिए (I need help)' : 'I need help / rescue')}
+                </span>
+              </button>
             </div>
-
-            {/* Single Primary Action Button */}
-            <button
-              type="button"
-              onClick={handleSafe}
-              style={{
-                width: '100%',
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                border: '2px solid #34d399',
-                borderRadius: '16px',
-                padding: '16px 20px',
-                color: '#ffffff',
-                fontSize: '16px',
-                fontWeight: 900,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '10px',
-                boxShadow: '0 8px 30px rgba(16, 185, 129, 0.45)'
-              }}
-            >
-              <ShieldCheck style={{ width: '22px', height: '22px' }} />
-              <span>
-                {lang === 'mr' ? 'होय, मी सुरक्षित आहे (Yes, I am safe)' : (lang === 'hi' ? 'हाँ, मैं सुरक्षित हूँ (Yes, I am safe)' : 'Yes, I am safe')}
-              </span>
-            </button>
-          </div>
+          </>
         )}
       </section>
     </div>
