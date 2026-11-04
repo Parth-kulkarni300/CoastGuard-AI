@@ -11,18 +11,25 @@ import {
   Crosshair,
   ExternalLink,
   Globe,
+  Grid3X3,
+  Home,
   MapPin,
   Mic,
+  MicOff,
   Navigation,
   Pause,
   Phone,
   PhoneCall,
   PhoneOff,
   Play,
+  Plus,
   Radio,
   Search,
+  Share2,
   ShieldCheck,
   Siren,
+  User,
+  Video,
   Volume2,
   Waves,
   X
@@ -462,6 +469,7 @@ function MiniVisualRadar({
           {/* Direct Nautical Rescue Vector Line (ONLY when Target is Active) */}
           {hasTarget && (
             <>
+              {/* Pulsing Target Vector Line */}
               <line
                 x1="190"
                 y1="190"
@@ -471,11 +479,55 @@ function MiniVisualRadar({
                 strokeWidth="2.5"
                 strokeDasharray="6 3"
               />
-              <circle cx={targetX} cy={targetY} r="22" fill="rgba(239, 68, 68, 0.35)" filter="url(#targetRedGlow)" />
-              <circle cx={targetX} cy={targetY} r="8" fill="#ef4444" />
-              <text x={targetX} y={targetY - 14} textAnchor="middle" fill="#fca5a5" fontSize="10" fontWeight="900">
-                🚨 {rescueTarget.touristName} (SOS)
-              </text>
+
+              {/* Pulsing Outer Beacon Rings */}
+              <circle
+                cx={targetX}
+                cy={targetY}
+                r="24"
+                fill="none"
+                stroke="#ef4444"
+                strokeWidth="1.5"
+                opacity="0.8"
+                style={{ animation: 'phoneHaloGlow 1.5s infinite ease-out' }}
+              />
+              <circle
+                cx={targetX}
+                cy={targetY}
+                r="16"
+                fill="rgba(239, 68, 68, 0.4)"
+                filter="url(#targetRedGlow)"
+              />
+
+              {/* High-Contrast Target Radar Blip */}
+              <circle cx={targetX} cy={targetY} r="9" fill="#ef4444" stroke="#ffffff" strokeWidth="2" />
+              <circle cx={targetX} cy={targetY} r="3.5" fill="#ffffff" />
+
+              {/* Tactical Callout Pill Badge on Radar */}
+              <g>
+                <rect
+                  x={targetX - 60}
+                  y={targetY - 30}
+                  width="120"
+                  height="20"
+                  rx="6"
+                  fill="rgba(153, 27, 27, 0.95)"
+                  stroke="#ef4444"
+                  strokeWidth="1"
+                  filter="url(#radarNeonGlow)"
+                />
+                <text
+                  x={targetX}
+                  y={targetY - 16}
+                  textAnchor="middle"
+                  fill="#ffffff"
+                  fontSize="10"
+                  fontWeight="900"
+                  letterSpacing="0.02em"
+                >
+                  🚨 {rescueTarget.touristName}
+                </text>
+              </g>
             </>
           )}
 
@@ -1843,6 +1895,7 @@ function EmergencyCallModal({
   const [duration, setDuration] = useState(0)
   const [isMuted, setIsMuted] = useState(false)
   const [isSpeakerOn, setIsSpeakerOn] = useState(true)
+  const [showDialpad, setShowDialpad] = useState(false)
   const [voiceHeard, setVoiceHeard] = useState<string>('')
   const [liveTime, setLiveTime] = useState<string>('22:20')
   const [isListening, setIsListening] = useState(false)
@@ -2195,7 +2248,7 @@ function EmergencyCallModal({
           maxWidth: '316px',
           height: '610px',
           borderRadius: '44px',
-          background: 'linear-gradient(180deg, #1c1d29 0%, #13141f 50%, #0c0d15 100%)',
+          background: 'radial-gradient(circle at 50% 25%, #2a2538 0%, #161520 60%, #0d0c14 100%)',
           border: '8px solid #000000',
           boxShadow: '0 25px 70px rgba(0, 0, 0, 0.9), 0 0 35px rgba(0, 0, 0, 0.6)',
           position: 'relative',
@@ -2381,12 +2434,12 @@ function EmergencyCallModal({
         ) : (
           /* CONNECTED / ACTIVE IN-CALL STATE (Image 4 Right Phone) */
           <>
-            {/* Top Left Caller Header with small timer 0:01, 0:02... exactly as user requested */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '18px', padding: '0 4px' }}>
+            {/* Top Left Caller Header: Contact Name + Small Timer (0:01, 0:02...) with NO mic icon & NO listening banner */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '16px', padding: '0 4px' }}>
               <div
                 style={{
-                  width: '50px',
-                  height: '50px',
+                  width: '52px',
+                  height: '52px',
                   borderRadius: '50%',
                   background: 'rgba(255, 255, 255, 0.16)',
                   display: 'flex',
@@ -2401,182 +2454,284 @@ function EmergencyCallModal({
                 </svg>
               </div>
               <div>
-                <div style={{ fontSize: '19px', fontWeight: 600, color: '#ffffff', lineHeight: '1.2' }}>
+                <div style={{ fontSize: '20px', fontWeight: 500, color: '#ffffff', lineHeight: '1.2' }}>
                   {callTitle}
                 </div>
-                <div style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 500, marginTop: '2px' }}>
+                <div style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 400, marginTop: '3px' }}>
                   {formattedDuration}
                 </div>
-                <div style={{ fontSize: '11px', color: isListening ? '#38bdf8' : '#94a3b8', fontWeight: 500, marginTop: '2px' }}>
-                  {isListening ? (voiceHeard ? `🎙️ "${voiceHeard}"` : (lang === 'mr' ? '🎙️ "तुम्ही सुरक्षित आहात का?" बोलून सांगा...' : (lang === 'hi' ? '🎙️ "क्या आप सुरक्षित हैं?" बोलकर बताएं...' : '🎙️ "Are you safe?" · Listening (20s)...'))) : (lang === 'mr' ? '📢 अधिकृत सूचना ऐका...' : (lang === 'hi' ? '📢 आधिकारिक चेतावनी सुनें...' : '📢 Playing safety advisory...'))}
+              </div>
+            </div>
+
+            {/* In-Call Body: 6 Realistic Buttons or Dialpad if toggled */}
+            {!showDialpad ? (
+              /* 6-Button In-Call Dialer Grid matching Image 4 Right: Mute, Keypad, Speaker, Add call, Video, Contacts */
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  rowGap: '22px',
+                  columnGap: '12px',
+                  marginTop: '46px',
+                  marginBottom: 'auto',
+                  padding: '0 8px'
+                }}
+              >
+                {/* Button 1: Mute */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsMuted(!isMuted)}
+                    style={{
+                      width: '56px',
+                      height: '56px',
+                      borderRadius: '50%',
+                      background: isMuted ? '#ffffff' : 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: isMuted ? '#0f172a' : '#ffffff'
+                    }}
+                    title="Mute"
+                  >
+                    {isMuted ? <MicOff style={{ width: '22px', height: '22px' }} /> : <Mic style={{ width: '22px', height: '22px' }} />}
+                  </button>
+                  <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>
+                    {isMuted ? 'Muted' : 'Mute'}
+                  </span>
+                </div>
+
+                {/* Button 2: Keypad */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowDialpad(true)}
+                    style={{
+                      width: '56px',
+                      height: '56px',
+                      borderRadius: '50%',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: '#ffffff'
+                    }}
+                    title="Keypad"
+                  >
+                    <Grid3X3 style={{ width: '22px', height: '22px' }} />
+                  </button>
+                  <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>Keypad</span>
+                </div>
+
+                {/* Button 3: Speaker (Active White) */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsSpeakerOn(!isSpeakerOn)}
+                    style={{
+                      width: '56px',
+                      height: '56px',
+                      borderRadius: '50%',
+                      background: isSpeakerOn ? '#ffffff' : 'rgba(255, 255, 255, 0.1)',
+                      border: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: isSpeakerOn ? '#0f172a' : '#ffffff',
+                      boxShadow: isSpeakerOn ? '0 4px 16px rgba(255, 255, 255, 0.3)' : 'none'
+                    }}
+                    title="Speaker"
+                  >
+                    <Volume2 style={{ width: '22px', height: '22px' }} />
+                  </button>
+                  <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>Speaker</span>
+                </div>
+
+                {/* Button 4: Add call (Matching Image 4 Right) */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    type="button"
+                    style={{
+                      width: '56px',
+                      height: '56px',
+                      borderRadius: '50%',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: '#ffffff'
+                    }}
+                    title="Add call"
+                  >
+                    <Plus style={{ width: '22px', height: '22px' }} />
+                  </button>
+                  <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>Add call</span>
+                </div>
+
+                {/* Button 5: Video (Matching Image 4 Right) */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    type="button"
+                    style={{
+                      width: '56px',
+                      height: '56px',
+                      borderRadius: '50%',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: '#ffffff'
+                    }}
+                    title="Video"
+                  >
+                    <Video style={{ width: '22px', height: '22px' }} />
+                  </button>
+                  <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>Video</span>
+                </div>
+
+                {/* Button 6: Contacts (Matching Image 4 Right) */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    type="button"
+                    style={{
+                      width: '56px',
+                      height: '56px',
+                      borderRadius: '50%',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: '#ffffff'
+                    }}
+                    title="Contacts"
+                  >
+                    <User style={{ width: '22px', height: '22px' }} />
+                  </button>
+                  <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>Contacts</span>
                 </div>
               </div>
-            </div>
-
-            {/* 6-Button In-Call Dialer Grid matching Image 4 right */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                rowGap: '22px',
-                columnGap: '12px',
-                marginTop: '46px',
-                marginBottom: 'auto',
-                padding: '0 8px'
-              }}
-            >
-              {/* Button 1: Mute */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                <button
-                  type="button"
-                  onClick={() => setIsMuted(!isMuted)}
-                  style={{
-                    width: '56px',
-                    height: '56px',
-                    borderRadius: '50%',
-                    background: isMuted ? '#ffffff' : 'rgba(255, 255, 255, 0.1)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    color: isMuted ? '#0f172a' : '#ffffff'
-                  }}
-                >
-                  <Mic style={{ width: '22px', height: '22px' }} />
-                </button>
-                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>
-                  {isMuted ? 'Unmute' : 'Mute'}
-                </span>
+            ) : (
+              /* Authentic Interactive Phone Keypad (Press 1 for Safe, 2 for SOS) */
+              <div style={{ marginTop: '18px', marginBottom: 'auto', padding: '0 8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={handleSafe}
+                    style={{
+                      height: '50px',
+                      borderRadius: '25px',
+                      background: 'rgba(34, 197, 94, 0.2)',
+                      border: '1px solid #22c55e',
+                      color: '#ffffff',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span style={{ fontSize: '17px', fontWeight: 700 }}>1</span>
+                    <span style={{ fontSize: '8px', color: '#86efac', fontWeight: 800 }}>सुरक्षित (SAFE)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStuck('keypad_sos_pressed')}
+                    style={{
+                      height: '50px',
+                      borderRadius: '25px',
+                      background: 'rgba(239, 68, 68, 0.2)',
+                      border: '1px solid #ef4444',
+                      color: '#ffffff',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span style={{ fontSize: '17px', fontWeight: 700 }}>2</span>
+                    <span style={{ fontSize: '8px', color: '#fca5a5', fontWeight: 800 }}>सहायता (SOS)</span>
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      height: '50px',
+                      borderRadius: '25px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span style={{ fontSize: '17px', fontWeight: 600 }}>3</span>
+                    <span style={{ fontSize: '8px', color: '#94a3b8' }}>DEF</span>
+                  </button>
+                  {[
+                    { num: '4', sub: 'GHI' },
+                    { num: '5', sub: 'JKL' },
+                    { num: '6', sub: 'MNO' },
+                    { num: '7', sub: 'PQRS' },
+                    { num: '8', sub: 'TUV' },
+                    { num: '9', sub: 'WXYZ' },
+                    { num: '*', sub: '' },
+                    { num: '0', sub: '+' },
+                    { num: '#', sub: '' }
+                  ].map((k) => (
+                    <button
+                      key={k.num}
+                      type="button"
+                      style={{
+                        height: '50px',
+                        borderRadius: '25px',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        color: '#ffffff',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span style={{ fontSize: '17px', fontWeight: 600 }}>{k.num}</span>
+                      {k.sub && <span style={{ fontSize: '8px', color: '#94a3b8' }}>{k.sub}</span>}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ textAlign: 'center', marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowDialpad(false)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#38bdf8',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: '4px 8px'
+                    }}
+                  >
+                    Hide Keypad
+                  </button>
+                </div>
               </div>
-
-              {/* Button 2: Keypad */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                <button
-                  type="button"
-                  style={{
-                    width: '56px',
-                    height: '56px',
-                    borderRadius: '50%',
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    color: '#ffffff'
-                  }}
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <circle cx="5" cy="5" r="2"/>
-                    <circle cx="12" cy="5" r="2"/>
-                    <circle cx="19" cy="5" r="2"/>
-                    <circle cx="5" cy="12" r="2"/>
-                    <circle cx="12" cy="12" r="2"/>
-                    <circle cx="19" cy="12" r="2"/>
-                    <circle cx="5" cy="19" r="2"/>
-                    <circle cx="12" cy="19" r="2"/>
-                    <circle cx="19" cy="19" r="2"/>
-                  </svg>
-                </button>
-                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>Keypad</span>
-              </div>
-
-              {/* Button 3: Speaker (Active White) */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                <button
-                  type="button"
-                  onClick={() => setIsSpeakerOn(!isSpeakerOn)}
-                  style={{
-                    width: '56px',
-                    height: '56px',
-                    borderRadius: '50%',
-                    background: isSpeakerOn ? '#ffffff' : 'rgba(255, 255, 255, 0.1)',
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    color: isSpeakerOn ? '#0f172a' : '#ffffff',
-                    boxShadow: isSpeakerOn ? '0 4px 16px rgba(255, 255, 255, 0.3)' : 'none'
-                  }}
-                >
-                  <Volume2 style={{ width: '22px', height: '22px' }} />
-                </button>
-                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>Speaker</span>
-              </div>
-
-              {/* Button 4: I am Safe (One-tap triage) */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                <button
-                  type="button"
-                  onClick={handleSafe}
-                  style={{
-                    width: '56px',
-                    height: '56px',
-                    borderRadius: '50%',
-                    background: 'rgba(34, 197, 94, 0.22)',
-                    border: '1.5px solid #22c55e',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    color: '#22c55e',
-                    boxShadow: '0 4px 16px rgba(34, 197, 94, 0.3)'
-                  }}
-                  title="Confirm Safe"
-                >
-                  <ShieldCheck style={{ width: '24px', height: '24px' }} />
-                </button>
-                <span style={{ fontSize: '11px', color: '#86efac', fontWeight: 600 }}>I'm Safe</span>
-              </div>
-
-              {/* Button 5: Need Help (Instant SOS) */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                <button
-                  type="button"
-                  onClick={() => handleStuck('user_sos_button')}
-                  style={{
-                    width: '56px',
-                    height: '56px',
-                    borderRadius: '50%',
-                    background: 'rgba(239, 68, 68, 0.22)',
-                    border: '1.5px solid #ef4444',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    color: '#ef4444'
-                  }}
-                  title="Need Rescue"
-                >
-                  <AlertTriangle style={{ width: '22px', height: '22px' }} />
-                </button>
-                <span style={{ fontSize: '11px', color: '#fca5a5', fontWeight: 600 }}>Need Help</span>
-              </div>
-
-              {/* Button 6: Patrol Info */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                <button
-                  type="button"
-                  style={{
-                    width: '56px',
-                    height: '56px',
-                    borderRadius: '50%',
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    color: '#ffffff'
-                  }}
-                >
-                  <Compass style={{ width: '22px', height: '22px' }} />
-                </button>
-                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>Patrol #14</span>
-              </div>
-            </div>
+            )}
 
             {/* Bottom Centered Red End-Call Button matching Image 4 right */}
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
@@ -2724,16 +2879,12 @@ function TouristDashboard({
     }
 
     if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      if (params.get('call') === '1') {
-        if (params.get('auto') === '1') {
-          setCallAutoAccept(true)
-        }
-        setShowCallModal(true)
-        try {
-          window.history.replaceState({}, '', window.location.pathname)
-        } catch {}
-      }
+      try {
+        window.history.replaceState({}, '', window.location.pathname)
+      } catch {}
+      // Fresh start on page mount / refresh: session restarts cleanly in standby
+      setShowCallModal(false)
+      setCallAutoAccept(false)
     }
 
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
@@ -3189,7 +3340,11 @@ function TouristDashboard({
               </div>
               <button
                 type="button"
-                onClick={() => setIsVerifiedSafe(false)}
+                onClick={() => {
+                  setIsVerifiedSafe(false)
+                  setStatus('safe')
+                  fetch('/api/emergency/reset', { method: 'POST' }).catch(() => {})
+                }}
                 style={{
                   background: 'rgba(255, 255, 255, 0.1)',
                   border: '1px solid rgba(255, 255, 255, 0.2)',
@@ -3634,6 +3789,7 @@ function TouristDashboard({
             onConfirmedSafe={() => {
               setIsVerifiedSafe(true)
               setStatus('safe')
+              fetch('/api/emergency/reset', { method: 'POST' }).catch(() => {})
             }}
             onSos={() => {
               setSosAutoDispatched(true)
@@ -3698,8 +3854,73 @@ function BoatmanDashboard({
     return () => clearInterval(timer)
   }, [recording])
 
-  // Play tactical 2-second alert beep followed by voice stating someone is in danger (Requirement 4)
-  const triggerBoatmanRescueAlert = (targetLang: SupportedLang) => {
+  // Voice navigation announcement repeating twice for boatman
+  const speakNavGuidanceWithRepeat = (
+    touristName: string,
+    place: string,
+    compassDirection: string,
+    distanceM: number,
+    targetLang: SupportedLang
+  ) => {
+    const audioUrl = `/api/boatman/alert-tts?name=${encodeURIComponent(touristName)}&location=${encodeURIComponent(place)}&direction=${encodeURIComponent(compassDirection)}&dist=${distanceM}&lang=${targetLang}`
+    const alertAudio = new Audio(audioUrl)
+    alertAudio.volume = 1.0
+    alertAudio.playbackRate = 1.05
+
+    let hasRepeated = false
+    alertAudio.onended = () => {
+      if (!hasRepeated) {
+        hasRepeated = true
+        // Repeat the announcement a 2nd time after a 1.2s natural pause (Requirement: repeat this 2 times)
+        setTimeout(() => {
+          const secondAudio = new Audio(audioUrl)
+          secondAudio.volume = 1.0
+          secondAudio.playbackRate = 1.05
+          secondAudio.play().catch(() => {})
+        }, 1200)
+      }
+    }
+
+    // Fallback: browser SpeechSynthesis repeated twice
+    alertAudio.onerror = () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        try {
+          window.speechSynthesis.cancel()
+          const text = targetLang === 'hi'
+            ? (distanceM <= 25 ? `सावधान! पर्यटक ${touristName} ${place} पर खतरे में हैं। पर्यटक सीधे सामने हैं, आगे बढ़ें।` : `सावधान! पर्यटक ${touristName} ${place} पर खतरे में हैं। ${compassDirection} दिशा में ${distanceM} मीटर आगे बढ़ें।`)
+            : (targetLang === 'mr'
+              ? (distanceM <= 25 ? `सावधान! पर्यटक ${touristName} ${place} येथे धोक्यात आहेत. पर्यटक थेट समोर आहेत, पुढे जा.` : `सावधान! पर्यटक ${touristName} ${place} येथे धोक्यात आहेत. ${compassDirection} दिशेला ${distanceM} मीटर पुढे जा.`)
+              : (distanceM <= 25 ? `Alert! Tourist ${touristName} is in danger at ${place}. Tourist is directly ahead, proceed straight.` : `Alert! Tourist ${touristName} is in danger at ${place}. Head ${compassDirection}, ${distanceM} meters ahead.`))
+
+          const utt1 = new SpeechSynthesisUtterance(text)
+          utt1.lang = targetLang === 'hi' ? 'hi-IN' : (targetLang === 'mr' ? 'mr-IN' : 'en-IN')
+          utt1.rate = 1.05
+          utt1.onend = () => {
+            setTimeout(() => {
+              const utt2 = new SpeechSynthesisUtterance(text)
+              utt2.lang = utt1.lang
+              utt2.rate = 1.05
+              window.speechSynthesis.speak(utt2)
+            }, 1200)
+          }
+          window.speechSynthesis.speak(utt1)
+        } catch {}
+      }
+    }
+
+    alertAudio.play().catch(() => {
+      alertAudio.onerror?.(new Event('error'))
+    })
+  }
+
+  // Play tactical 2-second alert beep followed by voice announcement stating tourist name, location, and direction, repeated 2 times!
+  const triggerBoatmanRescueAlert = (
+    touristName: string,
+    place: string,
+    compassDirection: string,
+    distanceM: number,
+    targetLang: SupportedLang
+  ) => {
     // 4.5s delay allows tourist dashboard voice ("Help is coming") to completely finish first, preventing overlapping audio on same laptop
     setTimeout(() => {
       try {
@@ -3731,12 +3952,7 @@ function BoatmanDashboard({
               ctx.close()
             } catch {}
 
-            try {
-              const alertAudio = new Audio(`/audio/boatman_distress_alert_${targetLang}.mp3`)
-              alertAudio.volume = 1.0
-              alertAudio.playbackRate = 1.05
-              alertAudio.play().catch(() => {})
-            } catch {}
+            speakNavGuidanceWithRepeat(touristName, place, compassDirection, distanceM, targetLang)
           }, 2000)
         }
       } catch {}
@@ -3755,19 +3971,24 @@ function BoatmanDashboard({
             const sos = msg.data
             const d = calculateHaversineDistance(location.lat, location.lon, sos.lat, sos.lon)
             const b = calculateBearing(location.lat, location.lon, sos.lat, sos.lon)
+            const tName = sos.tourist_name || 'Rahul Sharma'
+            const tLoc = sos.location || location.placeName
+            const tCompass = d <= 25 ? 'ahead' : b.compass
+            const tDist = Math.min(d, 450)
+
             setActiveRescue({
-              touristName: sos.tourist_name || 'Rahul Sharma (Tourist)',
+              touristName: tName,
               phone: sos.phone || '9876543210',
               incident: sos.incident || 'Emergency SOS / Trapped near Water',
               lat: sos.lat,
               lon: sos.lon,
-              distMeters: Math.min(d, 450),
+              distMeters: tDist,
               bearing: b,
               time: sos.time || new Date().toLocaleTimeString(),
-              locationName: sos.location || location.placeName
+              locationName: tLoc
             })
-            // Sound delayed 2-second alert beep followed by voice announcement: "koi khatre me hai"
-            triggerBoatmanRescueAlert(lang)
+            // Sound delayed 2-second alert beep followed by voice announcement stating tourist name, location & direction repeated 2 times!
+            triggerBoatmanRescueAlert(tName, tLoc, tCompass, tDist, lang)
           }
         } catch {}
       }
@@ -4246,7 +4467,35 @@ function BoatmanDashboard({
                 </div>
 
                 {/* Action Buttons */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => speakNavGuidanceWithRepeat(
+                      activeRescue.touristName,
+                      activeRescue.locationName,
+                      activeRescue.distMeters <= 25 ? 'ahead' : activeRescue.bearing.compass,
+                      activeRescue.distMeters,
+                      lang
+                    )}
+                    style={{
+                      background: 'rgba(245, 158, 11, 0.18)',
+                      border: '1.5px solid #f59e0b',
+                      color: '#fde68a',
+                      padding: '10px 6px',
+                      borderRadius: '10px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      boxShadow: '0 4px 14px rgba(245, 158, 11, 0.25)'
+                    }}
+                    title="Replay Voice Guidance"
+                  >
+                    <Volume2 style={{ width: '13px', height: '13px' }} /> आवाज़ दोबारा
+                  </button>
                   <a
                     href={`https://www.google.com/maps/search/?api=1&query=${activeRescue.lat},${activeRescue.lon}`}
                     target="_blank"
@@ -4255,15 +4504,15 @@ function BoatmanDashboard({
                       background: 'rgba(56, 189, 248, 0.18)',
                       border: '1.5px solid #38bdf8',
                       color: '#7dd3fc',
-                      padding: '10px 8px',
+                      padding: '10px 6px',
                       borderRadius: '10px',
-                      fontSize: '11.5px',
+                      fontSize: '11px',
                       fontWeight: 800,
                       textDecoration: 'none',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '5px',
+                      gap: '4px',
                       boxShadow: '0 4px 14px rgba(56, 189, 248, 0.25)'
                     }}
                   >
@@ -4275,15 +4524,15 @@ function BoatmanDashboard({
                       background: 'rgba(34, 197, 94, 0.18)',
                       border: '1.5px solid #22c55e',
                       color: '#86efac',
-                      padding: '10px 8px',
+                      padding: '10px 6px',
                       borderRadius: '10px',
-                      fontSize: '11.5px',
+                      fontSize: '11px',
                       fontWeight: 800,
                       textDecoration: 'none',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '5px',
+                      gap: '4px',
                       boxShadow: '0 4px 14px rgba(34, 197, 94, 0.25)'
                     }}
                   >
@@ -4296,9 +4545,9 @@ function BoatmanDashboard({
                       background: 'rgba(255, 255, 255, 0.08)',
                       border: '1px solid rgba(255, 255, 255, 0.2)',
                       color: '#f1f5f9',
-                      padding: '10px 8px',
+                      padding: '10px 6px',
                       borderRadius: '10px',
-                      fontSize: '11.5px',
+                      fontSize: '11px',
                       fontWeight: 700,
                       cursor: 'pointer'
                     }}

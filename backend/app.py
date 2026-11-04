@@ -342,6 +342,71 @@ async def tourist_tts(lang: str = "hi", status: str = "danger"):
     raise HTTPException(status_code=404, detail="Audio advisory not found")
 
 
+@app.get("/api/boatman/alert-tts")
+async def boatman_alert_tts(
+    name: str = "Rahul Sharma",
+    location: str = "Assi Ghat",
+    direction: str = "ahead",
+    dist: int = 0,
+    lang: str = "hi"
+):
+    """
+    Synthesize personalized tactical audio directing boatman to the tourist in danger.
+    Uses Edge TTS neural Indic voices.
+    """
+    lang_key = lang.lower()[:2]
+    if lang_key not in ["hi", "mr", "en", "ta", "bn"]:
+        lang_key = "hi"
+
+    voices = {
+        "hi": "hi-IN-MadhurNeural",
+        "mr": "mr-IN-ManoharNeural",
+        "en": "en-IN-PrabhatNeural",
+        "ta": "ta-IN-ValluvarNeural",
+        "bn": "bn-IN-BashkarNeural"
+    }
+    voice = voices.get(lang_key, "hi-IN-MadhurNeural")
+
+    # Generate message based on distance
+    if dist <= 25 or direction == "ahead":
+        scripts = {
+            "hi": f"सावधान! पर्यटक {name} {location} पर खतरे में हैं। पर्यटक सीधे सामने हैं, आगे बढ़ें।",
+            "mr": f"सावधान! पर्यटक {name} {location} येथे धोक्यात आहेत. पर्यटक थेट समोर आहेत, पुढे जा.",
+            "en": f"Alert! Tourist {name} is in danger at {location}. Tourist is directly ahead, proceed straight.",
+            "ta": f"எச்சரிக்கை! சுற்றுலாப் பயணி {name} {location} பகுதியில் ஆபத்தில் உள்ளார். நேராக முன்னேறிச் செல்லுங்கள்.",
+            "bn": f"সতর্কতা! পর্যটক {name} {location} ঘাটে বিপদে পড়েছেন। পর্যটক ঠিক সামনে আছেন, সোজা এগিয়ে যান।"
+        }
+    else:
+        scripts = {
+            "hi": f"सावधान! पर्यटक {name} {location} पर खतरे में हैं। {direction} दिशा में {dist} मीटर आगे बढ़ें।",
+            "mr": f"सावधान! पर्यटक {name} {location} येथे धोक्यात आहेत. {direction} दिशेला {dist} मीटर पुढे जा.",
+            "en": f"Alert! Tourist {name} is in danger at {location}. Head {direction}, {dist} meters ahead.",
+            "ta": f"எச்சரிக்கை! சுற்றுலாப் பயணி {name} {location} பகுதியில் ஆபத்தில் உள்ளார். {direction} திசையில் {dist} மீட்டர் செல்லுங்கள்.",
+            "bn": f"সতর্কতা! পর্যটক {name} {location} ঘাটে বিপদে পড়েছেন। {direction} দিকে {dist} मीटर এগিয়ে যান।"
+        }
+
+    script_text = scripts.get(lang_key, scripts["hi"])
+
+    # Create cached file hash
+    import hashlib
+    h = hashlib.md5(f"{script_text}_{voice}".encode()).hexdigest()[:12]
+    out_file = AUDIO_CACHE_DIR / f"boatman_nav_{h}.mp3"
+
+    if not out_file.exists():
+        try:
+            import edge_tts
+            communicate = edge_tts.Communicate(script_text, voice, rate="+15%")
+            await communicate.save(str(out_file))
+        except Exception as e:
+            # Fallback to pre-generated general alert if edge_tts fails
+            fallback = AUDIO_CACHE_DIR / f"boatman_distress_alert_{lang_key}.mp3"
+            if fallback.exists():
+                return FileResponse(str(fallback), media_type="audio/mpeg")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    return FileResponse(str(out_file), media_type="audio/mpeg")
+
+
 @app.post("/api/tourist/call")
 async def trigger_tourist_call(
     phone: str = Form("9876543210"),
