@@ -299,6 +299,24 @@ async def get_tourist_status(lat: float = 25.3176, lon: float = 83.0060):
     boatman_lon = LATEST_SECTOR_STATE.get("lon", lon)
     dist_km = haversine_km(lat, lon, boatman_lat, boatman_lon)
 
+    # STRICT 3.0 KM SOVEREIGN MARITIME GEOFENCE:
+    # If the tourist is outside the 3.0 km sector radius, report calm local waters
+    if dist_km > 3.0:
+        return JSONResponse(content={
+            "has_broadcast": False,
+            "dispatch_id": "none",
+            "status": "safe",
+            "severity": "INFO",
+            "location": "Local River Sector",
+            "lat": lat,
+            "lon": lon,
+            "distance_km": round(dist_km, 3),
+            "time_ago": "Standby",
+            "timestamp": datetime.now().isoformat(),
+            "water_status_text": "Local sector reports calm waters. Boating permitted.",
+            "in_radius": False
+        })
+
     state = dict(LATEST_SECTOR_STATE)
     state["has_broadcast"] = True
     state["tourist_lat"] = lat
@@ -310,7 +328,7 @@ async def get_tourist_status(lat: float = 25.3176, lon: float = 83.0060):
     else:
         state["distance"] = f"{dist_km:.1f} km from your live GPS"
 
-    state["in_radius"] = dist_km <= 3.0
+    state["in_radius"] = True
     return JSONResponse(content=state)
 
 
@@ -546,12 +564,12 @@ async def fisherman_broadcast(
         "data": LATEST_SECTOR_STATE
     })
 
-    # Trigger automated emergency calls to active tourists in sector
+    # Trigger automated emergency calls to active tourists in 3.0 km sector
     if status == "danger":
         for dev_phone, dev_data in list(ACTIVE_DEVICES.items()):
             if dev_data.get("role") == "tourist":
                 d_km = haversine_km(lat, lon, dev_data.get("lat", lat), dev_data.get("lon", lon))
-                if d_km <= 2.0:
+                if d_km <= 3.0:
                     asyncio.create_task(trigger_outbound_call(dev_phone, english_trans, ai_audio_url))
 
     print(f"[CoastGuard] Fisherman broadcast from {lat}, {lon} ({sector_place}): [{status.upper()}] - {transcript[:50]}...")
@@ -585,10 +603,11 @@ async def tourist_sos(
         "type": "sos_alert",
         "data": sos_data
     })
+    print(f"[CoastGuard SOS] Emergency triggered by {tourist_name or 'Rahul Sharma'} at {lat}, {lon} ({location_name}). Grid broadcast sent to all patrols within 3.0 km perimeter.")
     return JSONResponse(content={
         "status": "dispatched",
         "data": sos_data,
-        "message": "Nearest boat patrol and river police alerted with your live GPS location."
+        "message": "Nearest boat patrol within 3.0 km alerted with your live GPS location."
     })
 
 

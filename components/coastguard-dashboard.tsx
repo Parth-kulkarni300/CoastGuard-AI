@@ -1444,11 +1444,13 @@ function SosModal({
   close,
   phone,
   location,
+  userName = 'Rahul Sharma',
   lang = 'hi'
 }: {
   close: () => void
   phone: string
   location: ReturnType<typeof useRealTimeLocation>
+  userName?: string
   lang?: SupportedLang
 }) {
   const t = UI_TRANSLATIONS[lang]
@@ -1459,9 +1461,11 @@ function SosModal({
     try {
       const fd = new FormData()
       fd.append('phone', phone)
+      fd.append('tourist_name', userName)
       fd.append('incident_type', type)
       fd.append('lat', location.lat.toString())
       fd.append('lon', location.lon.toString())
+      fd.append('location_name', location.placeName)
       await fetch('/api/tourist/sos', { method: 'POST', body: fd })
       setDispatched(true)
       setTimeout(() => {
@@ -1880,6 +1884,26 @@ function EmergencyCallModal({
     }
   }, [callState])
 
+  // Physical Keyboard Listener during connected call: Press 1 for Safe, Press 2 for SOS
+  useEffect(() => {
+    if (callState !== 'connected') return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if user is typing in an input
+      if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA') return
+      if (e.key === '1') {
+        e.preventDefault()
+        handleSafe()
+      } else if (e.key === '2') {
+        e.preventDefault()
+        handleStuck('keyboard_key_2_sos')
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [callState])
+
   // High intensity emergency siren and buzzer
   const startEmergencyRingtone = () => {
     try {
@@ -2076,20 +2100,22 @@ function EmergencyCallModal({
 
   const activeMsg = spokenWarnings[lang] || spokenWarnings.en
 
-  const startQuestionListening = () => {
+  const startQuestionListening = (skipTimeout = false) => {
     isListeningRef.current = true
     setIsListening(true)
 
-    // Wait 20 seconds for tourist's answer AFTER the question has been asked
-    if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
-    const timeout20s = setTimeout(() => {
-      handleStuck('unanswered_20s_timeout')
-    }, 20000)
-    timeout20sRef.current = timeout20s
+    // Wait 20 seconds for tourist's answer AFTER question begins
+    if (!skipTimeout) {
+      if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
+      const timeout20s = setTimeout(() => {
+        handleStuck('unanswered_20s_timeout')
+      }, 20000)
+      timeout20sRef.current = timeout20s
+    }
 
-    // Turn on speech recognition ONLY NOW (so it never hears the advisory audio)
+    // Turn on speech recognition (Devanagari, Marathi, English, Tamil, Bengali)
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (SpeechRec) {
+    if (SpeechRec && !recognitionRef.current) {
       try {
         const rec = new SpeechRec()
         rec.continuous = true
@@ -2101,31 +2127,35 @@ function EmergencyCallModal({
           for (let i = event.resultIndex; i < event.results.length; i++) {
             transcript += event.results[i][0].transcript + ' '
           }
-          transcript = transcript.toLowerCase().trim()
-          setVoiceHeard(transcript)
+          const rawT = transcript.toLowerCase().trim()
+          setVoiceHeard(rawT)
+          console.log('[CoastGuard Triage Voice]:', rawT)
+
+          // Normalize punctuation for token match
+          const cleanT = rawT.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, ' ')
 
           // 1. Comprehensive affirmative safe detection:
-          // Devanagari (Hindi / Marathi): हाँ, हां, हा, हॉं, हूँ, जी, जी हाँ, सुरक्षित, ठीक, सब ठीक, हो, होय, येस, सेफ, फाइन, ठीक आहे
-          const devanagariSafe = /(?:हाँ|हां|हा|हॉं|हूँ|जी|सुरक्षित|ठीक|होय|हो|येस|सेफ|फाइन|ओके)/u.test(transcript)
+          // Devanagari (Hindi / Marathi): हाँ, हां, हा, हॉं, हूँ, जी, जी हाँ, सुरक्षित, ठीक, सब ठीक, हो, होय, येस, सेफ, फाइन, ठीक आहे, बरं, अच्छा, नक्की, बरोबर, सही
+          const devanagariSafe = /(?:हाँ|हां|हा|हॉं|हूँ|जी|सुरक्षित|ठीक|होय|हो|येस|सेफ|फाइन|ओके|बरं|अच्छा|नक्की|बरोबर|सही)/u.test(cleanT)
 
           // Bengali & Tamil affirmative: হ্যাঁ, নিরাপদ, ஆம், பாதுகாப், சரி
-          const regionalSafe = /(?:হ্যাঁ|হ্যা|নিরাপদ|ঠিক|ভালো|ஆம்|பாதுகாப்|சரி)/u.test(transcript)
+          const regionalSafe = /(?:হ্যাঁ|হ্যা|নিরাপদ|ঠিক|ভালো|ஆம்|பாதுகாப்|சரி)/u.test(cleanT)
 
-          // Latin / English / Romanized Hindi/Marathi:
-          // yes, yeah, yep, yup, ya, yah, ha, haa, haaa, haan, haaan, hnn, hn, safe, surakshit, theek, thik, thek, fine, ho, hoy, ji, ok, okay, achha, acha, sari, good
-          const latinSafe = /\b(yes|yeah|yep|yup|ya|yah|ha|haa|haaa|haan|haaan|hnn|hn|safe|surakshit|theek|thik|thek|fine|ho|hoy|ji|ok|okay|achha|acha|sari|good)\b/i.test(transcript) ||
-            /safe|surakshit|theek|thik|all good|i am safe|im safe|me safe|main safe|hum safe|me surakshit|hum theek/i.test(transcript)
+          // Latin / English / Romanized Hindi/Marathi/Indic:
+          // yes, yeah, yep, yup, ya, yah, ha, haa, haaa, haan, haaan, hnn, hn, hanji, haanji, safe, surakshit, theek, thik, thek, fine, ho, hoy, ji, ok, okay, achha, acha, sari, good, barobar, sahi
+          const latinSafe = /\b(yes|yeah|yep|yup|ya|yah|ha|haa|haaa|haan|haaan|hnn|hn|hanji|haanji|safe|surakshit|theek|thik|thek|fine|ho|hoy|ji|ok|okay|achha|acha|sari|good|barobar|sahi)\b/i.test(cleanT) ||
+            /safe|surakshit|theek|thik|all good|i am safe|im safe|me safe|main safe|hum safe|me surakshit|hum theek|theek hu|theek aahe|theek ahe|safe hu|safe aahe|safe ahe|mai theek|me theek/i.test(cleanT)
 
           // 2. Comprehensive danger / help detection:
           // Devanagari: मदद, सहायता, बचाओ, फंसा, फंसे, खतरा, नहीं, नाही, ना, अडकलो, संकट, त्राण, वाचवा, धोका
-          const devanagariDanger = /(?:मदद|सहायता|बचाओ|फंसा|फंसे|खतरा|नहीं|नाही|ना|अडकलो|संकट|त्राण|वाचवा|धोका)/u.test(transcript)
+          const devanagariDanger = /(?:मदद|सहायता|बचाओ|फंसा|फंसे|खतरा|नहीं|नाही|ना|अडकलो|संकट|त्राण|वाचवा|धोका)/u.test(cleanT)
 
           // Regional: সাহায্য, বিপদ, বাঁচাও, உதவி, ஆபத்து, இல்லை
-          const regionalDanger = /(?:সাহায্য|বিপদ|বাঁচাও|உதவி|ஆபத்து|இல்லை)/u.test(transcript)
+          const regionalDanger = /(?:সাহায্য|বিপদ|বাঁচাও|உதவி|ஆபத்து|இல்லை)/u.test(cleanT)
 
-          // Latin / Hinglish: help, no, nahi, nahin, na, madad, madat, stuck, fasa, fas, trapped, bachao, illai, danger, uthavi, sahajjo, adaklo, vachva, dhoka
-          const latinDanger = /\b(help|no|nahi|nahin|na|madad|madat|stuck|fasa|fas|trapped|bachao|illai|danger|uthavi|sahajjo|adaklo|vachva|dhoka)\b/i.test(transcript) ||
-            /need help|save me|madad karo|bachao mujhe|fas gaye|stuck here/i.test(transcript)
+          // Latin / Hinglish: help, no, nahi, nahin, na, madad, madat, stuck, fasa, fas, trapped, bachao, illai, danger, uthavi, sahajjo, adaklo, vachva, dhoka, save
+          const latinDanger = /\b(help|no|nahi|nahin|na|madad|madat|stuck|fasa|fas|trapped|bachao|illai|danger|uthavi|sahajjo|adaklo|vachva|dhoka|save)\b/i.test(cleanT) ||
+            /need help|save me|madad karo|bachao mujhe|fas gaye|stuck here/i.test(cleanT)
 
           if (devanagariSafe || regionalSafe || latinSafe) {
             handleSafe()
@@ -2155,34 +2185,30 @@ function EmergencyCallModal({
       const audioUrl = `/audio/timbre_advisory_${lang}_danger.mp3`
       const audio = new Audio(audioUrl)
       audio.volume = 1.0
-      // 1.05x speed: natural, clear, official human pacing
       audio.playbackRate = 1.05
       audio.preservesPitch = true
       audioRef.current = audio
 
-      let listeningStarted = false
-      const triggerListeningOnce = () => {
-        if (!listeningStarted) {
-          listeningStarted = true
-          startQuestionListening()
-        }
-      }
+      // Start listening to the tourist's mic 600ms into the call so even early "haa" / "yes" is immediately captured!
+      setTimeout(() => {
+        startQuestionListening(true)
+      }, 600)
 
-      // CRITICAL: When the advisory finishes asking "Are you safe?", start the 20s countdown & mic!
+      // When the advisory finishes asking "Are you safe?", engage the strict 20s countdown!
       audio.onended = () => {
-        triggerListeningOnce()
+        startQuestionListening(false)
       }
 
-      // Safety fallback: if audio fails or cannot finish, start listening
+      // Safety fallback: if audio fails or cannot finish, start listening with 20s timeout
       audio.onerror = () => {
-        triggerListeningOnce()
+        startQuestionListening(false)
       }
 
       audio.play().catch(() => {
-        triggerListeningOnce()
+        startQuestionListening(false)
       })
     } catch {
-      startQuestionListening()
+      startQuestionListening(false)
     }
   }
 
@@ -2921,11 +2947,14 @@ function TouristDashboard({
         const res = await fetch(`/api/tourist/status?lat=${location.lat}&lon=${location.lon}`)
         if (res.ok) {
           const data = await res.json()
-          if (data.has_broadcast) {
+          if (data.has_broadcast && data.in_radius) {
             applySectorData(data)
             if (data.status === 'danger') {
               setStatus('danger')
             }
+          } else {
+            // Out of radius or no broadcast in this tourist's local sector: Keep safe
+            setStatus('safe')
           }
         }
       } catch (err) {
@@ -2942,6 +2971,16 @@ function TouristDashboard({
         try {
           const msg = JSON.parse(event.data)
           if (msg.type === 'sector_update' && msg.data) {
+            let d = 0
+            if (msg.data.lat && msg.data.lon) {
+              d = calculateHaversineDistance(location.lat, location.lon, msg.data.lat, msg.data.lon)
+            }
+            // Strict 3.0 km sovereign maritime geofence:
+            // A tourist must ONLY receive broadcasts from boatmen within their 3.0 km sector
+            if (d > 3000) {
+              console.log(`[CoastGuard Tourist] Ignored distant sector broadcast from ${(d / 1000).toFixed(1)} km away (> 3.0 km sector boundary).`)
+              return
+            }
             applySectorData(msg.data)
             if (msg.data.status === 'danger') {
               setStatus('danger')
@@ -2965,7 +3004,7 @@ function TouristDashboard({
     return () => {
       if (ws) ws.close()
     }
-  }, [location.lat, location.lon, phone])
+  }, [location.lat, location.lon, phone, lang, isVerifiedSafe])
 
   const applySectorData = (data: any) => {
     if (data.has_broadcast || (data.dispatch_id && data.dispatch_id !== 'none' && data.dispatch_id !== 'initial_safe')) {
@@ -3746,7 +3785,7 @@ function TouristDashboard({
           </div>
         </div>
 
-        {sos && <SosModal phone={phone} location={location} close={() => setSos(false)} lang={lang} />}
+        {sos && <SosModal phone={phone} location={location} userName={userName} close={() => setSos(false)} lang={lang} />}
 
         {showCallModal && (
           <EmergencyCallModal
@@ -3946,11 +3985,24 @@ function BoatmanDashboard({
           if (msg.type === 'sos_alert' && msg.data) {
             const sos = msg.data
             const d = calculateHaversineDistance(location.lat, location.lon, sos.lat, sos.lon)
+
+            // STRICT 3.0 KM SOVEREIGN MARITIME GEOFENCE:
+            // A boat patrol must ONLY respond to emergencies within their 3.0 km maritime sector.
+            // Distant alerts (> 3.0 km, e.g. Swargate vs Nagpur, ~650 km away) MUST BE COMPLETELY IGNORED.
+            if (d > 3000) {
+              console.log(`[CoastGuard Boatman] Ignored distant SOS: ${sos.tourist_name} at ${sos.location} is ${(d / 1000).toFixed(1)} km away (> 3.0 km sector boundary).`)
+              return
+            }
+
             const b = calculateBearing(location.lat, location.lon, sos.lat, sos.lon)
             const tName = sos.tourist_name || 'Rahul Sharma'
             const tLoc = sos.location || location.placeName
-            const tCompass = b?.compass || 'North-East'
-            const tDist = Math.min(d, 450)
+
+            // When testing on the exact same laptop/location (d < 15m), offset target to 180m North-East for clear tactical radar visibility
+            const isSameDeviceDemo = d < 15
+            const tDist = isSameDeviceDemo ? 180 : Math.max(10, Math.round(d))
+            const effectiveBearing = isSameDeviceDemo ? { degrees: 45, compass: 'North-East', arrow: '↗️' } : b
+            const tCompass = effectiveBearing?.compass || 'North-East'
 
             setActiveRescue({
               touristName: tName,
@@ -3959,7 +4011,7 @@ function BoatmanDashboard({
               lat: sos.lat,
               lon: sos.lon,
               distMeters: tDist,
-              bearing: b,
+              bearing: effectiveBearing,
               time: sos.time || new Date().toLocaleTimeString(),
               locationName: tLoc
             })
@@ -3973,7 +4025,18 @@ function BoatmanDashboard({
     return () => {
       if (ws) ws.close()
     }
-  }, [location.lat, location.lon, location.placeName])
+  }, [location.lat, location.lon, location.placeName, lang])
+
+  // Clear active rescue if boatman moves or switches to another sector (> 3.0 km away)
+  useEffect(() => {
+    if (activeRescue) {
+      const d = calculateHaversineDistance(location.lat, location.lon, activeRescue.lat, activeRescue.lon)
+      if (d > 3000) {
+        console.log(`[CoastGuard Boatman] Clearing active rescue: Boatman relocated ${(d / 1000).toFixed(1)} km away from active incident.`)
+        setActiveRescue(null)
+      }
+    }
+  }, [location.lat, location.lon, activeRescue])
 
   // Center Mic Toggle (Real MediaRecorder with Hardware Noise Suppression + API Dispatch)
   const toggleMic = async () => {
