@@ -556,59 +556,6 @@ function MiniVisualRadar({
         </svg>
       </div>
 
-      {/* Radar Footer Telemetry Tiles */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '10px',
-          marginTop: '14px',
-          paddingTop: '12px',
-          borderTop: '1px solid rgba(255, 255, 255, 0.08)'
-        }}
-      >
-        <div
-          style={{
-            background: 'rgba(255, 255, 255, 0.04)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: '12px',
-            padding: '9px 12px',
-            fontSize: '11.5px'
-          }}
-        >
-          <div style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px', letterSpacing: '0.04em' }}>
-            WATERWAY VECTOR
-          </div>
-          {hasTarget ? (
-            <div style={{ color: '#f87171', fontWeight: 800 }}>
-              {effectiveDist < 1000 ? `${effectiveDist}m` : `${(effectiveDist / 1000).toFixed(1)}km`} {effectiveBearing.compass} ({effectiveBearing.arrow})
-            </div>
-          ) : (
-            <div style={{ color: '#34d399', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
-              Clear · 3.0 km Sector Active
-            </div>
-          )}
-        </div>
-
-        <div
-          style={{
-            background: 'rgba(255, 255, 255, 0.04)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: '12px',
-            padding: '9px 12px',
-            fontSize: '11.5px'
-          }}
-        >
-          <div style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px', letterSpacing: '0.04em' }}>
-            TELEMETRY LINK
-          </div>
-          <div style={{ color: '#38bdf8', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <ShieldCheck style={{ width: '14px', height: '14px' }} />
-            Dual-Band GPS (±3m) · 10Hz
-          </div>
-        </div>
-      </div>
     </section>
   )
 }
@@ -1907,6 +1854,7 @@ function EmergencyCallModal({
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const recognitionRef = useRef<any>(null)
   const timeout20sRef = useRef<NodeJS.Timeout | null>(null)
+  const isListeningRef = useRef<boolean>(false)
 
   useEffect(() => {
     const updateTime = () => {
@@ -2014,6 +1962,7 @@ function EmergencyCallModal({
   }
 
   const handleStuck = (reason?: string) => {
+    isListeningRef.current = false
     setIsListening(false)
     stopEmergencyAudio()
     if (ringTimerRef.current) clearTimeout(ringTimerRef.current)
@@ -2041,6 +1990,7 @@ function EmergencyCallModal({
   }
 
   const handleSafe = () => {
+    isListeningRef.current = false
     setIsListening(false)
     stopEmergencyAudio()
     if (ringTimerRef.current) clearTimeout(ringTimerRef.current)
@@ -2055,6 +2005,7 @@ function EmergencyCallModal({
   }
 
   const declineCall = () => {
+    isListeningRef.current = false
     setIsListening(false)
     stopEmergencyAudio()
     if (ringTimerRef.current) clearTimeout(ringTimerRef.current)
@@ -2126,6 +2077,7 @@ function EmergencyCallModal({
   const activeMsg = spokenWarnings[lang] || spokenWarnings.en
 
   const startQuestionListening = () => {
+    isListeningRef.current = true
     setIsListening(true)
 
     // Wait 20 seconds for tourist's answer AFTER the question has been asked
@@ -2145,22 +2097,45 @@ function EmergencyCallModal({
         rec.lang = activeMsg.locale
 
         rec.onresult = (event: any) => {
-          const results = event.results
-          const transcript = results[results.length - 1][0].transcript.toLowerCase().trim()
+          let transcript = ''
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript + ' '
+          }
+          transcript = transcript.toLowerCase().trim()
           setVoiceHeard(transcript)
 
-          // Precise affirmative detection using word boundaries
-          const isSafe = /\b(yes|yeah|yep|ha|haan|safe|surakshit|theek|thik|fine|ho|hoy|sari|achha|all good)\b/i.test(transcript) ||
-            /yes i am safe|main surakshit hoon|me surakshit aahe|hum safe hai|haan safe|safe hu/i.test(transcript)
+          // 1. Comprehensive affirmative safe detection:
+          // Devanagari (Hindi / Marathi): हाँ, हां, हा, हॉं, हूँ, जी, जी हाँ, सुरक्षित, ठीक, सब ठीक, हो, होय, येस, सेफ, फाइन, ठीक आहे
+          const devanagariSafe = /(?:हाँ|हां|हा|हॉं|हूँ|जी|सुरक्षित|ठीक|होय|हो|येस|सेफ|फाइन|ओके)/u.test(transcript)
 
-          // Precise danger/help detection
-          const isDanger = /\b(help|no|nahi|madad|stuck|fasa|fas|trapped|bachao|illai|danger|uthavi|sahajjo|adaklo|madat)\b/i.test(transcript) ||
-            /need help|save me|madad karo|bachao mujhe|fas gaye/i.test(transcript)
+          // Bengali & Tamil affirmative: হ্যাঁ, নিরাপদ, ஆம், பாதுகாப், சரி
+          const regionalSafe = /(?:হ্যাঁ|হ্যা|নিরাপদ|ঠিক|ভালো|ஆம்|பாதுகாப்|சரி)/u.test(transcript)
 
-          if (isSafe) {
+          // Latin / English / Romanized Hindi/Marathi:
+          // yes, yeah, yep, yup, ya, yah, ha, haa, haaa, haan, haaan, hnn, hn, safe, surakshit, theek, thik, thek, fine, ho, hoy, ji, ok, okay, achha, acha, sari, good
+          const latinSafe = /\b(yes|yeah|yep|yup|ya|yah|ha|haa|haaa|haan|haaan|hnn|hn|safe|surakshit|theek|thik|thek|fine|ho|hoy|ji|ok|okay|achha|acha|sari|good)\b/i.test(transcript) ||
+            /safe|surakshit|theek|thik|all good|i am safe|im safe|me safe|main safe|hum safe|me surakshit|hum theek/i.test(transcript)
+
+          // 2. Comprehensive danger / help detection:
+          // Devanagari: मदद, सहायता, बचाओ, फंसा, फंसे, खतरा, नहीं, नाही, ना, अडकलो, संकट, त्राण, वाचवा, धोका
+          const devanagariDanger = /(?:मदद|सहायता|बचाओ|फंसा|फंसे|खतरा|नहीं|नाही|ना|अडकलो|संकट|त्राण|वाचवा|धोका)/u.test(transcript)
+
+          // Regional: সাহায্য, বিপদ, বাঁচাও, உதவி, ஆபத்து, இல்லை
+          const regionalDanger = /(?:সাহায্য|বিপদ|বাঁচাও|உதவி|ஆபத்து|இல்லை)/u.test(transcript)
+
+          // Latin / Hinglish: help, no, nahi, nahin, na, madad, madat, stuck, fasa, fas, trapped, bachao, illai, danger, uthavi, sahajjo, adaklo, vachva, dhoka
+          const latinDanger = /\b(help|no|nahi|nahin|na|madad|madat|stuck|fasa|fas|trapped|bachao|illai|danger|uthavi|sahajjo|adaklo|vachva|dhoka)\b/i.test(transcript) ||
+            /need help|save me|madad karo|bachao mujhe|fas gaye|stuck here/i.test(transcript)
+
+          if (devanagariSafe || regionalSafe || latinSafe) {
             handleSafe()
-          } else if (isDanger) {
+          } else if (devanagariDanger || regionalDanger || latinDanger) {
             handleStuck('voice_stuck_detected')
+          }
+        }
+        rec.onend = () => {
+          if (isListeningRef.current) {
+            try { rec.start() } catch {}
           }
         }
         rec.onerror = () => {}
@@ -3886,11 +3861,12 @@ function BoatmanDashboard({
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         try {
           window.speechSynthesis.cancel()
+          const dirHi = compassDirection === 'ahead' ? 'उत्तर-पूर्व (North-East)' : compassDirection
           const text = targetLang === 'hi'
-            ? (distanceM <= 25 ? `सावधान! पर्यटक ${touristName} ${place} पर खतरे में हैं। पर्यटक सीधे सामने हैं, आगे बढ़ें।` : `सावधान! पर्यटक ${touristName} ${place} पर खतरे में हैं। ${compassDirection} दिशा में ${distanceM} मीटर आगे बढ़ें।`)
+            ? (distanceM > 25 ? `सावधान! पर्यटक ${touristName} ${place} पर खतरे में हैं। ${dirHi} दिशा में ${distanceM} मीटर आगे बढ़ें।` : `सावधान! पर्यटक ${touristName} ${place} पर खतरे में हैं। ${dirHi} दिशा में आगे बढ़ें।`)
             : (targetLang === 'mr'
-              ? (distanceM <= 25 ? `सावधान! पर्यटक ${touristName} ${place} येथे धोक्यात आहेत. पर्यटक थेट समोर आहेत, पुढे जा.` : `सावधान! पर्यटक ${touristName} ${place} येथे धोक्यात आहेत. ${compassDirection} दिशेला ${distanceM} मीटर पुढे जा.`)
-              : (distanceM <= 25 ? `Alert! Tourist ${touristName} is in danger at ${place}. Tourist is directly ahead, proceed straight.` : `Alert! Tourist ${touristName} is in danger at ${place}. Head ${compassDirection}, ${distanceM} meters ahead.`))
+              ? (distanceM > 25 ? `सावधान! पर्यटक ${touristName} ${place} येथे धोक्यात आहेत. ${dirHi} दिशेला ${distanceM} मीटर पुढे जा.` : `सावधान! पर्यटक ${touristName} ${place} येथे धोक्यात आहेत. ${dirHi} दिशेला पुढे जा.`)
+              : (distanceM > 25 ? `Alert! Tourist ${touristName} is in danger at ${place}. Head ${compassDirection}, ${distanceM} meters ahead.` : `Alert! Tourist ${touristName} is in danger at ${place}. Head ${compassDirection} immediately.`))
 
           const utt1 = new SpeechSynthesisUtterance(text)
           utt1.lang = targetLang === 'hi' ? 'hi-IN' : (targetLang === 'mr' ? 'mr-IN' : 'en-IN')
@@ -3973,7 +3949,7 @@ function BoatmanDashboard({
             const b = calculateBearing(location.lat, location.lon, sos.lat, sos.lon)
             const tName = sos.tourist_name || 'Rahul Sharma'
             const tLoc = sos.location || location.placeName
-            const tCompass = d <= 25 ? 'ahead' : b.compass
+            const tCompass = b?.compass || 'North-East'
             const tDist = Math.min(d, 450)
 
             setActiveRescue({
@@ -4473,7 +4449,7 @@ function BoatmanDashboard({
                     onClick={() => speakNavGuidanceWithRepeat(
                       activeRescue.touristName,
                       activeRescue.locationName,
-                      activeRescue.distMeters <= 25 ? 'ahead' : activeRescue.bearing.compass,
+                      activeRescue.bearing?.compass || 'North-East',
                       activeRescue.distMeters,
                       lang
                     )}

@@ -367,22 +367,38 @@ async def boatman_alert_tts(
     }
     voice = voices.get(lang_key, "hi-IN-MadhurNeural")
 
-    # Generate message based on distance
-    if dist <= 25 or direction == "ahead":
+    # Clean localized compass direction mapping
+    dir_map = {
+        "north": {"hi": "उत्तर", "mr": "उत्तर", "en": "North", "ta": "வடக்கு", "bn": "উত্তর"},
+        "north-east": {"hi": "उत्तर-पूर्व (North-East)", "mr": "ईशान्य (North-East)", "en": "North-East", "ta": "வடகிழக்கு", "bn": "উত্তর-পূর্ব"},
+        "east": {"hi": "पूर्व", "mr": "पूर्व", "en": "East", "ta": "கிழக்கு", "bn": "পূর্ব"},
+        "south-east": {"hi": "दक्षिण-पूर्व (South-East)", "mr": "आग्नेय (South-East)", "en": "South-East", "ta": "தென்கிழக்கு", "bn": "দক্ষিণ-পূর্ব"},
+        "south": {"hi": "दक्षिण", "mr": "दक्षिण", "en": "South", "ta": "தெற்கு", "bn": "দক্ষিণ"},
+        "south-west": {"hi": "दक्षिण-पश्चिम (South-West)", "mr": "नैऋत्य (South-West)", "en": "South-West", "ta": "தென்மேற்கு", "bn": "দক্ষিণ-পশ্চিম"},
+        "west": {"hi": "पश्चिम", "mr": "पश्चिम", "en": "West", "ta": "மேற்கு", "bn": "পশ্চিম"},
+        "north-west": {"hi": "उत्तर-पश्चिम (North-West)", "mr": "वायव्य (North-West)", "en": "North-West", "ta": "வடமேற்கு", "bn": "উত্তর-পশ্চিম"},
+        "ahead": {"hi": "उत्तर-पूर्व (North-East)", "mr": "ईशान्य (North-East)", "en": "North-East", "ta": "வடகிழக்கு", "bn": "উত্তর-পূর্ব"}
+    }
+    dir_key = direction.lower().strip()
+    dir_entry = dir_map.get(dir_key, dir_map["north-east"])
+    dir_str = dir_entry.get(lang_key, dir_entry["hi"])
+
+    # Generate message: ALWAYS state the direction the boatman needs to head
+    if dist > 25:
         scripts = {
-            "hi": f"सावधान! पर्यटक {name} {location} पर खतरे में हैं। पर्यटक सीधे सामने हैं, आगे बढ़ें।",
-            "mr": f"सावधान! पर्यटक {name} {location} येथे धोक्यात आहेत. पर्यटक थेट समोर आहेत, पुढे जा.",
-            "en": f"Alert! Tourist {name} is in danger at {location}. Tourist is directly ahead, proceed straight.",
-            "ta": f"எச்சரிக்கை! சுற்றுலாப் பயணி {name} {location} பகுதியில் ஆபத்தில் உள்ளார். நேராக முன்னேறிச் செல்லுங்கள்.",
-            "bn": f"সতর্কতা! পর্যটক {name} {location} ঘাটে বিপদে পড়েছেন। পর্যটক ঠিক সামনে আছেন, সোজা এগিয়ে যান।"
+            "hi": f"सावधान! पर्यटक {name} {location} पर खतरे में हैं। {dir_str} दिशा में {dist} मीटर आगे बढ़ें।",
+            "mr": f"सावधान! पर्यटक {name} {location} येथे धोक्यात आहेत. {dir_str} दिशेला {dist} मीटर पुढे जा.",
+            "en": f"Alert! Tourist {name} is in danger at {location}. Head {dir_str}, {dist} meters ahead.",
+            "ta": f"எச்சரிக்கை! சுற்றுலாப் பயணி {name} {location} பகுதியில் ஆபத்தில் உள்ளார். {dir_str} திசையில் {dist} மீட்டர் செல்லுங்கள்.",
+            "bn": f"সতর্কতা! পর্যটক {name} {location} ঘাটে বিপদে পড়েছেন। {dir_str} দিকে {dist} মিটার এগিয়ে যান।"
         }
     else:
         scripts = {
-            "hi": f"सावधान! पर्यटक {name} {location} पर खतरे में हैं। {direction} दिशा में {dist} मीटर आगे बढ़ें।",
-            "mr": f"सावधान! पर्यटक {name} {location} येथे धोक्यात आहेत. {direction} दिशेला {dist} मीटर पुढे जा.",
-            "en": f"Alert! Tourist {name} is in danger at {location}. Head {direction}, {dist} meters ahead.",
-            "ta": f"எச்சரிக்கை! சுற்றுலாப் பயணி {name} {location} பகுதியில் ஆபத்தில் உள்ளார். {direction} திசையில் {dist} மீட்டர் செல்லுங்கள்.",
-            "bn": f"সতর্কতা! পর্যটক {name} {location} ঘাটে বিপদে পড়েছেন। {direction} দিকে {dist} मीटर এগিয়ে যান।"
+            "hi": f"सावधान! पर्यटक {name} {location} पर खतरे में हैं। तुरंत {dir_str} दिशा में आगे बढ़ें।",
+            "mr": f"सावधान! पर्यटक {name} {location} येथे धोक्यात आहेत. त्वरित {dir_str} दिशेला पुढे जा.",
+            "en": f"Alert! Tourist {name} is in danger at {location}. Steer {dir_str} immediately.",
+            "ta": f"எச்சரிக்கை! சுற்றுலாப் பயணி {name} {location} பகுதியில் ஆபத்தில் உள்ளார். உடனடியாக {dir_str} திசையில் செல்லுங்கள்.",
+            "bn": f"সতর্কতা! পর্যটক {name} {location} ঘাটে বিপদে পড়েছেন। অবিলম্বে {dir_str} দিকে এগিয়ে যান।"
         }
 
     script_text = scripts.get(lang_key, scripts["hi"])
