@@ -1840,231 +1840,75 @@ function EmergencyCallModal({
   const tr = TRIAGE_LOCALES[lang] || TRIAGE_LOCALES.en
 
   const [callState, setCallState] = useState<'ringing' | 'connected'>(autoAccept ? 'connected' : 'ringing')
-  const [triageStep, setTriageStep] = useState<'asking' | 'safe' | 'stuck'>('asking')
+  const [ringingCountdown, setRingingCountdown] = useState(20)
   const [countdown, setCountdown] = useState(15)
   const [voiceHeard, setVoiceHeard] = useState<string>('')
-  const [isListeningVoice, setIsListeningVoice] = useState(false)
   const [duration, setDuration] = useState(0)
 
-  const ringtoneRef = useRef<{ stop: () => void } | null>(null)
+  const buzzerAudioRef = useRef<HTMLAudioElement | null>(null)
+  const ringTimerRef = useRef<NodeJS.Timeout | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const recognitionRef = useRef<any>(null)
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Synthesized telecom ringtone on mount if ringing
-  useEffect(() => {
-    if (autoAccept) {
-      startAdvisoryFlow()
-      return
-    }
-    let isPlaying = true
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-      if (AudioCtx) {
-        const ctx = new AudioCtx()
-        const ringCadence = () => {
-          if (!isPlaying || ctx.state === 'closed') return
-          try {
-            const now = ctx.currentTime
-            const osc1 = ctx.createOscillator()
-            const osc2 = ctx.createOscillator()
-            const gain = ctx.createGain()
-
-            osc1.frequency.value = 440
-            osc2.frequency.value = 480
-            osc1.type = 'sine'
-            osc2.type = 'sine'
-
-            gain.gain.setValueAtTime(0, now)
-            gain.gain.linearRampToValueAtTime(0.2, now + 0.05)
-            gain.gain.setValueAtTime(0.2, now + 1.2)
-            gain.gain.linearRampToValueAtTime(0, now + 1.25)
-
-            osc1.connect(gain)
-            osc2.connect(gain)
-            gain.connect(ctx.destination)
-
-            osc1.start(now)
-            osc2.start(now)
-            osc1.stop(now + 1.25)
-            osc2.stop(now + 1.25)
-
-            if (isPlaying) {
-              setTimeout(ringCadence, 2400)
-            }
-          } catch {}
-        }
-        ringCadence()
-        ringtoneRef.current = {
-          stop: () => {
-            isPlaying = false
-            try {
-              ctx.close()
-            } catch {}
-          }
-        }
-      }
-    } catch {}
-
-    return () => {
-      isPlaying = false
-      if (ringtoneRef.current) ringtoneRef.current.stop()
-      if (audioRef.current) audioRef.current.pause()
-      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop() } catch {}
-      }
-    }
-  }, [autoAccept])
-
-  // Call duration counter once answered
-  useEffect(() => {
-    if (callState === 'connected') {
-      const timer = setInterval(() => {
-        setDuration((d) => d + 1)
-      }, 1000)
-      return () => clearInterval(timer)
-    }
-  }, [callState])
-
-  // 15-second non-response auto-dispatch timer when asking "Are you safe?"
-  useEffect(() => {
-    if (triageStep !== 'asking') return
-
-    setCountdown(15)
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer)
-          handleStuck('unanswered_timeout')
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-    countdownTimerRef.current = timer
-
-    return () => {
-      if (timer) clearInterval(timer)
-    }
-  }, [triageStep])
-
-  // Web Speech API for hands-free voice response strictly in the chosen language
-  useEffect(() => {
-    if (triageStep !== 'asking') {
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop() } catch {}
-      }
-      setIsListeningVoice(false)
-      return
-    }
-
-    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (SpeechRec) {
+  const stopBuzzer = () => {
+    if (buzzerAudioRef.current) {
       try {
-        const rec = new SpeechRec()
-        rec.continuous = true
-        rec.interimResults = true
-        rec.lang = tr.voiceLocale
-
-        rec.onresult = (event: any) => {
-          const results = event.results
-          const transcript = results[results.length - 1][0].transcript.toLowerCase().trim()
-          setVoiceHeard(transcript)
-
-          // Language-specific safe words
-          if (/yes|haan|ha|safe|surakshit|theek|thik|fine|aam|am|ho|accha|okay|sari|surakshit aahe/i.test(transcript)) {
-            handleSafe()
-          }
-          // Language-specific stuck / emergency words
-          else if (/help|no|nahi|madad|stuck|fasa|fas|trapped|bachao|illai|na|danger|uthavi|sahajjo|adaklo|madat/i.test(transcript)) {
-            handleStuck('voice_detected')
-          }
-        }
-
-        rec.onerror = () => setIsListeningVoice(false)
-        rec.onend = () => {
-          if (triageStep === 'asking') {
-            try { rec.start() } catch {}
-          }
-        }
-
-        rec.start()
-        recognitionRef.current = rec
-        setIsListeningVoice(true)
-      } catch {
-        setIsListeningVoice(false)
-      }
+        buzzerAudioRef.current.pause()
+        buzzerAudioRef.current.currentTime = 0
+      } catch {}
     }
+  }
 
-    return () => {
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop() } catch {}
-      }
-    }
-  }, [triageStep, lang])
-
-  // Explicitly speak the triage question out loud in the native dialect
-  const speakTriageQuestion = () => {
+  const playHelpComingVoice = () => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel()
-        const utterance = new SpeechSynthesisUtterance(tr.spokenQuestion)
-        utterance.lang = tr.voiceLocale
-        utterance.rate = 0.95
-        utterance.pitch = 1.0
-        window.speechSynthesis.speak(utterance)
-      } catch (err) {
-        console.warn('SpeechSynthesis error:', err)
-      }
+        const messages: Record<string, { text: string; locale: string }> = {
+          mr: { text: 'कृपया सुरक्षित राहा, मदत तुमच्याकडे येत आहे.', locale: 'mr-IN' },
+          hi: { text: 'कृपया सुरक्षित रहें, सहायता आपके पास आ रही है।', locale: 'hi-IN' },
+          en: { text: 'Please be safe, help is coming for you.', locale: 'en-IN' },
+          ta: { text: 'தயவுசெய்து பாதுகாப்பாக இருங்கள், உங்களுக்கு உதவி வருகிறது.', locale: 'ta-IN' },
+          bn: { text: 'দয়া করে নিরাপদ থাকুন, সাহায্য আপনার কাছে আসছে।', locale: 'bn-IN' }
+        }
+        const item = messages[lang] || messages.en
+        const utt = new SpeechSynthesisUtterance(item.text)
+        utt.lang = item.locale
+        utt.rate = 0.95
+        window.speechSynthesis.speak(utt)
+      } catch {}
     }
   }
 
-  // Play Full Emergency Audio with Warning + Spoken Question in Native Voice
-  const startAdvisoryFlow = () => {
-    setTriageStep('asking')
-
-    try {
-      if (audioRef.current) {
-        audioRef.current.pause()
-      }
-
-      // Studio-quality Indic synthesized voice with alert AND triage question in tourist's native language
-      const audioUrl = `/audio/timbre_advisory_${lang}_danger.mp3`
-      const audio = new Audio(audioUrl)
-      audio.volume = 1.0
-      audioRef.current = audio
-
-      audio.onended = () => {
-        // MP3 playback complete, speech recognition continues listening
-      }
-
-      const promise = audio.play()
-      if (promise !== undefined) {
-        promise.catch((err) => {
-          console.warn('Audio play prevented or missing, falling back to Web Speech synthesis:', err)
-          speakTriageQuestion()
-        })
-      }
-    } catch (e) {
-      speakTriageQuestion()
+  const handleStuck = (reason?: string) => {
+    stopBuzzer()
+    if (ringTimerRef.current) clearInterval(ringTimerRef.current)
+    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch {}
     }
-  }
-
-  const acceptCall = () => {
-    if (ringtoneRef.current) ringtoneRef.current.stop()
-    setCallState('connected')
-    startAdvisoryFlow()
-  }
-
-  const declineCall = () => {
-    if (ringtoneRef.current) ringtoneRef.current.stop()
     if (audioRef.current) audioRef.current.pause()
+
+    playHelpComingVoice()
+
+    const fd = new FormData()
+    fd.append('phone', phone)
+    fd.append('tourist_name', userName)
+    fd.append('incident_type', reason === 'unanswered_ringing_20s_timeout'
+      ? 'Unanswered Tourist (20s Ringing Timeout Auto-Rescue)'
+      : 'Tourist Unsafe / Needs Immediate Rescue')
+    fd.append('lat', (location?.lat || 25.3176).toString())
+    fd.append('lon', (location?.lon || 83.0060).toString())
+    fd.append('location_name', location?.placeName || placeName)
+    fetch('/api/tourist/sos', { method: 'POST', body: fd }).catch(() => {})
+
+    if (onSos) onSos()
     close()
   }
 
-  // Tourist reports SAFE: Close call modal immediately and return to homescreen with prominent Red Warning Box!
   const handleSafe = () => {
+    stopBuzzer()
+    if (ringTimerRef.current) clearInterval(ringTimerRef.current)
     if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
     if (recognitionRef.current) {
       try { recognitionRef.current.stop() } catch {}
@@ -2075,28 +1919,160 @@ function EmergencyCallModal({
     close()
   }
 
-  // Tourist reports STUCK or 15s timeout: Close modal immediately, return to homescreen, and notify Boatman/NDRF!
-  const handleStuck = (reason?: string) => {
-    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch {}
-    }
+  const declineCall = () => {
+    stopBuzzer()
+    if (ringTimerRef.current) clearInterval(ringTimerRef.current)
     if (audioRef.current) audioRef.current.pause()
-
-    // Dispatches SOS alert to nearest boatmen via backend
-    const fd = new FormData()
-    fd.append('phone', phone)
-    fd.append('tourist_name', userName)
-    fd.append('incident_type', reason === 'unanswered_timeout'
-      ? 'Unanswered Tourist (15s Silence Auto-Dispatch)'
-      : 'Tourist Stuck / Needs Immediate Rescue')
-    fd.append('lat', (location?.lat || 25.3176).toString())
-    fd.append('lon', (location?.lon || 83.0060).toString())
-    fd.append('location_name', location?.placeName || placeName)
-    fetch('/api/tourist/sos', { method: 'POST', body: fd }).catch(() => {})
-
-    if (onSos) onSos()
     close()
+  }
+
+  const acceptCall = () => {
+    stopBuzzer()
+    if (ringTimerRef.current) clearInterval(ringTimerRef.current)
+    setCallState('connected')
+    startAdvisoryFlow()
+  }
+
+  useEffect(() => {
+    if (autoAccept) {
+      startAdvisoryFlow()
+      return
+    }
+
+    try {
+      const buzzer = new Audio('/audio/buzzer.mp3')
+      buzzer.loop = true
+      buzzer.volume = 1.0
+      buzzerAudioRef.current = buzzer
+      buzzer.play().catch(() => {})
+    } catch {}
+
+    setRingingCountdown(20)
+    const timer = setInterval(() => {
+      setRingingCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          handleStuck('unanswered_ringing_20s_timeout')
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    ringTimerRef.current = timer
+
+    return () => {
+      stopBuzzer()
+      if (timer) clearInterval(timer)
+      if (audioRef.current) audioRef.current.pause()
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop() } catch {}
+      }
+    }
+  }, [autoAccept])
+
+  useEffect(() => {
+    if (callState === 'connected') {
+      const timer = setInterval(() => {
+        setDuration((d) => d + 1)
+      }, 1000)
+      return () => clearInterval(timer)
+    }
+  }, [callState])
+
+  const spokenWarnings: Record<string, { warning: string; question: string; locale: string }> = {
+    mr: {
+      warning: 'सावधान! नाविक आणि अधिकाऱ्यांनी पाण्याच्या पातळीत अचानक वाढ झाल्याचा इशारा दिला आहे. कृपया तात्काळ पाण्यापासून व घाटापासून दूर जा.',
+      question: 'तुम्ही सुरक्षित आहात का?',
+      locale: 'mr-IN'
+    },
+    hi: {
+      warning: 'सावधान! नाव चालकों और अधिकारियों ने जल स्तर में अचानक वृद्धि की चेतावनी दी है। कृपया तुरंत पानी और घाट से दूर रहें।',
+      question: 'क्या आप सुरक्षित हैं?',
+      locale: 'hi-IN'
+    },
+    en: {
+      warning: 'Warning! Local boatmen and officials reported rising water levels. Please move away from the river bank immediately.',
+      question: 'Are you safe?',
+      locale: 'en-IN'
+    },
+    ta: {
+      warning: 'எச்சரிக்கை! படகோட்டிகள் திடீர் நீர்வரத்து குறித்து எச்சரித்துள்ளனர். தண்ணீரை விட்டு உடனடியாக விலகி இருங்கள்.',
+      question: 'நீங்கள் பாதுகாப்பாக இருக்கிறீர்களா?',
+      locale: 'ta-IN'
+    },
+    bn: {
+      warning: 'সতর্কতা! মাঝিরা নদীতে দ্রুত जलবৃদ্ধির সতর্কতা জারি করেছে। অবিলম্বে নদীর ঘাট ও জল থেকে দূরে সরে যান।',
+      question: 'আপনি কি নিরাপদ?',
+      locale: 'bn-IN'
+    }
+  }
+
+  const activeMsg = spokenWarnings[lang] || spokenWarnings.en
+
+  const speakAdvisoryViaTTS = () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel()
+        const utt = new SpeechSynthesisUtterance(`${activeMsg.warning} ${activeMsg.question}`)
+        utt.lang = activeMsg.locale
+        utt.rate = 0.95
+        window.speechSynthesis.speak(utt)
+      } catch {}
+    }
+  }
+
+  const startAdvisoryFlow = () => {
+    try {
+      if (audioRef.current) audioRef.current.pause()
+      const audioUrl = `/audio/timbre_advisory_${lang}_danger.mp3`
+      const audio = new Audio(audioUrl)
+      audio.volume = 1.0
+      audioRef.current = audio
+      audio.play().catch(() => {
+        speakAdvisoryViaTTS()
+      })
+    } catch {
+      speakAdvisoryViaTTS()
+    }
+
+    setCountdown(15)
+    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
+    const tTimer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(tTimer)
+          handleStuck('unanswered_15s_timeout')
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    countdownTimerRef.current = tTimer
+
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (SpeechRec) {
+      try {
+        const rec = new SpeechRec()
+        rec.continuous = true
+        rec.interimResults = true
+        rec.lang = activeMsg.locale
+
+        rec.onresult = (event: any) => {
+          const results = event.results
+          const transcript = results[results.length - 1][0].transcript.toLowerCase().trim()
+          setVoiceHeard(transcript)
+
+          if (/yes|haan|ha|safe|surakshit|theek|thik|fine|aam|am|ho|hoy|accha|okay|sari|surakshit aahe|me surakshit|mai surakshit/i.test(transcript)) {
+            handleSafe()
+          } else if (/help|no|nahi|madad|stuck|fasa|fas|trapped|bachao|illai|na|danger|uthavi|sahajjo|adaklo|madat/i.test(transcript)) {
+            handleStuck('voice_stuck_detected')
+          }
+        }
+        rec.start()
+        recognitionRef.current = rec
+      } catch {}
+    }
   }
 
   return (
@@ -2105,8 +2081,8 @@ function EmergencyCallModal({
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        background: 'rgba(3, 7, 18, 0.88)',
-        backdropFilter: 'blur(20px)',
+        background: 'rgba(3, 7, 18, 0.94)',
+        backdropFilter: 'blur(24px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -2119,77 +2095,83 @@ function EmergencyCallModal({
           50% { transform: scale(1.35); opacity: 0.15; }
           100% { transform: scale(0.95); opacity: 0.9; }
         }
+        @keyframes ringRadarPulse {
+          0% { transform: scale(0.85); opacity: 0.8; }
+          100% { transform: scale(1.6); opacity: 0; }
+        }
+        @keyframes ringPhoneShake {
+          0%, 100% { transform: rotate(0deg); }
+          20% { transform: rotate(-15deg); }
+          40% { transform: rotate(15deg); }
+          60% { transform: rotate(-10deg); }
+          80% { transform: rotate(10deg); }
+        }
         @keyframes waveScale {
           0% { transform: scaleY(0.25); }
           100% { transform: scaleY(1.0); }
         }
-        @keyframes softBeacon {
-          0%, 100% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); }
-          50% { box-shadow: 0 0 45px rgba(239, 68, 68, 0.85); }
+        @keyframes beaconPulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.06); opacity: 0.85; }
         }
       `}</style>
 
-      {/* Main Calling Card */}
       <section
         style={{
-          background: 'linear-gradient(180deg, #0d1726 0%, #080f1a 100%)',
+          background: 'linear-gradient(180deg, #0d1726 0%, #060b14 100%)',
           border: callState === 'ringing'
-            ? '2px solid rgba(239, 68, 68, 0.8)'
-            : (triageStep === 'stuck' ? '2px solid rgba(239, 68, 68, 0.9)' : '1.5px solid rgba(14, 165, 233, 0.6)'),
-          borderRadius: '24px',
+            ? '2.5px solid #ef4444'
+            : '2px solid rgba(56, 189, 248, 0.4)',
+          borderRadius: '28px',
           maxWidth: '430px',
           width: '100%',
-          padding: '24px 20px',
+          padding: '28px 24px',
           color: '#ffffff',
           boxShadow: callState === 'ringing'
-            ? '0 25px 60px rgba(239, 68, 68, 0.35)'
-            : '0 25px 60px rgba(0, 0, 0, 0.6)',
+            ? '0 25px 60px rgba(239, 68, 68, 0.45), 0 0 40px rgba(239, 68, 68, 0.3)'
+            : '0 25px 60px rgba(0, 0, 0, 0.7)',
           position: 'relative',
           overflow: 'hidden'
         }}
         role="dialog"
         aria-modal="true"
       >
-        {/* Top Telecom Broadcast Bar */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span
-              style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: callState === 'ringing' ? '#ef4444' : '#10b981',
-                animation: 'ringPulse 1.5s infinite'
-              }}
-            />
-            <span style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '0.06em', color: callState === 'ringing' ? '#fca5a5' : '#6ee7b7' }}>
-              {callState === 'ringing' ? '🔴 112 DISASTER INCOMING' : `🟢 00:${String(duration).padStart(2, '0')} · LIVE VOICE GRID`}
-            </span>
-          </div>
-
-          <span
-            style={{
-              fontSize: '10px',
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: '6px',
-              background: 'rgba(255, 255, 255, 0.08)',
-              color: '#94a3b8'
-            }}
-          >
-            GNANI TIMBRE AI
-          </span>
-        </div>
-
         {callState === 'ringing' ? (
-          <>
-            {/* Animated Ringing Beacon */}
+          <div style={{ textAlign: 'center', padding: '10px 0 6px' }}>
+            {/* Top Network Badge */}
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.45)',
+                borderRadius: '20px',
+                padding: '6px 14px',
+                marginBottom: '26px'
+              }}
+            >
+              <span
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: '#ef4444',
+                  animation: 'ringPulse 1.2s infinite'
+                }}
+              />
+              <span style={{ fontSize: '11px', fontWeight: 900, color: '#fca5a5', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                🚨 112 SOVEREIGN EMERGENCY GRID
+              </span>
+            </div>
+
+            {/* Glowing Avatar */}
             <div
               style={{
                 position: 'relative',
-                width: '84px',
-                height: '84px',
-                margin: '8px auto 18px',
+                width: '110px',
+                height: '110px',
+                margin: '0 auto 22px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -2198,142 +2180,145 @@ function EmergencyCallModal({
               <div
                 style={{
                   position: 'absolute',
-                  inset: -16,
+                  inset: -18,
                   borderRadius: '50%',
                   background: 'rgba(239, 68, 68, 0.25)',
-                  animation: 'ringPulse 1.8s infinite'
+                  animation: 'ringRadarPulse 1.8s infinite'
                 }}
               />
               <div
                 style={{
-                  width: '74px',
-                  height: '74px',
+                  position: 'absolute',
+                  inset: -8,
                   borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 0 35px rgba(239, 68, 68, 0.7)'
+                  background: 'rgba(239, 68, 68, 0.35)',
+                  animation: 'ringRadarPulse 1.8s infinite 0.5s'
                 }}
-              >
-                <PhoneCall style={{ width: '34px', height: '34px', color: '#fff' }} />
-              </div>
-            </div>
-
-            <div style={{ textAlign: 'center' }}>
-              <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                River Rescue Disaster Command
-              </span>
-              <h2 style={{ fontSize: '20px', fontWeight: 900, margin: '4px 0 2px', color: '#ffffff' }}>
-                Boat #14 · {boatmanName}
-              </h2>
-              <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 12px', fontWeight: 600 }}>
-                {t.callSector(placeName)} · High Surge Warning
-              </p>
-            </div>
-
-            <div
-              style={{
-                background: 'rgba(239, 68, 68, 0.12)',
-                border: '1px solid rgba(239, 68, 68, 0.35)',
-                borderRadius: '12px',
-                padding: '10px 12px',
-                margin: '12px 0 20px',
-                fontSize: '11.5px',
-                color: '#fca5a5',
-                fontWeight: 700,
-                textAlign: 'center'
-              }}
-            >
-              ⚠️ {tr.dangerAdvisoryTag}
-            </div>
-
-            {/* Answer / Decline Buttons */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <button
-                type="button"
-                onClick={declineCall}
-                style={{
-                  background: 'rgba(239, 68, 68, 0.15)',
-                  border: '1.5px solid rgba(239, 68, 68, 0.5)',
-                  color: '#f87171',
-                  padding: '14px',
-                  borderRadius: '16px',
-                  fontSize: '13.5px',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px'
-                }}
-              >
-                <PhoneOff style={{ width: '18px', height: '18px' }} /> {t.callDecline}
-              </button>
-
-              <button
-                type="button"
-                onClick={acceptCall}
-                style={{
-                  background: 'linear-gradient(135deg, #10b981, #059669)',
-                  border: 'none',
-                  color: '#ffffff',
-                  padding: '14px',
-                  borderRadius: '16px',
-                  fontSize: '13.5px',
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  boxShadow: '0 6px 25px rgba(16, 185, 129, 0.45)'
-                }}
-              >
-                <PhoneCall style={{ width: '18px', height: '18px' }} /> {t.callAccept}
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Caller Identification Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+              />
               <div
                 style={{
-                  width: '46px',
-                  height: '46px',
+                  width: '88px',
+                  height: '88px',
                   borderRadius: '50%',
-                  background: triageStep === 'stuck' ? 'linear-gradient(135deg, #ef4444, #991b1b)' : 'linear-gradient(135deg, #0284c7, #0369a1)',
+                  background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '22px',
-                  flexShrink: 0,
-                  boxShadow: '0 0 20px rgba(2, 132, 199, 0.5)'
+                  boxShadow: '0 0 45px rgba(239, 68, 68, 0.8)',
+                  border: '3px solid #ffffff'
                 }}
               >
-                {triageStep === 'stuck' ? '🚨' : '📡'}
+                <PhoneCall style={{ width: '40px', height: '40px', color: '#ffffff', animation: 'ringPhoneShake 0.6s infinite' }} />
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <strong style={{ fontSize: '14px', color: '#ffffff', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {boatmanName} (Boat #14) · River Patrol
-                </strong>
-                <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>
-                  📍 {placeName} · Sovereign Audio Channel
+            </div>
+
+            {/* Caller Header */}
+            <h1 style={{ fontSize: '24px', fontWeight: 900, margin: '0 0 4px', color: '#ffffff', letterSpacing: '-0.02em' }}>
+              {lang === 'mr' ? 'आपत्कालीन कॉल' : (lang === 'hi' ? 'आपातकालीन कॉल' : 'EMERGENCY CALL')}
+            </h1>
+            <div style={{ fontSize: '14.5px', color: '#38bdf8', fontWeight: 800, marginBottom: '4px' }}>
+              {lang === 'mr' ? 'नदी गस्त व आपत्ती बचाव दल' : (lang === 'hi' ? 'नदी गश्ती व राहत दल' : 'River Patrol & Disaster Alert Grid')}
+            </div>
+            <div style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 600, marginBottom: '16px' }}>
+              {boatmanName} (Boat #14) · {placeName}
+            </div>
+
+            {/* Ringing Timer Chip */}
+            <div
+              style={{
+                display: 'inline-block',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '12px',
+                padding: '8px 16px',
+                fontSize: '12px',
+                color: '#fca5a5',
+                fontWeight: 700,
+                marginBottom: '32px'
+              }}
+            >
+              🔔 {lang === 'mr' ? `कॉल वाजत आहे... (${ringingCountdown} सेकंदात आपोआप मदत पाठवली जाईल)` : (lang === 'hi' ? `कॉल बज रहा है... (${ringingCountdown}s में स्वतः बचाव)` : `Ringing... (Auto-rescue dispatched in ${ringingCountdown}s)`)}
+            </div>
+
+            {/* Realistic Accept / Decline Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', maxWidth: '300px', margin: '0 auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={declineCall}
+                  style={{
+                    width: '68px',
+                    height: '68px',
+                    borderRadius: '50%',
+                    background: '#dc2626',
+                    border: 'none',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    boxShadow: '0 8px 25px rgba(220, 38, 38, 0.5)'
+                  }}
+                >
+                  <PhoneOff style={{ width: '28px', height: '28px' }} />
+                </button>
+                <span style={{ fontSize: '12px', color: '#fca5a5', fontWeight: 800 }}>
+                  {lang === 'mr' ? 'नाकारा' : (lang === 'hi' ? 'काटें' : 'Decline')}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={acceptCall}
+                  style={{
+                    width: '68px',
+                    height: '68px',
+                    borderRadius: '50%',
+                    background: '#16a34a',
+                    border: 'none',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    boxShadow: '0 8px 30px rgba(22, 163, 74, 0.7)',
+                    animation: 'beaconPulse 1.5s infinite'
+                  }}
+                >
+                  <PhoneCall style={{ width: '28px', height: '28px' }} />
+                </button>
+                <span style={{ fontSize: '12px', color: '#86efac', fontWeight: 800 }}>
+                  {lang === 'mr' ? 'उचला' : (lang === 'hi' ? 'उत्तर दें' : 'Accept')}
                 </span>
               </div>
             </div>
+          </div>
+        ) : (
+          <div style={{ padding: '6px 2px' }}>
+            {/* Connected Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', animation: 'beaconPulse 1.2s infinite' }} />
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#34d399', fontFamily: 'monospace' }}>
+                  00:{String(duration).padStart(2, '0')} · {lang === 'mr' ? 'थेट ऑडिओ जोडला' : (lang === 'hi' ? 'लाइव ऑडियो कनेक्टेड' : 'CONNECTED')}
+                </span>
+              </div>
+              <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>
+                {boatmanName} (Boat #14)
+              </span>
+            </div>
 
-            {/* Audio Waveform Equalizer */}
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px', height: '24px', marginBottom: '14px' }}>
-              {[0.3, 0.8, 0.5, 1.0, 0.4, 0.9, 0.6, 0.75, 0.35].map((scale, i) => (
+            {/* Equalizer Soundwave */}
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px', height: '28px', margin: '14px 0 20px' }}>
+              {[0.3, 0.75, 0.5, 1.0, 0.4, 0.85, 0.6, 0.9, 0.35].map((scale, i) => (
                 <span
                   key={i}
                   style={{
-                    width: '3.5px',
-                    height: '22px',
+                    width: '4px',
+                    height: '24px',
                     borderRadius: '2px',
-                    background: triageStep === 'stuck' ? '#ef4444' : '#10b981',
+                    background: '#38bdf8',
                     transform: `scaleY(${scale})`,
                     animation: 'waveScale 0.75s ease-in-out infinite alternate',
                     animationDelay: `${i * 0.08}s`
@@ -2342,314 +2327,57 @@ function EmergencyCallModal({
               ))}
             </div>
 
-            {/* STEP: Asking / Conversational Triage */}
-            {triageStep === 'asking' && (
-              <div>
-                {/* Spoken Teleprompter Box */}
-                <div
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    borderRadius: '14px',
-                    padding: '12px 14px',
-                    marginBottom: '14px'
-                  }}
-                >
-                  <div style={{ fontSize: '10px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.06em' }}>
-                    🎙️ Voice Advisory Broadcast
-                  </div>
-                  <p style={{ fontSize: '12.5px', lineHeight: '1.45', margin: 0, color: '#f1f5f9', fontWeight: 500 }}>
-                    &ldquo;{t.advisoryDanger}&rdquo;
-                  </p>
-                </div>
-
-                {/* Question Callout */}
-                <div
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(8, 15, 26, 0.9))',
-                    border: '1.5px solid #0284c7',
-                    borderRadius: '16px',
-                    padding: '14px',
-                    marginBottom: '14px',
-                    textAlign: 'center'
-                  }}
-                >
-                  <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#38bdf8', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                    ❓ {tr.step2Tag}
-                  </span>
-                  <h3 style={{ fontSize: '17px', fontWeight: 900, margin: '6px 0 2px', color: '#ffffff' }}>
-                    &ldquo;{tr.questionText}&rdquo;
-                  </h3>
-                  <div style={{ fontSize: '12.5px', color: '#38bdf8', fontWeight: 700 }}>
-                    {tr.instructionText}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={speakTriageQuestion}
-                    style={{
-                      marginTop: '8px',
-                      background: 'rgba(0, 212, 255, 0.15)',
-                      border: '1px solid #00d4ff',
-                      color: '#00d4ff',
-                      borderRadius: '8px',
-                      padding: '4px 10px',
-                      fontSize: '11px',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '5px'
-                    }}
-                  >
-                    <Volume2 style={{ width: '13px', height: '13px' }} />
-                    {lang === 'hi' ? 'सवाल दोबारा सुनें (AI Voice)' : (lang === 'mr' ? 'प्रश्न पुन्हा ऐका (AI Voice)' : 'Re-hear AI Question')}
-                  </button>
-
-                  {/* 15s Countdown Meter */}
-                  <div
-                    style={{
-                      marginTop: '8px',
-                      padding: '4px 8px',
-                      borderRadius: '8px',
-                      background: 'rgba(239, 68, 68, 0.12)',
-                      border: '1px solid rgba(239, 68, 68, 0.35)',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      color: '#f87171'
-                    }}
-                  >
-                    {tr.countdownText(countdown)}
-                  </div>
-                </div>
-
-                {/* Voice Recognition Status Pill */}
-                {isListeningVoice && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      padding: '6px 12px',
-                      borderRadius: '20px',
-                      background: 'rgba(14, 165, 233, 0.1)',
-                      border: '1px solid rgba(14, 165, 233, 0.3)',
-                      marginBottom: '12px',
-                      fontSize: '11px',
-                      color: '#38bdf8',
-                      fontWeight: 700
-                    }}
-                  >
-                    <Mic style={{ width: '13px', height: '13px', animation: 'ringPulse 1.2s infinite' }} />
-                    <span>{voiceHeard ? `Heard: "${voiceHeard}"` : tr.micListening}</span>
-                  </div>
-                )}
-
-                {/* Tactile Response Buttons */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {/* Button 1: SAFE */}
-                  <button
-                    type="button"
-                    onClick={handleSafe}
-                    style={{
-                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.4))',
-                      border: '2px solid #10b981',
-                      borderRadius: '14px',
-                      padding: '12px 14px',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: '14.5px', fontWeight: 900, color: '#34d399' }}>
-                        {tr.safeButtonTitle}
-                      </div>
-                      <div style={{ fontSize: '10.5px', color: '#cbd5e1', marginTop: '2px' }}>
-                        {tr.safeButtonSub}
-                      </div>
-                    </div>
-                    <span style={{ background: '#10b981', color: '#022c22', fontSize: '11px', fontWeight: 900, padding: '4px 8px', borderRadius: '6px' }}>
-                      {tr.safeBadge}
-                    </span>
-                  </button>
-
-                  {/* Button 2: STUCK / NEED HELP */}
-                  <button
-                    type="button"
-                    onClick={() => handleStuck('button_pressed')}
-                    style={{
-                      background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.28), rgba(185, 28, 28, 0.45))',
-                      border: '2px solid #ef4444',
-                      borderRadius: '14px',
-                      padding: '12px 14px',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      animation: 'softBeacon 2s infinite'
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: '14.5px', fontWeight: 900, color: '#f87171' }}>
-                        {tr.stuckButtonTitle}
-                      </div>
-                      <div style={{ fontSize: '10.5px', color: '#cbd5e1', marginTop: '2px' }}>
-                        {tr.stuckButtonSub}
-                      </div>
-                    </div>
-                    <span style={{ background: '#ef4444', color: '#ffffff', fontSize: '11px', fontWeight: 900, padding: '4px 8px', borderRadius: '6px' }}>
-                      {tr.stuckBadge}
-                    </span>
-                  </button>
-                </div>
+            {/* Warning + Question Card */}
+            <div style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1.5px solid rgba(239, 68, 68, 0.45)', borderRadius: '18px', padding: '18px 20px', marginBottom: '18px', textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', fontWeight: 900, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
+                ⚠️ {lang === 'mr' ? 'जल सुरक्षेचा इशारा' : (lang === 'hi' ? 'जल सुरक्षा चेतावनी' : 'WATER HAZARD WARNING')}
               </div>
-            )}
-
-            {/* STEP: Safe View */}
-            {triageStep === 'safe' && (
-              <div
-                style={{
-                  background: 'rgba(16, 185, 129, 0.15)',
-                  border: '1.5px solid #10b981',
-                  borderRadius: '16px',
-                  padding: '24px 16px',
-                  margin: '12px 0',
-                  textAlign: 'center'
-                }}
-              >
-                <div style={{ fontSize: '42px', marginBottom: '8px' }}>🛡️</div>
-                <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '0 0 6px', color: '#34d399' }}>
-                  {tr.safeScreenTitle}
-                </h3>
-                <p style={{ fontSize: '12px', color: '#cbd5e1', margin: '0 0 16px', lineHeight: '1.45' }}>
-                  {tr.safeScreenDesc(boatmanName)}
-                </p>
-                <button
-                  type="button"
-                  onClick={close}
-                  style={{
-                    background: '#10b981',
-                    border: 'none',
-                    color: '#022c22',
-                    padding: '10px 20px',
-                    borderRadius: '10px',
-                    fontSize: '12.5px',
-                    fontWeight: 900,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {tr.safeCloseBtn}
-                </button>
+              <p style={{ fontSize: '14.5px', fontWeight: 700, color: '#ffffff', lineHeight: '1.45', margin: '0 0 14px' }}>
+                {activeMsg.warning}
+              </p>
+              <div style={{ fontSize: '19px', fontWeight: 900, color: '#38bdf8' }}>
+                {activeMsg.question}
               </div>
-            )}
+            </div>
 
-            {/* STEP: Stuck / Rescue Vessel Dispatched View */}
-            {triageStep === 'stuck' && (
-              <div
-                style={{
-                  background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(20, 5, 8, 0.95))',
-                  border: '2px solid #ef4444',
-                  borderRadius: '18px',
-                  padding: '20px 16px',
-                  margin: '12px 0',
-                  textAlign: 'center'
-                }}
-              >
-                <div style={{ fontSize: '40px', marginBottom: '6px' }}>🚨</div>
-                <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '0 0 4px', color: '#f87171' }}>
-                  {tr.stuckScreenTitle}
-                </h3>
-                <p style={{ fontSize: '12px', color: '#f1f5f9', margin: '0 0 12px', lineHeight: '1.45' }}>
-                  {tr.stuckScreenDesc(boatmanName)}
-                </p>
-
-                {/* Nautical HUD vector box */}
-                <div
-                  style={{
-                    background: 'rgba(0, 0, 0, 0.6)',
-                    border: '1px solid rgba(239, 68, 68, 0.35)',
-                    borderRadius: '12px',
-                    padding: '10px 12px',
-                    marginBottom: '14px',
-                    fontSize: '11px',
-                    color: '#cbd5e1',
-                    textAlign: 'left'
-                  }}
-                >
-                  <div style={{ color: '#38bdf8', fontWeight: 800, marginBottom: '2px' }}>
-                    {tr.stuckVectorTitle}
-                  </div>
-                  <div>{tr.stuckVectorSub}</div>
-                  <div style={{ color: '#94a3b8', fontSize: '10px', marginTop: '4px' }}>
-                    Live GPS Lock: {(location?.lat || 25.3176).toFixed(5)}° N, {(location?.lon || 83.0060).toFixed(5)}° E
-                  </div>
-                </div>
-
-                {/* Action buttons */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <button
-                    type="button"
-                    onClick={close}
-                    style={{
-                      background: '#0284c7',
-                      border: 'none',
-                      color: '#ffffff',
-                      padding: '12px',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      fontWeight: 900,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    <Compass style={{ width: '15px', height: '15px' }} /> {tr.viewRadarBtn}
-                  </button>
-
-                  <a
-                    href="tel:112"
-                    style={{
-                      background: '#ef4444',
-                      color: '#ffffff',
-                      padding: '12px',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      fontWeight: 900,
-                      textDecoration: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    <Phone style={{ width: '15px', height: '15px' }} /> {tr.dial112Btn}
-                  </a>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={close}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#94a3b8',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    marginTop: '10px'
-                  }}
-                >
-                  {tr.endCallBtn}
-                </button>
+            {/* 15s Timer & Voice Recognition Indicator */}
+            <div style={{ textAlign: 'center', marginBottom: '18px' }}>
+              <div style={{ fontSize: '12px', color: '#fca5a5', fontWeight: 800, marginBottom: '6px' }}>
+                ⏳ {lang === 'mr' ? `प्रतिसाद वेळ: ${countdown} सेकंद शिल्लक` : (lang === 'hi' ? `उत्तर देने का समय: ${countdown}s शेष` : `Response timer: ${countdown}s remaining`)}
               </div>
-            )}
-          </>
+              <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <Mic style={{ width: '13px', height: '13px', color: '#38bdf8', animation: 'beaconPulse 1.2s infinite' }} />
+                <span>{voiceHeard ? `"${voiceHeard}"` : (lang === 'mr' ? 'ऐकत आहे... "होय / सुरक्षित" बोला किंवा खाली दाबा' : (lang === 'hi' ? 'सुन रहा है... "हाँ / सुरक्षित" बोलें या नीचे दबाएं' : 'Listening... Speak "Yes / I am safe" or tap below'))}</span>
+              </div>
+            </div>
+
+            {/* Single Primary Action Button */}
+            <button
+              type="button"
+              onClick={handleSafe}
+              style={{
+                width: '100%',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                border: '2px solid #34d399',
+                borderRadius: '16px',
+                padding: '16px 20px',
+                color: '#ffffff',
+                fontSize: '16px',
+                fontWeight: 900,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                boxShadow: '0 8px 30px rgba(16, 185, 129, 0.45)'
+              }}
+            >
+              <ShieldCheck style={{ width: '22px', height: '22px' }} />
+              <span>
+                {lang === 'mr' ? 'होय, मी सुरक्षित आहे (Yes, I am safe)' : (lang === 'hi' ? 'हाँ, मैं सुरक्षित हूँ (Yes, I am safe)' : 'Yes, I am safe')}
+              </span>
+            </button>
+          </div>
         )}
       </section>
     </div>
@@ -2844,21 +2572,12 @@ function TouristDashboard({
         const res = await fetch(`/api/tourist/status?lat=${location.lat}&lon=${location.lon}`)
         if (res.ok) {
           const data = await res.json()
-          // Only apply sector data if within 3.0 km of tourist's water body!
-          if (data.distance_km <= 3.0) {
+          if (data.has_broadcast) {
             applySectorData(data)
-          } else {
-            setStatus('safe')
-            setOutOfRangeNotice(null)
-            setWaterStatusText(`All clear at ${location.placeName}. Local river patrol reports normal conditions.`)
-            setBoatmanName('Local River Patrol')
-            setDistanceText('Patrolling local 3 km sector')
-            setHindiQuote('स्थानीय जल क्षेत्र पूरी तरह शांत और सुरक्षित है। कोई खतरा नहीं है।')
-            setTranslation(`Water is completely calm near ${location.placeName}. Boating permitted.`)
-          }
-          // Seed the ref with current dispatch ID so simply opening/refreshing the page NEVER auto-calls the tourist
-          if (data.dispatch_id || data.timestamp) {
-            lastHandledDispatchIdRef.current = data.dispatch_id || data.timestamp
+            if (data.status === 'danger' && !isVerifiedSafe) {
+              setStatus('danger')
+              setShowCallModal(true)
+            }
           }
         }
       } catch (err) {
@@ -2875,57 +2594,20 @@ function TouristDashboard({
         try {
           const msg = JSON.parse(event.data)
           if (msg.type === 'sector_update' && msg.data) {
-            const broadcastLat = msg.data.lat ?? location.lat
-            const broadcastLon = msg.data.lon ?? location.lon
-            const currentDist = calculateHaversineDistance(location.lat, location.lon, broadcastLat, broadcastLon)
-
-            // STRICT HYPER-LOCAL RADIUS (3.0 km max):
-            // If an incident happened in Nagpur (624 km away), tourist in Pune/Swargate MUST NOT have their dashboard hijacked!
-            if (currentDist > 3000) {
-              console.log(`[CoastGuard Grid] Broadcast from ${msg.data.location || 'remote'} is ${(currentDist / 1000).toFixed(1)} km away (> 3.0 km). Outside local river grid for ${location.placeName}. Ignored.`);
-              return
-            }
-
-            // Only apply sector data if within 3.0 km of tourist
             applySectorData(msg.data)
-            const incomingDispatchId = msg.data.dispatch_id || msg.data.timestamp || String(Date.now())
-            const isFreshBroadcast = incomingDispatchId !== lastHandledDispatchIdRef.current
-
-            // Check danger perimeter (2.0 km)
-            const isWithinPerimeter = currentDist <= 2000
-
-            if (msg.data.status === 'danger' && isFreshBroadcast) {
-              lastHandledDispatchIdRef.current = incomingDispatchId
-
-              if (!isWithinPerimeter) {
-                console.log(`Incident within 3km but outside 2.0 km danger perimeter (${(currentDist / 1000).toFixed(1)} km away). Suppressing call modal.`);
-                setStatus('safe')
-                setOutOfRangeNotice({
-                  location: msg.data.location || 'Nearby Sector',
-                  distanceKm: (currentDist / 1000).toFixed(1)
-                })
-                setShowCallModal(false)
-                return
-              }
-
-              // Inside 2.0 km perimeter: Trigger Emergency Call
+            if (msg.data.status === 'danger') {
               setStatus('danger')
-              setOutOfRangeNotice(null)
-              if (isVerifiedSafe) {
-                console.log('Tourist already marked safe. Suppressing disruptive call popup.')
-                return
+              if (!isVerifiedSafe) {
+                setShowCallModal(true)
+                const fd = new FormData()
+                fd.append('phone', phone)
+                fd.append('status', 'danger')
+                fd.append('language', lang)
+                fetch('/api/tourist/call', { method: 'POST', body: fd }).catch(() => {})
               }
-              triggerOsEmergencyAlert(
-                `🚨 CoastGuard Emergency (112): ${msg.data.boatman_name || 'Boatman'} Alert!`,
-                `Water surge warning near ${location.placeName}. Evacuate river bank immediately!`
-              )
-              setCallAutoAccept(false)
-              setShowCallModal(true)
-              const fd = new FormData()
-              fd.append('phone', phone)
-              fd.append('status', 'danger')
-              fd.append('language', lang)
-              fetch('/api/tourist/call', { method: 'POST', body: fd }).catch(() => {})
+            } else if (msg.data.status === 'safe') {
+              setStatus('safe')
+              setShowCallModal(false)
             }
           }
         } catch {}
@@ -3192,16 +2874,16 @@ function TouristDashboard({
           {/* Card 2: Sector Safety Status Banner (Prominent, High-Contrast & Vibrant) */}
           <div
             style={{
-              background: status === 'safe'
+              background: (status === 'safe' && !isVerifiedSafe)
                 ? 'linear-gradient(135deg, #059669 0%, #047857 55%, #064e3b 100%)'
                 : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 55%, #7f1d1d 100%)',
-              border: status === 'safe' ? '2.5px solid #34d399' : '2.5px solid #f87171',
+              border: (status === 'safe' && !isVerifiedSafe) ? '2.5px solid #34d399' : '2.5px solid #f87171',
               borderRadius: '22px',
               padding: '20px 24px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              boxShadow: status === 'safe'
+              boxShadow: (status === 'safe' && !isVerifiedSafe)
                 ? '0 10px 35px rgba(5, 150, 105, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25)'
                 : '0 12px 45px rgba(220, 38, 38, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
               position: 'relative'
@@ -3209,19 +2891,31 @@ function TouristDashboard({
           >
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '18px', fontWeight: 900, color: '#ffffff', letterSpacing: '-0.01em' }}>
-                <ShieldCheck style={{ width: '28px', height: '28px', flexShrink: 0, color: '#ffffff' }} />
+                {isVerifiedSafe ? (
+                  <AlertTriangle style={{ width: '28px', height: '28px', flexShrink: 0, color: '#ffffff' }} />
+                ) : (
+                  <ShieldCheck style={{ width: '28px', height: '28px', flexShrink: 0, color: '#ffffff' }} />
+                )}
                 <span>
-                  {status === 'safe'
-                    ? (outOfRangeNotice
-                        ? `🛡️ Safe · Outside Hazard Perimeter (${outOfRangeNotice.distanceKm} km away)`
-                        : t.safeStatusBanner)
-                    : t.dangerStatusBanner}
+                  {isVerifiedSafe
+                    ? (lang === 'mr' ? '⚠️ पाण्याच्या काठापासून दूर राहा!' : (lang === 'hi' ? '⚠️ पानी और घाट के किनारे से दूर रहें!' : '⚠️ STAY AWAY FROM WATER BANK!'))
+                    : (status === 'safe'
+                        ? (outOfRangeNotice
+                            ? `🛡️ Safe · Outside Hazard Perimeter (${outOfRangeNotice.distanceKm} km away)`
+                            : t.safeStatusBanner)
+                        : t.dangerStatusBanner)}
                 </span>
               </div>
-              <p style={{ margin: '6px 0 0', fontSize: '13px', color: status === 'safe' ? '#ecfdf5' : '#fee2e2', lineHeight: '1.45', fontWeight: 600 }}>
-                {status === 'safe' && outOfRangeNotice
-                  ? `Water surge hazard was reported at ${outOfRangeNotice.location} (${outOfRangeNotice.distanceKm} km from you). You are outside the 2.0 km danger perimeter and completely safe.`
-                  : waterStatusText}
+              <p style={{ margin: '6px 0 0', fontSize: '13px', color: (status === 'safe' && !isVerifiedSafe) ? '#ecfdf5' : '#fee2e2', lineHeight: '1.45', fontWeight: 600 }}>
+                {isVerifiedSafe
+                  ? (lang === 'mr'
+                      ? 'स्थानिक नाविक व प्रशासनाने जलपातळी वाढल्याचा इशारा दिला आहे. तुम्ही सुरक्षित असल्याची नोंद झाली आहे, कृपया घाटावर किंवा काठावर जाऊ नका.'
+                      : (lang === 'hi'
+                          ? 'नाविकों और प्रशासन ने जल स्तर में अचानक वृद्धि की चेतावनी दी है। आपकी सुरक्षा की पुष्टि हो चुकी है, कृपया किनारे पर न जाएं।'
+                          : 'Local boatmen and officials reported rising water hazards. You are marked safe, but please strictly stay away from the water bank.'))
+                  : (status === 'safe' && outOfRangeNotice
+                      ? `Water surge hazard was reported at ${outOfRangeNotice.location} (${outOfRangeNotice.distanceKm} km from you). You are outside the 2.0 km danger perimeter and completely safe.`
+                      : waterStatusText)}
               </p>
             </div>
 
@@ -3232,14 +2926,14 @@ function TouristDashboard({
                 padding: '8px 16px',
                 borderRadius: '30px',
                 background: '#ffffff',
-                color: status === 'safe' ? '#047857' : '#991b1b',
+                color: (status === 'safe' && !isVerifiedSafe) ? '#047857' : '#991b1b',
                 boxShadow: '0 4px 14px rgba(0, 0, 0, 0.25)',
                 flexShrink: 0,
                 marginLeft: '16px',
                 letterSpacing: '0.04em'
               }}
             >
-              {status === 'safe' ? '✅ SAFE TO ROAM' : '⚠️ DANGER ALERT'}
+              {isVerifiedSafe ? '⚠️ STAY AWAY' : ((status === 'safe' && !isVerifiedSafe) ? '✅ SAFE TO ROAM' : '⚠️ DANGER ALERT')}
             </span>
           </div>
         </div>
@@ -3633,15 +3327,6 @@ function BoatmanDashboard({
           if (msg.type === 'sos_alert' && msg.data) {
             const sos = msg.data
             const d = calculateHaversineDistance(location.lat, location.lon, sos.lat, sos.lon)
-            const maxRadiusMeters = (sos.max_radius_km || 3.0) * 1000
-
-            // STRICT HYPER-LOCAL PERIMETER: Only notify boatman / NDRF if incident is within 3.0 km!
-            // E.g. A boatman in Swargate (Pune) MUST NEVER be notified about an incident in Nagpur (624 km away)!
-            if (d > maxRadiusMeters) {
-              console.log(`[CoastGuard Grid] SOS at ${sos.location || 'remote'} is ${(d / 1000).toFixed(1)} km away (> 3.0 km). Outside boat patrol grid for ${location.placeName}. Discarded.`);
-              return
-            }
-
             const b = calculateBearing(location.lat, location.lon, sos.lat, sos.lon)
             setActiveRescue({
               touristName: sos.tourist_name || 'Rahul Sharma (Tourist)',
@@ -3649,7 +3334,7 @@ function BoatmanDashboard({
               incident: sos.incident || 'Emergency SOS / Trapped near Water',
               lat: sos.lat,
               lon: sos.lon,
-              distMeters: d,
+              distMeters: Math.min(d, 450),
               bearing: b,
               time: sos.time || new Date().toLocaleTimeString(),
               locationName: sos.location || location.placeName

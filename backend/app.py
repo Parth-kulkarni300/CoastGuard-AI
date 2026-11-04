@@ -282,22 +282,6 @@ async def get_tourist_status(lat: float = 25.3176, lon: float = 83.0060):
     boatman_lon = LATEST_SECTOR_STATE.get("lon", lon)
     dist_km = haversine_km(lat, lon, boatman_lat, boatman_lon)
 
-    if dist_km > 3.0:
-        return JSONResponse(content={
-            "has_broadcast": False,
-            "dispatch_id": "none",
-            "status": "safe",
-            "severity": "INFO",
-            "location": "Local River Sector",
-            "lat": lat,
-            "lon": lon,
-            "distance_km": 0.0,
-            "time_ago": "Standby",
-            "timestamp": datetime.now().isoformat(),
-            "water_status_text": "Local sector reports calm waters. Boating permitted.",
-            "in_radius": True
-        })
-
     state = dict(LATEST_SECTOR_STATE)
     state["has_broadcast"] = True
     state["tourist_lat"] = lat
@@ -309,7 +293,7 @@ async def get_tourist_status(lat: float = 25.3176, lon: float = 83.0060):
     else:
         state["distance"] = f"{dist_km:.1f} km from your live GPS"
 
-    state["in_radius"] = dist_km <= 2.0
+    state["in_radius"] = dist_km <= 3.0
     return JSONResponse(content=state)
 
 
