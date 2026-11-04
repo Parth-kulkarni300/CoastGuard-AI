@@ -1845,6 +1845,7 @@ function EmergencyCallModal({
   const [isSpeakerOn, setIsSpeakerOn] = useState(true)
   const [voiceHeard, setVoiceHeard] = useState<string>('')
   const [liveTime, setLiveTime] = useState<string>('22:20')
+  const [isListening, setIsListening] = useState(false)
 
   const buzzerAudioRef = useRef<HTMLAudioElement | null>(null)
   const sirenCtxRef = useRef<AudioContext | null>(null)
@@ -1960,6 +1961,7 @@ function EmergencyCallModal({
   }
 
   const handleStuck = (reason?: string) => {
+    setIsListening(false)
     stopEmergencyAudio()
     if (ringTimerRef.current) clearTimeout(ringTimerRef.current)
     if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
@@ -1986,6 +1988,7 @@ function EmergencyCallModal({
   }
 
   const handleSafe = () => {
+    setIsListening(false)
     stopEmergencyAudio()
     if (ringTimerRef.current) clearTimeout(ringTimerRef.current)
     if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
@@ -1999,6 +2002,7 @@ function EmergencyCallModal({
   }
 
   const declineCall = () => {
+    setIsListening(false)
     stopEmergencyAudio()
     if (ringTimerRef.current) clearTimeout(ringTimerRef.current)
     if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
@@ -2068,26 +2072,17 @@ function EmergencyCallModal({
 
   const activeMsg = spokenWarnings[lang] || spokenWarnings.en
 
-  const startAdvisoryFlow = () => {
-    try {
-      if (audioRef.current) audioRef.current.pause()
-      const audioUrl = `/audio/timbre_advisory_${lang}_danger.mp3`
-      const audio = new Audio(audioUrl)
-      audio.volume = 1.0
-      // 1.28x speed for fast, punchy, authoritative emergency delivery
-      audio.playbackRate = 1.28
-      audio.preservesPitch = true
-      audioRef.current = audio
-      audio.play().catch(() => {})
-    } catch {}
+  const startQuestionListening = () => {
+    setIsListening(true)
 
-    // Wait 20 seconds after question is asked (silent background timer, no visible timer display)
+    // Wait 20 seconds for tourist's answer AFTER the question has been asked
     if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
     const timeout20s = setTimeout(() => {
       handleStuck('unanswered_20s_timeout')
     }, 20000)
     timeout20sRef.current = timeout20s
 
+    // Turn on speech recognition ONLY NOW (so it never hears the advisory audio)
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (SpeechRec) {
       try {
@@ -2101,15 +2096,65 @@ function EmergencyCallModal({
           const transcript = results[results.length - 1][0].transcript.toLowerCase().trim()
           setVoiceHeard(transcript)
 
-          if (/yes|haan|ha|safe|surakshit|theek|thik|fine|aam|am|ho|hoy|accha|okay|sari|surakshit aahe|me surakshit|mai surakshit/i.test(transcript)) {
+          // Precise affirmative detection using word boundaries
+          const isSafe = /\b(yes|yeah|yep|ha|haan|safe|surakshit|theek|thik|fine|ho|hoy|sari|achha|all good)\b/i.test(transcript) ||
+            /yes i am safe|main surakshit hoon|me surakshit aahe|hum safe hai|haan safe|safe hu/i.test(transcript)
+
+          // Precise danger/help detection
+          const isDanger = /\b(help|no|nahi|madad|stuck|fasa|fas|trapped|bachao|illai|danger|uthavi|sahajjo|adaklo|madat)\b/i.test(transcript) ||
+            /need help|save me|madad karo|bachao mujhe|fas gaye/i.test(transcript)
+
+          if (isSafe) {
             handleSafe()
-          } else if (/help|no|nahi|madad|stuck|fasa|fas|trapped|bachao|illai|na|danger|uthavi|sahajjo|adaklo|madat/i.test(transcript)) {
+          } else if (isDanger) {
             handleStuck('voice_stuck_detected')
           }
         }
+        rec.onerror = () => {}
         rec.start()
         recognitionRef.current = rec
       } catch {}
+    }
+  }
+
+  const startAdvisoryFlow = () => {
+    setIsListening(false)
+    try {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+      const audioUrl = `/audio/timbre_advisory_${lang}_danger.mp3`
+      const audio = new Audio(audioUrl)
+      audio.volume = 1.0
+      // 1.05x speed: natural, clear, official human pacing
+      audio.playbackRate = 1.05
+      audio.preservesPitch = true
+      audioRef.current = audio
+
+      let listeningStarted = false
+      const triggerListeningOnce = () => {
+        if (!listeningStarted) {
+          listeningStarted = true
+          startQuestionListening()
+        }
+      }
+
+      // CRITICAL: When the advisory finishes asking "Are you safe?", start the 20s countdown & mic!
+      audio.onended = () => {
+        triggerListeningOnce()
+      }
+
+      // Safety fallback: if audio fails or cannot finish, start listening
+      audio.onerror = () => {
+        triggerListeningOnce()
+      }
+
+      audio.play().catch(() => {
+        triggerListeningOnce()
+      })
+    } catch {
+      startQuestionListening()
     }
   }
 
@@ -2361,6 +2406,9 @@ function EmergencyCallModal({
                 </div>
                 <div style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 500, marginTop: '2px' }}>
                   {formattedDuration}
+                </div>
+                <div style={{ fontSize: '11px', color: isListening ? '#38bdf8' : '#94a3b8', fontWeight: 500, marginTop: '2px' }}>
+                  {isListening ? (voiceHeard ? `🎙️ "${voiceHeard}"` : (lang === 'mr' ? '🎙️ "तुम्ही सुरक्षित आहात का?" बोलून सांगा...' : (lang === 'hi' ? '🎙️ "क्या आप सुरक्षित हैं?" बोलकर बताएं...' : '🎙️ "Are you safe?" · Listening (20s)...'))) : (lang === 'mr' ? '📢 अधिकृत सूचना ऐका...' : (lang === 'hi' ? '📢 आधिकारिक चेतावनी सुनें...' : '📢 Playing safety advisory...'))}
                 </div>
               </div>
             </div>
