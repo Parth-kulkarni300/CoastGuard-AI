@@ -150,6 +150,23 @@ ACTIVE_DEVICES: Dict[str, Dict[str, Any]] = {}
 LATEST_SECTOR_STATE = None
 
 
+@app.post("/api/emergency/reset")
+async def reset_emergency_grid():
+    """Reset emergency broadcast and return grid to standby calm water."""
+    global LATEST_SECTOR_STATE
+    LATEST_SECTOR_STATE = None
+    await manager.broadcast({
+        "type": "sector_update",
+        "data": {
+            "has_broadcast": False,
+            "status": "safe",
+            "severity": "INFO",
+            "water_status_text": "Local sector reports calm waters. Boating permitted."
+        }
+    })
+    return JSONResponse(content={"ok": True, "message": "Grid reset to standby"})
+
+
 @app.post("/api/location/update")
 async def update_location(
     phone: str = Form(...),
