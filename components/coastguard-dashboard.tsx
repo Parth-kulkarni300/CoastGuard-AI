@@ -953,39 +953,63 @@ function RoleLogin({
   return (
     <main className="login-page">
       <section className="login-card">
-        {/* Language Selector Pill & Offline Pill */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          <span
+        {/* Top Utility Header: Air-Gapped Status & Language Dropdown */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+          <div
             style={{
-              fontSize: '10px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '10.5px',
               fontWeight: 800,
-              padding: '3px 8px',
-              borderRadius: '8px',
-              background: isOnline ? 'rgba(8, 122, 75, 0.12)' : 'rgba(217, 119, 6, 0.15)',
-              color: isOnline ? '#087a4b' : '#d97706',
-              border: isOnline ? '1px solid rgba(8, 122, 75, 0.3)' : '1px solid rgba(217, 119, 6, 0.4)'
+              padding: '4px 10px',
+              borderRadius: '20px',
+              background: isOnline ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.15)',
+              color: isOnline ? '#34d399' : '#fbbf24',
+              border: isOnline ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(245, 158, 11, 0.35)',
+              boxShadow: isOnline ? '0 0 12px rgba(16, 185, 129, 0.2)' : 'none'
             }}
           >
-            {isOnline ? t.onlineBadge : t.offlineBadge}
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#eef6f1', padding: '4px 10px', borderRadius: '12px' }}>
-            <Globe style={{ width: '14px', color: '#087a4b' }} />
+            <span
+              style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: isOnline ? '#34d399' : '#fbbf24',
+                boxShadow: isOnline ? '0 0 8px #34d399' : 'none'
+              }}
+            />
+            <span>{isOnline ? (lang === 'hi' ? '● लाइव ग्रिड सक्रिय' : (lang === 'mr' ? '● थेट ग्रीड सक्रिय' : '● Live Grid Active')) : t.offlineBadge}</span>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'rgba(56, 189, 248, 0.08)',
+              border: '1px solid rgba(56, 189, 248, 0.22)',
+              padding: '4px 10px',
+              borderRadius: '20px'
+            }}
+          >
+            <Globe style={{ width: '13px', height: '13px', color: '#38bdf8' }} />
             <select
               value={lang}
               onChange={(e) => onLangChange(e.target.value as SupportedLang)}
               style={{
                 background: 'transparent',
                 border: 'none',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: 800,
-                color: '#087a4b',
+                color: '#38bdf8',
                 cursor: 'pointer',
                 outline: 'none'
               }}
               aria-label="Choose Language"
             >
               {LANGUAGES.map((l) => (
-                <option key={l.code} value={l.code}>
+                <option key={l.code} value={l.code} style={{ background: '#0c1527', color: '#f8fafc' }}>
                   {l.native} ({l.label})
                 </option>
               ))}
@@ -993,40 +1017,66 @@ function RoleLogin({
           </div>
         </div>
 
+        {/* Central Brand Emblem */}
         <div className="brand-mark">
           <Waves />
         </div>
-        <span className="eyebrow">{t.eyebrow}</span>
-        <h1>
-          CoastGuard <em>AI</em>
+
+        {/* Sovereign Maritime Eyebrow */}
+        <div style={{ textAlign: 'center', marginBottom: '2px' }}>
+          <span
+            style={{
+              fontSize: '10px',
+              fontWeight: 900,
+              color: '#38bdf8',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase'
+            }}
+          >
+            {t.eyebrow}
+          </span>
+        </div>
+
+        {/* App Title & Version Pill */}
+        <h1 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+          <span>CoastGuard <em>AI</em></span>
+          <span
+            style={{
+              fontSize: '9.5px',
+              fontWeight: 900,
+              background: 'rgba(56, 189, 248, 0.15)',
+              border: '1px solid rgba(56, 189, 248, 0.35)',
+              color: '#7dd3fc',
+              padding: '2px 6px',
+              borderRadius: '6px',
+              letterSpacing: '0.04em'
+            }}
+          >
+            v2.5
+          </span>
         </h1>
 
+        <p className="login-intro">
+          {lang === 'hi'
+            ? 'भारतीय जलमार्गों और घाटों के लिए ऑफ़लाइन-प्रथम वॉयस आपातकालीन ग्रिड'
+            : (lang === 'mr'
+              ? 'भारतीय जलमार्ग आणि घाटांसाठी ऑफलाइन-प्रथम व्हॉईस आणीबाणी ग्रीड'
+              : 'Sovereign Voice Emergency Network for Indian Waterways & Coastal Docks')}
+        </p>
 
-        {/* Name Input Field (Real-time dynamic display across app) */}
-        <label className="login-label" htmlFor="name" style={{ marginTop: '8px' }}>
-          {t.nameLabel}
-        </label>
-        <input
-          id="name"
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t.namePlaceholder}
-          style={{ marginBottom: '10px' }}
-        />
+        {/* Role Selector Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '14px 0 6px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+            {lang === 'hi' ? 'अपनी भूमिका चुनें' : (lang === 'mr' ? 'आपली भूमिका निवडा' : 'Select Command Role')}
+          </span>
+          <span style={{ fontSize: '10px', color: '#38bdf8', fontWeight: 700 }}>
+            {role === 'boatman' ? 'Patrol Vessel' : (role === 'tourist' ? 'Citizen Safe' : 'Command Center')}
+          </span>
+        </div>
 
-        <label className="login-label" htmlFor="phone">
-          {t.phoneLabel}
-        </label>
-        <input
-          id="phone"
-          inputMode="numeric"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-          placeholder="9876543210"
-        />
-
+        {/* Interactive 3-Role Deck */}
         <div className="role-picker" role="radiogroup" aria-label="Choose your role">
+          {/* Role 1: Boatman / Fisherman */}
           <button
             type="button"
             className={role === 'boatman' ? 'role-card active' : 'role-card'}
@@ -1037,10 +1087,24 @@ function RoleLogin({
             role="radio"
             aria-checked={role === 'boatman'}
           >
-            <span>🎣</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <span>🎣</span>
+              {role === 'boatman' && (
+                <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#10b981', display: 'grid', placeItems: 'center' }}>
+                  <Check style={{ width: '10px', height: '10px', color: '#fff' }} />
+                </div>
+              )}
+            </div>
             <strong>{t.boatmanRoleTitle}</strong>
             <small>{t.boatmanRoleSub}</small>
+            <div style={{ marginTop: 'auto', paddingTop: '4px' }}>
+              <span style={{ fontSize: '9px', fontWeight: 800, color: role === 'boatman' ? '#34d399' : '#64748b', background: 'rgba(0,0,0,0.3)', padding: '2px 5px', borderRadius: '4px' }}>
+                🧭 3.0km Radar
+              </span>
+            </div>
           </button>
+
+          {/* Role 2: Tourist / Citizen */}
           <button
             type="button"
             className={role === 'tourist' ? 'role-card active' : 'role-card'}
@@ -1051,10 +1115,24 @@ function RoleLogin({
             role="radio"
             aria-checked={role === 'tourist'}
           >
-            <span>🎒</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <span>🎒</span>
+              {role === 'tourist' && (
+                <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#10b981', display: 'grid', placeItems: 'center' }}>
+                  <Check style={{ width: '10px', height: '10px', color: '#fff' }} />
+                </div>
+              )}
+            </div>
             <strong>{t.touristRoleTitle}</strong>
             <small>{t.touristRoleSub}</small>
+            <div style={{ marginTop: 'auto', paddingTop: '4px' }}>
+              <span style={{ fontSize: '9px', fontWeight: 800, color: role === 'tourist' ? '#34d399' : '#64748b', background: 'rgba(0,0,0,0.3)', padding: '2px 5px', borderRadius: '4px' }}>
+                🚨 Instant SOS
+              </span>
+            </div>
           </button>
+
+          {/* Role 3: Port Authority / NDRF Command */}
           <button
             type="button"
             className={role === 'authority' ? 'role-card active' : 'role-card'}
@@ -1072,41 +1150,103 @@ function RoleLogin({
               flexDirection: 'row',
               alignItems: 'center',
               gap: '12px',
-              padding: '11px 14px',
-              background: role === 'authority' ? 'rgba(5, 150, 105, 0.08)' : '#f8fafc',
-              borderColor: role === 'authority' ? '#059669' : 'var(--line)'
+              padding: '12px 14px',
+              borderWidth: '1.5px'
             }}
           >
             <span style={{ fontSize: '24px' }}>🏛️</span>
-            <div style={{ textAlign: 'left' }}>
-              <strong style={{ fontSize: '13px', display: 'block', color: role === 'authority' ? '#047857' : '#1e293b' }}>
-                {t.authorityRoleTitle}
-              </strong>
-              <small style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>
+            <div style={{ textAlign: 'left', flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <strong style={{ fontSize: '13px', color: role === 'authority' ? '#34d399' : '#f8fafc' }}>
+                  {t.authorityRoleTitle}
+                </strong>
+                {role === 'authority' && (
+                  <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#10b981', display: 'grid', placeItems: 'center' }}>
+                    <Check style={{ width: '10px', height: '10px', color: '#fff' }} />
+                  </div>
+                )}
+              </div>
+              <small style={{ fontSize: '10.5px', color: '#94a3b8', display: 'block' }}>
                 {t.authorityRoleSub}
               </small>
             </div>
           </button>
         </div>
 
+        {/* Inputs Section */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '6px' }}>
+          {/* Name Input Field */}
+          <div>
+            <label className="login-label" htmlFor="name">
+              <User style={{ width: '12px', height: '12px' }} />
+              <span>{t.nameLabel}</span>
+            </label>
+            <input
+              id="name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={
+                role === 'boatman'
+                  ? (lang === 'hi' ? 'उदा. रमेश निषाद' : (lang === 'mr' ? 'उदा. रमेश निषाद' : 'e.g. Ramesh Nishad'))
+                  : (role === 'authority'
+                    ? (lang === 'hi' ? 'उदा. राजेश वर्मा (NDRF)' : 'e.g. Insp. Rajesh Verma (NDRF)')
+                    : (lang === 'hi' ? 'उदा. राहुल शर्मा' : (lang === 'mr' ? 'उदा. राहुल शर्मा' : 'e.g. Rahul Sharma')))
+              }
+            />
+          </div>
+
+          {/* Phone Input Field with +91 Prefix */}
+          <div>
+            <label className="login-label" htmlFor="phone">
+              <Phone style={{ width: '12px', height: '12px' }} />
+              <span>{t.phoneLabel}</span>
+            </label>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <span
+                style={{
+                  position: 'absolute',
+                  left: '12px',
+                  color: '#94a3b8',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  pointerEvents: 'none',
+                  borderRight: '1px solid rgba(56, 189, 248, 0.25)',
+                  paddingRight: '8px'
+                }}
+              >
+                +91
+              </span>
+              <input
+                id="phone"
+                inputMode="numeric"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                placeholder="9876543210"
+                style={{ paddingLeft: '56px' }}
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Offline Banner when network is unavailable */}
         {!isOnline && (
           <div
             style={{
-              background: '#fffbeb',
-              border: '1px solid #fde68a',
+              background: 'rgba(245, 158, 11, 0.12)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
               borderRadius: '12px',
-              padding: '8px 12px',
-              margin: '8px 0',
+              padding: '10px 12px',
+              margin: '12px 0 6px',
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              color: '#92400e',
+              color: '#fcd34d',
               fontSize: '11px',
               fontWeight: 700
             }}
           >
-            <Radio style={{ width: '15px', color: '#d97706', flexShrink: 0 }} />
+            <Radio style={{ width: '15px', color: '#fbbf24', flexShrink: 0 }} />
             <span>{t.offlineNotice}</span>
           </div>
         )}
@@ -1121,42 +1261,57 @@ function RoleLogin({
           onUseLiveGps={() => location.refreshGPS()}
         />
 
-        {/* Real-time Location Indicator & Chooser */}
+        {/* Tactical Real-time Location Indicator & Chooser */}
         <div
           style={{
-            background: '#f8fafc',
-            border: '1.5px solid #e2e8f0',
-            borderRadius: '14px',
-            padding: '12px',
-            margin: '10px 0'
+            background: 'rgba(8, 16, 28, 0.85)',
+            border: '1px solid rgba(56, 189, 248, 0.22)',
+            borderRadius: '16px',
+            padding: '12px 14px',
+            margin: '14px 0 4px',
+            boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.05)'
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '10.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#64748b' }}>
+            <span style={{ fontSize: '10.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#7dd3fc' }}>
               📍 {t.locationLabel}
             </span>
             <span
               style={{
-                fontSize: '10px',
-                fontWeight: 700,
+                fontSize: '9.5px',
+                fontWeight: 800,
                 padding: '2px 8px',
                 borderRadius: '6px',
-                background: location.isLiveGPS ? 'rgba(5, 150, 105, 0.12)' : 'rgba(2, 132, 199, 0.12)',
-                color: location.isLiveGPS ? '#059669' : '#0284c7'
+                background: location.isLiveGPS ? 'rgba(16, 185, 129, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                color: location.isLiveGPS ? '#34d399' : '#38bdf8',
+                border: location.isLiveGPS ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(56, 189, 248, 0.35)'
               }}
             >
               {location.isLiveGPS ? t.realGps : '📍 Custom Location'}
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-            <MapPin style={{ width: '18px', height: '18px', color: location.isLiveGPS ? '#059669' : '#0284c7', flexShrink: 0 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '10px',
+                background: location.isLiveGPS ? 'rgba(16, 185, 129, 0.18)' : 'rgba(56, 189, 248, 0.18)',
+                display: 'grid',
+                placeItems: 'center',
+                flexShrink: 0,
+                border: location.isLiveGPS ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(56, 189, 248, 0.4)'
+              }}
+            >
+              <MapPin style={{ width: '16px', height: '16px', color: location.isLiveGPS ? '#34d399' : '#38bdf8' }} />
+            </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {location.placeName}
               </div>
-              <div style={{ fontSize: '10px', color: '#64748b' }}>
-                Coordinates: {location.lat.toFixed(4)}° N, {location.lon.toFixed(4)}° E (±{location.accuracy}m)
+              <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '1px' }}>
+                Coordinates: {location.lat.toFixed(4)}° N, {location.lon.toFixed(4)}° E (±{location.accuracy}m sync)
               </div>
             </div>
           </div>
@@ -1172,16 +1327,17 @@ function RoleLogin({
                 justifyContent: 'center',
                 gap: '6px',
                 padding: '8px 10px',
-                borderRadius: '8px',
-                border: location.isLiveGPS ? '1.5px solid #059669' : '1px solid #cbd5e1',
-                background: location.isLiveGPS ? '#ecfdf5' : '#ffffff',
-                color: location.isLiveGPS ? '#047857' : '#334155',
+                borderRadius: '10px',
+                border: location.isLiveGPS ? '1.5px solid #10b981' : '1px solid rgba(255, 255, 255, 0.12)',
+                background: location.isLiveGPS ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                color: location.isLiveGPS ? '#34d399' : '#cbd5e1',
                 fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer'
+                fontWeight: 800,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
               }}
             >
-              <Navigation style={{ width: '13px', height: '13px', color: '#059669' }} />
+              <Navigation style={{ width: '13px', height: '13px', color: '#34d399' }} />
               <span>Fetch Live GPS</span>
             </button>
 
@@ -1194,21 +1350,23 @@ function RoleLogin({
                 justifyContent: 'center',
                 gap: '6px',
                 padding: '8px 10px',
-                borderRadius: '8px',
-                border: !location.isLiveGPS ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
-                background: !location.isLiveGPS ? '#f0f9ff' : '#ffffff',
-                color: !location.isLiveGPS ? '#0369a1' : '#334155',
+                borderRadius: '10px',
+                border: !location.isLiveGPS ? '1.5px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.12)',
+                background: !location.isLiveGPS ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                color: !location.isLiveGPS ? '#7dd3fc' : '#cbd5e1',
                 fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer'
+                fontWeight: 800,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
               }}
             >
-              <Search style={{ width: '13px', height: '13px', color: '#0284c7' }} />
+              <Search style={{ width: '13px', height: '13px', color: '#38bdf8' }} />
               <span>Choose Location 🔍</span>
             </button>
           </div>
         </div>
 
+        {/* Primary Command Grid Launch Button */}
         <button
           type="button"
           className="continue-button"
@@ -1217,11 +1375,23 @@ function RoleLogin({
             onContinue(role, phone || '9876543210', finalName)
           }}
         >
-          {t.loginContinue} <ChevronDown />
+          <span>{t.loginContinue}</span>
+          <ChevronDown />
         </button>
-        <p className="login-note">
-          {t.loginNote}
-        </p>
+
+        {/* Security & Sovereign Trust Badges */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '14px', marginTop: '14px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#64748b', fontWeight: 600 }}>
+            <ShieldCheck style={{ width: '12px', height: '12px', color: '#34d399' }} />
+            <span>256-Bit Sovereign Audio</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#64748b', fontWeight: 600 }}>
+            <span>⚡ Zero Cloud Delay</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#64748b', fontWeight: 600 }}>
+            <span>🔒 No OTP Required</span>
+          </div>
+        </div>
       </section>
     </main>
   )
