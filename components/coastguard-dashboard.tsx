@@ -254,23 +254,20 @@ function MiniVisualRadar({
   const t = UI_TRANSLATIONS[lang]
   const radarRadiusPx = 150
 
-  // REAL TARGET LOGIC: Only render vector if an actual rescueTarget exists
+  // REAL TARGET LOGIC: High-accuracy real GPS distance & proximity
   const hasTarget = !!rescueTarget
-  
-  // When testing from the exact same device, lat/lon are identical (dist < 15m).
-  // In that test case, offset target by 180m North-East so it displays distinctly on the water perimeter.
-  const isSameDeviceTest = hasTarget && rescueTarget.distMeters < 15
-  const effectiveDist = hasTarget
-    ? (isSameDeviceTest ? 180 : rescueTarget.distMeters)
-    : 0
+  const effectiveDist = hasTarget ? rescueTarget.distMeters : 0
+  const isNear = hasTarget && effectiveDist <= 25
 
   const effectiveBearing = hasTarget
-    ? (isSameDeviceTest ? { degrees: 45, compass: 'North-East', arrow: '↗️' } : rescueTarget.bearing)
+    ? (isNear ? { degrees: 45, compass: 'Immediate Proximity', arrow: '🎯' } : rescueTarget.bearing)
     : { degrees: 0, compass: 'North', arrow: '⬆️' }
 
   // Scale: 3000m sector perimeter -> 150px radius
-  const normalizedDist = Math.min(3000, Math.max(80, effectiveDist))
-  const targetRadius = (normalizedDist / 3000) * (radarRadiusPx - 25) + 20
+  // If target is in immediate proximity (<= 25m), position the blip right adjacent to center boat (24px) for high-accuracy tactical display
+  const targetRadius = isNear
+    ? 24
+    : (Math.min(3000, Math.max(30, effectiveDist)) / 3000) * (radarRadiusPx - 25) + 20
 
   const angleRad = (effectiveBearing.degrees * Math.PI) / 180
   const targetX = 190 + targetRadius * Math.sin(angleRad)
@@ -364,13 +361,17 @@ function MiniVisualRadar({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '26px' }}>{effectiveBearing.arrow}</span>
+            <span style={{ fontSize: '26px' }}>{isNear ? '🎯' : effectiveBearing.arrow}</span>
             <div>
               <div style={{ fontSize: '13px', fontWeight: 900, color: '#fca5a5', letterSpacing: '0.02em' }}>
-                STEER: {effectiveBearing.compass.toUpperCase()} ({effectiveBearing.degrees}°)
+                {isNear
+                  ? (lang === 'mr' ? 'पर्यटक अत्यंत जवळ आहेत (Immediate Proximity)' : (lang === 'hi' ? 'पर्यटक आपके बिल्कुल समीप हैं (Immediate Proximity)' : 'TARGET IN IMMEDIATE PROXIMITY'))
+                  : `STEER: ${effectiveBearing.compass.toUpperCase()} (${effectiveBearing.degrees}°)`}
               </div>
               <div style={{ fontSize: '11px', color: '#f1f5f9', fontWeight: 600 }}>
-                {effectiveDist < 1000 ? `${effectiveDist}m` : `${(effectiveDist / 1000).toFixed(1)}km`} direct across water · ~{Math.max(1, Math.round(effectiveDist / 180))} min at 6 knots
+                {isNear
+                  ? (lang === 'mr' ? `${effectiveDist}m · बोटीच्या अगदी जवळ · तात्काळ मदत करा` : (lang === 'hi' ? `${effectiveDist}m · नाव के ठीक पास · वे आपके बहुत पास हैं` : `${effectiveDist}m · Right beside your boat · Immediate assistance needed`))
+                  : `${effectiveDist < 1000 ? `${effectiveDist}m` : `${(effectiveDist / 1000).toFixed(1)}km`} direct across water · ~${Math.max(1, Math.round(effectiveDist / 180))} min at 6 knots`}
               </div>
             </div>
           </div>
@@ -3490,16 +3491,16 @@ function TouristDashboard({
           {/* Card 2: Sector Safety Status Banner (Prominent, High-Contrast & Vibrant) */}
           <div
             style={{
-              background: status === 'safe'
+              background: (status === 'safe' && !isVerifiedSafe)
                 ? 'linear-gradient(135deg, #059669 0%, #047857 55%, #064e3b 100%)'
                 : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 55%, #7f1d1d 100%)',
-              border: status === 'safe' ? '2.5px solid #34d399' : '2.5px solid #f87171',
+              border: (status === 'safe' && !isVerifiedSafe) ? '2.5px solid #34d399' : '2.5px solid #f87171',
               borderRadius: '22px',
               padding: '20px 24px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              boxShadow: status === 'safe'
+              boxShadow: (status === 'safe' && !isVerifiedSafe)
                 ? '0 10px 35px rgba(5, 150, 105, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25)'
                 : '0 12px 45px rgba(220, 38, 38, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
               position: 'relative'
@@ -3507,33 +3508,33 @@ function TouristDashboard({
           >
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '18px', fontWeight: 900, color: '#ffffff', letterSpacing: '-0.01em' }}>
-                {status === 'safe' ? (
+                {isVerifiedSafe ? (
+                  <AlertTriangle style={{ width: '28px', height: '28px', flexShrink: 0, color: '#ffffff' }} />
+                ) : (status === 'safe' ? (
                   <ShieldCheck style={{ width: '28px', height: '28px', flexShrink: 0, color: '#ffffff' }} />
                 ) : (
                   <AlertTriangle style={{ width: '28px', height: '28px', flexShrink: 0, color: '#ffffff' }} />
-                )}
+                ))}
                 <span>
-                  {status === 'safe'
-                    ? (isVerifiedSafe
-                        ? (lang === 'mr' ? '🛡️ तुमची सुरक्षा सत्यापित आहे (Verified Safe)' : (lang === 'hi' ? '🛡️ आपकी सुरक्षा सत्यापित है (Verified Safe)' : '🛡️ You are Verified Safe'))
-                        : (outOfRangeNotice
+                  {isVerifiedSafe
+                    ? (lang === 'mr' ? '⚠️ पाण्याच्या काठापासून दूर राहा!' : (lang === 'hi' ? '⚠️ पानी और घाट के किनारे से दूर रहें!' : '⚠️ STAY AWAY FROM WATER BANK!'))
+                    : (status === 'safe'
+                        ? (outOfRangeNotice
                             ? `🛡️ Safe · Outside Hazard Perimeter (${outOfRangeNotice.distanceKm} km away)`
-                            : t.safeStatusBanner))
-                    : t.dangerStatusBanner}
+                            : t.safeStatusBanner)
+                        : t.dangerStatusBanner)}
                 </span>
               </div>
-              <p style={{ margin: '6px 0 0', fontSize: '13px', color: status === 'safe' ? '#ecfdf5' : '#fee2e2', lineHeight: '1.45', fontWeight: 600 }}>
-                {status === 'safe'
-                  ? (isVerifiedSafe
-                      ? (lang === 'mr'
-                          ? 'तुमची सुरक्षा प्रणालीमध्ये यशस्वीरीत्या नोंदवली गेली आहे. किनारा रक्षक आणि स्थानिक नाविक सतर्क आहेत.'
-                          : (lang === 'hi'
-                              ? 'आपकी सुरक्षा प्रणाली में सफलतापूर्वक दर्ज है। तट रक्षक और नाविक सतर्क निगरानी में हैं।'
-                              : 'Your safety status has been confirmed. CoastGuard and boatmen are actively monitoring the river corridor.'))
-                      : (outOfRangeNotice
-                          ? `Water surge hazard was reported at ${outOfRangeNotice.location} (${outOfRangeNotice.distanceKm} km from you). You are outside the danger perimeter and completely safe.`
-                          : waterStatusText))
-                  : waterStatusText}
+              <p style={{ margin: '6px 0 0', fontSize: '13px', color: (status === 'safe' && !isVerifiedSafe) ? '#ecfdf5' : '#fee2e2', lineHeight: '1.45', fontWeight: 600 }}>
+                {isVerifiedSafe
+                  ? (lang === 'mr'
+                      ? 'स्थानिक नाविक व प्रशासनाने जलपातळी वाढल्याचा इशारा दिला आहे. तुम्ही सुरक्षित असल्याची नोंद झाली आहे, कृपया घाटावर किंवा काठावर जाऊ नका.'
+                      : (lang === 'hi'
+                          ? 'नाविकों और प्रशासन ने जल स्तर में अचानक वृद्धि की चेतावनी दी है। आपकी सुरक्षा की पुष्टि हो चुकी है, कृपया किनारे पर न जाएं।'
+                          : 'Local boatmen and officials reported rising water hazards. You are marked safe, but please strictly stay away from the water bank.'))
+                  : (status === 'safe' && outOfRangeNotice
+                      ? `Water surge hazard was reported at ${outOfRangeNotice.location} (${outOfRangeNotice.distanceKm} km from you). You are outside the danger perimeter and completely safe.`
+                      : waterStatusText)}
               </p>
             </div>
 
@@ -3544,14 +3545,14 @@ function TouristDashboard({
                 padding: '8px 16px',
                 borderRadius: '30px',
                 background: '#ffffff',
-                color: status === 'safe' ? '#047857' : '#991b1b',
+                color: (status === 'safe' && !isVerifiedSafe) ? '#047857' : '#991b1b',
                 boxShadow: '0 4px 14px rgba(0, 0, 0, 0.25)',
                 flexShrink: 0,
                 marginLeft: '16px',
                 letterSpacing: '0.04em'
               }}
             >
-              {status === 'safe' ? '✅ SAFE TO ROAM' : '⚠️ DANGER ALERT'}
+              {isVerifiedSafe ? '⚠️ STAY AWAY' : ((status === 'safe' && !isVerifiedSafe) ? '✅ SAFE TO ROAM' : '⚠️ DANGER ALERT')}
             </span>
           </div>
         </div>
@@ -4084,10 +4085,24 @@ function BoatmanDashboard({
           window.speechSynthesis.cancel()
           const dirHi = compassDirection === 'ahead' ? 'उत्तर-पूर्व (North-East)' : compassDirection
           const text = targetLang === 'hi'
-            ? (distanceM > 25 ? `सावधान! पर्यटक ${touristName} ${place} पर खतरे में हैं। ${dirHi} दिशा में ${distanceM} मीटर आगे बढ़ें।` : `सावधान! पर्यटक ${touristName} ${place} पर खतरे में हैं। ${dirHi} दिशा में आगे बढ़ें।`)
+            ? (distanceM > 25
+                ? `सावधान! पर्यटक ${touristName} ${place} पर खतरे में हैं। ${dirHi} दिशा में ${distanceM} मीटर आगे बढ़ें।`
+                : `सावधान! पर्यटक ${touristName} ${place} पर खतरे में हैं। वे आपके बिल्कुल समीप हैं, तुरंत सहायता करें!`)
             : (targetLang === 'mr'
-              ? (distanceM > 25 ? `सावधान! पर्यटक ${touristName} ${place} येथे धोक्यात आहेत. ${dirHi} दिशेला ${distanceM} मीटर पुढे जा.` : `सावधान! पर्यटक ${touristName} ${place} येथे धोक्यात आहेत. ${dirHi} दिशेला पुढे जा.`)
-              : (distanceM > 25 ? `Alert! Tourist ${touristName} is in danger at ${place}. Head ${compassDirection}, ${distanceM} meters ahead.` : `Alert! Tourist ${touristName} is in danger at ${place}. Head ${compassDirection} immediately.`))
+                ? (distanceM > 25
+                    ? `सावधान! पर्यटक ${touristName} ${place} येथे धोक्यात आहेत. ${dirHi} दिशेला ${distanceM} मीटर पुढे जा.`
+                    : `सावधान! पर्यटक ${touristName} ${place} येथे धोक्यात आहेत. ते तुमच्या अगदी जवळ आहेत, तात्काळ मदत करा!`)
+                : (targetLang === 'ta'
+                    ? (distanceM > 25
+                        ? `எச்சரிக்கை! சுற்றுலாப் பயணி ${touristName} ${place} பகுதியில் ஆபத்தில் உள்ளார். ${compassDirection} திசையில் ${distanceM} மீட்டர் செல்லுங்கள்.`
+                        : `எச்சரிக்கை! சுற்றுலாப் பயணி ${touristName} ${place} பகுதியில் உங்களுக்கு மிக அருகில் உள்ளார், உடனடியாக உதவுங்கள்!`)
+                    : (targetLang === 'bn'
+                        ? (distanceM > 25
+                            ? `সতর্কতা! পর্যটক ${touristName} ${place} ঘাটে বিপদে পড়েছেন। ${compassDirection} দিকে ${distanceM} মিটার এগিয়ে যান।`
+                            : `সতর্কতা! পর্যটক ${touristName} ${place} ঘাটে আপনার খুব কাছেই আছেন, অবিলম্বে সাহায্য করুন!`)
+                        : (distanceM > 25
+                            ? `Alert! Tourist ${touristName} is in danger at ${place}. Head ${compassDirection}, ${distanceM} meters ahead.`
+                            : `Alert! Tourist ${touristName} is in danger at ${place}. They are very near you, provide immediate help!`))))
 
           const utt1 = new SpeechSynthesisUtterance(text)
           utt1.lang = targetLang === 'hi' ? 'hi-IN' : (targetLang === 'mr' ? 'mr-IN' : 'en-IN')
@@ -4180,11 +4195,11 @@ function BoatmanDashboard({
             const tName = sos.tourist_name || 'Rahul Sharma'
             const tLoc = sos.location || location.placeName
 
-            // When testing on the exact same laptop/location (d < 15m), offset target to 180m North-East for clear tactical radar visibility
-            const isSameDeviceDemo = d < 15
-            const tDist = isSameDeviceDemo ? 180 : Math.max(10, Math.round(d))
-            const effectiveBearing = isSameDeviceDemo ? { degrees: 45, compass: 'North-East', arrow: '↗️' } : b
-            const tCompass = effectiveBearing?.compass || 'North-East'
+            // High-accuracy real GPS distance
+            const realDist = Math.max(0, Math.round(d))
+            const isNear = realDist <= 25
+            const effectiveBearing = isNear ? { degrees: 0, compass: 'Immediate Proximity', arrow: '🎯' } : b
+            const tCompass = isNear ? 'Immediate Proximity' : (effectiveBearing?.compass || 'North-East')
 
             setActiveRescue({
               touristName: tName,
@@ -4192,13 +4207,13 @@ function BoatmanDashboard({
               incident: sos.incident || 'Emergency SOS / Trapped near Water',
               lat: sos.lat,
               lon: sos.lon,
-              distMeters: tDist,
+              distMeters: realDist,
               bearing: effectiveBearing,
               time: sos.time || new Date().toLocaleTimeString(),
               locationName: tLoc
             })
             // Sound delayed 2-second alert beep followed by voice announcement stating tourist name, location & direction repeated 2 times!
-            triggerBoatmanRescueAlert(tName, tLoc, tCompass, tDist, lang)
+            triggerBoatmanRescueAlert(tName, tLoc, tCompass, realDist, lang)
           }
         } catch {}
       }

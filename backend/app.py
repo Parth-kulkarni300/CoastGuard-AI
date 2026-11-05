@@ -412,11 +412,11 @@ async def boatman_alert_tts(
         }
     else:
         scripts = {
-            "hi": f"सावधान! पर्यटक {name} {location} पर खतरे में हैं। तुरंत {dir_str} दिशा में आगे बढ़ें।",
-            "mr": f"सावधान! पर्यटक {name} {location} येथे धोक्यात आहेत. त्वरित {dir_str} दिशेला पुढे जा.",
-            "en": f"Alert! Tourist {name} is in danger at {location}. Steer {dir_str} immediately.",
-            "ta": f"எச்சரிக்கை! சுற்றுலாப் பயணி {name} {location} பகுதியில் ஆபத்தில் உள்ளார். உடனடியாக {dir_str} திசையில் செல்லுங்கள்.",
-            "bn": f"সতর্কতা! পর্যটক {name} {location} ঘাটে বিপদে পড়েছেন। অবিলম্বে {dir_str} দিকে এগিয়ে যান।"
+            "hi": f"सावधान! पर्यटक {name} {location} पर खतरे में हैं। वे आपके बिल्कुल समीप हैं, तुरंत सहायता करें!",
+            "mr": f"सावधान! पर्यटक {name} {location} येथे धोक्यात आहेत. ते तुमच्या अगदी जवळ आहेत, तात्काळ मदत करा!",
+            "en": f"Alert! Tourist {name} is in danger at {location}. They are very near you, provide immediate help!",
+            "ta": f"எச்சரிக்கை! சுற்றுலாப் பயணி {name} {location} பகுதியில் ஆபத்தில் உள்ளார். அவர் உங்களுக்கு மிக அருகில் உள்ளார், உடனடியாக உதவுங்கள்!",
+            "bn": f"সতর্কতা! পর্যটক {name} {location} ঘাটে বিপদে পড়েছেন। উনি আপনার খুব কাছেই আছেন, অবিলম্বে সাহায্য করুন!"
         }
 
     script_text = scripts.get(lang_key, scripts["hi"])
