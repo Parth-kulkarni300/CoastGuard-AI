@@ -92,7 +92,7 @@ def _mock_prisma_transcribe(filename: str = "") -> Dict[str, Any]:
     """
     fname = filename.lower()
     if "safe" in fname or "calm" in fname or "shaant" in fname:
-        transcript = "भैया! पानी बिल्कुल शांत है, सब सुरक्षित नौका विहार कर सकते हैं।"
+        transcript = "जल क्षेत्र से नाविक की आवाज: पानी सामान्य और शांत है, नौका विहार सुरक्षित है।"
         confidence = 0.96
         lang = "hi"
     else:

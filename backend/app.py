@@ -510,22 +510,23 @@ async def fisherman_broadcast(
 
     # Step 2: Evon Reasoning & Classification
     sector_place = location_name or "Assi Ghat, Varanasi"
-    if status_type == "safe" or any(w in transcript.lower() for w in ["shaant", "safe", "theek", "shanti", "sukoon", "normal"]):
+    clean_transcript = transcript.strip() if transcript else ""
+    if status_type == "safe" or any(w in clean_transcript.lower() for w in ["shaant", "safe", "theek", "shanti", "sukoon", "normal", "शांत", "सुरक्षित"]):
         status = "safe"
         severity = "INFO"
         water_status_text = f"Local boatmen at {sector_place} report calm waters. Boating permitted."
-        english_trans = f"Water is completely calm near {sector_place}. Tourists can safely enjoy boat rides."
-        hindi_quote = transcript if transcript != "Update received" else "भैया! पानी बिल्कुल शांत है, अभी आराम से नौका विहार कर सकते हैं।"
+        english_trans = f"Water is calm near {sector_place}. Tourists can safely enjoy boat rides."
+        hindi_quote = clean_transcript if (clean_transcript and clean_transcript != "Update received" and clean_transcript != "Paani shaant hai, sab theek hai.") else f"जल क्षेत्र {sector_place} में पानी सामान्य है, नौका विहार सुरक्षित है।"
         if not audio:
             boatman_audio_url = "/api/audio/boatman_sample_safe.wav"
         ai_audio_url = "/api/audio/ai_advisory_safe.wav"
     else:
-        classification = await classify_emergency(transcript, language_hint="hi")
+        classification = await classify_emergency(clean_transcript, language_hint="hi")
         status = "danger"
         severity = classification.get("severity", "CRITICAL")
         water_status_text = f"Local boatman at {sector_place} reported water level surge / hazard. Please move to upper steps."
         english_trans = classification.get("english_alert", f"Hazard reported near {sector_place}. Please stay away from banks.")
-        hindi_quote = transcript
+        hindi_quote = clean_transcript if (clean_transcript and clean_transcript != "Update received") else f"नाविक द्वारा जल स्तर वृद्धि की चेतावनी जारी की गई है।"
         if not audio:
             boatman_audio_url = "/api/audio/boatman_sample_danger.wav"
         ai_audio_url = "/api/audio/ai_advisory_danger.wav"

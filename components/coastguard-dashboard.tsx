@@ -2020,6 +2020,7 @@ function EmergencyCallModal({
   const [voiceHeard, setVoiceHeard] = useState<string>('')
   const [liveTime, setLiveTime] = useState<string>('22:20')
   const [isListening, setIsListening] = useState(false)
+  const [listeningCountdown, setListeningCountdown] = useState<number>(20)
 
   const buzzerAudioRef = useRef<HTMLAudioElement | null>(null)
   const sirenCtxRef = useRef<AudioContext | null>(null)
@@ -2028,6 +2029,7 @@ function EmergencyCallModal({
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const recognitionRef = useRef<any>(null)
   const timeout20sRef = useRef<NodeJS.Timeout | null>(null)
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const isListeningRef = useRef<boolean>(false)
 
   useEffect(() => {
@@ -2158,6 +2160,10 @@ function EmergencyCallModal({
   const handleStuck = (reason?: string) => {
     isListeningRef.current = false
     setIsListening(false)
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current)
+      countdownIntervalRef.current = null
+    }
     stopEmergencyAudio()
     if (ringTimerRef.current) clearTimeout(ringTimerRef.current)
     if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
@@ -2173,7 +2179,9 @@ function EmergencyCallModal({
     fd.append('tourist_name', userName)
     fd.append('incident_type', reason === 'unanswered_ringing_20s_timeout'
       ? 'Unanswered Tourist (20s Ringing Timeout Auto-Rescue)'
-      : 'Tourist Unsafe / Needs Immediate Rescue')
+      : (reason === 'unanswered_20s_timeout'
+        ? 'Unanswered Tourist (20s Verbal Response Timeout Auto-Rescue)'
+        : 'Tourist Unsafe / Needs Immediate Rescue'))
     fd.append('lat', (location?.lat || 25.3176).toString())
     fd.append('lon', (location?.lon || 83.0060).toString())
     fd.append('location_name', location?.placeName || placeName)
@@ -2186,6 +2194,10 @@ function EmergencyCallModal({
   const handleSafe = () => {
     isListeningRef.current = false
     setIsListening(false)
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current)
+      countdownIntervalRef.current = null
+    }
     stopEmergencyAudio()
     if (ringTimerRef.current) clearTimeout(ringTimerRef.current)
     if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
@@ -2201,9 +2213,16 @@ function EmergencyCallModal({
   const declineCall = () => {
     isListeningRef.current = false
     setIsListening(false)
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current)
+      countdownIntervalRef.current = null
+    }
     stopEmergencyAudio()
     if (ringTimerRef.current) clearTimeout(ringTimerRef.current)
     if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch {}
+    }
     if (audioRef.current) audioRef.current.pause()
     close()
   }
@@ -2270,18 +2289,29 @@ function EmergencyCallModal({
 
   const activeMsg = spokenWarnings[lang] || spokenWarnings.en
 
-  const startQuestionListening = (skipTimeout = false) => {
+  const startQuestionListening = () => {
     isListeningRef.current = true
     setIsListening(true)
+    setListeningCountdown(20)
 
-    // Wait 20 seconds for tourist's answer AFTER question begins
-    if (!skipTimeout) {
-      if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
-      const timeout20s = setTimeout(() => {
-        handleStuck('unanswered_20s_timeout')
-      }, 20000)
-      timeout20sRef.current = timeout20s
-    }
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+    countdownIntervalRef.current = setInterval(() => {
+      setListeningCountdown((prev) => {
+        if (prev <= 1) {
+          if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    // Wait exactly 20 seconds for tourist's answer AFTER question ends
+    if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
+    const timeout20s = setTimeout(() => {
+      console.log('[CoastGuard Triage] 20 seconds elapsed without answer -> Auto-triggering rescue!')
+      handleStuck('unanswered_20s_timeout')
+    }, 20000)
+    timeout20sRef.current = timeout20s
 
     // Turn on speech recognition (Devanagari, Marathi, English, Tamil, Bengali)
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -2314,17 +2344,18 @@ function EmergencyCallModal({
           // Latin / English / Romanized Hindi/Marathi/Indic:
           // yes, yeah, yep, yup, ya, yah, ha, haa, haaa, haan, haaan, hnn, hn, hanji, haanji, safe, surakshit, theek, thik, thek, fine, ho, hoy, ji, ok, okay, achha, acha, sari, good, barobar, sahi
           const latinSafe = /\b(yes|yeah|yep|yup|ya|yah|ha|haa|haaa|haan|haaan|hnn|hn|hanji|haanji|safe|surakshit|theek|thik|thek|fine|ho|hoy|ji|ok|okay|achha|acha|sari|good|barobar|sahi)\b/i.test(cleanT) ||
-            /safe|surakshit|theek|thik|all good|i am safe|im safe|me safe|main safe|hum safe|me surakshit|hum theek|theek hu|theek aahe|theek ahe|safe hu|safe aahe|safe ahe|mai theek|me theek/i.test(cleanT)
+            /safe|surakshit|theek|thik|all good|i am safe|im safe|me safe|main safe|hum safe|me surakshit|hum theek|theek hu|theek hoon|theek hun|theek aahe|theek ahe|safe hu|safe aahe|safe ahe|mai theek|me theek/i.test(cleanT)
 
           // 2. Comprehensive danger / help detection:
-          // Devanagari: मदद, सहायता, बचाओ, फंसा, फंसे, खतरा, नहीं, नाही, ना, अडकलो, संकट, त्राण, वाचवा, धोका
-          const devanagariDanger = /(?:मदद|सहायता|बचाओ|फंसा|फंसे|खतरा|नहीं|नाही|ना|अडकलो|संकट|त्राण|वाचवा|धोका)/u.test(cleanT)
+          // Strict boundaries so words like 'नाविक' or 'सामना' NEVER accidentally trigger danger!
+          const devanagariDanger = /(?:मदद|सहायता|बचाओ|फंसा|फंसे|खतरा|अडकलो|संकट|त्राण|वाचवा|धोका)/u.test(cleanT) ||
+            /(?:^|\s)(?:नहीं|नाही|ना)(?:\s|$)/u.test(cleanT)
 
           // Regional: সাহায্য, বিপদ, বাঁচাও, உதவி, ஆபத்து, இல்லை
           const regionalDanger = /(?:সাহায্য|বিপদ|বাঁচাও|உதவி|ஆபத்து|இல்லை)/u.test(cleanT)
 
-          // Latin / Hinglish: help, no, nahi, nahin, na, madad, madat, stuck, fasa, fas, trapped, bachao, illai, danger, uthavi, sahajjo, adaklo, vachva, dhoka, save
-          const latinDanger = /\b(help|no|nahi|nahin|na|madad|madat|stuck|fasa|fas|trapped|bachao|illai|danger|uthavi|sahajjo|adaklo|vachva|dhoka|save)\b/i.test(cleanT) ||
+          // Latin / Hinglish: help, no, nahi, nahin, madad, madat, stuck, fasa, fas, trapped, bachao, illai, danger, uthavi, sahajjo, adaklo, vachva, dhoka, save
+          const latinDanger = /\b(help|no|nahi|nahin|madad|madat|stuck|fasa|fas|trapped|bachao|illai|danger|uthavi|sahajjo|adaklo|vachva|dhoka|save)\b/i.test(cleanT) ||
             /need help|save me|madad karo|bachao mujhe|fas gaye|stuck here/i.test(cleanT)
 
           if (devanagariSafe || regionalSafe || latinSafe) {
@@ -2359,26 +2390,22 @@ function EmergencyCallModal({
       audio.preservesPitch = true
       audioRef.current = audio
 
-      // Start listening to the tourist's mic 600ms into the call so even early "haa" / "yes" is immediately captured!
-      setTimeout(() => {
-        startQuestionListening(true)
-      }, 600)
-
-      // When the advisory finishes asking "Are you safe?", engage the strict 20s countdown!
+      // Only start listening AFTER the automated voice finishes asking the question
+      // This prevents the computer mic from hearing its own speakers!
       audio.onended = () => {
-        startQuestionListening(false)
+        startQuestionListening()
       }
 
       // Safety fallback: if audio fails or cannot finish, start listening with 20s timeout
       audio.onerror = () => {
-        startQuestionListening(false)
+        startQuestionListening()
       }
 
       audio.play().catch(() => {
-        startQuestionListening(false)
+        startQuestionListening()
       })
     } catch {
-      startQuestionListening(false)
+      startQuestionListening()
     }
   }
 
@@ -2605,33 +2632,63 @@ function EmergencyCallModal({
         ) : (
           /* CONNECTED / ACTIVE IN-CALL STATE (Image 4 Right Phone) */
           <>
-            {/* Top Left Caller Header: Contact Name + Small Timer (0:01, 0:02...) with NO mic icon & NO listening banner */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '16px', padding: '0 4px' }}>
-              <div
-                style={{
-                  width: '52px',
-                  height: '52px',
-                  borderRadius: '50%',
-                  background: 'rgba(255, 255, 255, 0.16)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}
-              >
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="#ffffff">
-                  <circle cx="12" cy="7" r="4.5" />
-                  <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8v1H4v-1z" />
-                </svg>
-              </div>
-              <div>
-                <div style={{ fontSize: '20px', fontWeight: 500, color: '#ffffff', lineHeight: '1.2' }}>
-                  {callTitle}
+            {/* Top Left Caller Header: Contact Name + Small Timer (0:01, 0:02...) */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '16px', padding: '0 4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div
+                  style={{
+                    width: '52px',
+                    height: '52px',
+                    borderRadius: '50%',
+                    background: 'rgba(255, 255, 255, 0.16)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}
+                >
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="#ffffff">
+                    <circle cx="12" cy="7" r="4.5" />
+                    <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8v1H4v-1z" />
+                  </svg>
                 </div>
-                <div style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 400, marginTop: '3px' }}>
-                  {formattedDuration}
+                <div>
+                  <div style={{ fontSize: '20px', fontWeight: 500, color: '#ffffff', lineHeight: '1.2' }}>
+                    {callTitle}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 400, marginTop: '3px' }}>
+                    {formattedDuration}
+                  </div>
                 </div>
               </div>
+
+              {isListening && (
+                <div
+                  style={{
+                    background: 'rgba(34, 197, 94, 0.16)',
+                    border: '1px solid rgba(34, 197, 94, 0.5)',
+                    borderRadius: '16px',
+                    padding: '4px 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#4ade80'
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      background: '#22c55e',
+                      boxShadow: '0 0 8px #22c55e'
+                    }}
+                  />
+                  <span>🎙️ {listeningCountdown}s</span>
+                </div>
+              )}
             </div>
 
             {/* In-Call Body: 6 Realistic Buttons or Dialpad if toggled */}
@@ -3072,18 +3129,20 @@ function TouristDashboard({
     }
   }, [])
 
-  // Update localized text whenever language changes
+  // Update localized text whenever language changes (do not overwrite active boatman broadcast)
   useEffect(() => {
-    if (status === 'safe') {
-      setHindiQuote(t.quoteSafe)
-      setTranslation(t.advisorySafe)
-      setWaterStatusText(t.safeStatusDesc(location.placeName))
-    } else {
-      setHindiQuote(t.quoteDanger)
-      setTranslation(t.advisoryDanger)
-      setWaterStatusText(t.dangerStatusDesc(location.placeName))
+    if (!hasActiveBroadcast) {
+      if (status === 'safe') {
+        setHindiQuote(t.quoteSafe.replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, ''))
+        setTranslation(t.advisorySafe)
+        setWaterStatusText(t.safeStatusDesc(location.placeName))
+      } else {
+        setHindiQuote(t.quoteDanger.replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, ''))
+        setTranslation(t.advisoryDanger)
+        setWaterStatusText(t.dangerStatusDesc(location.placeName))
+      }
     }
-  }, [lang, status, location.placeName])
+  }, [lang, status, location.placeName, hasActiveBroadcast])
 
   // Calculate real distance dynamically whenever tourist location changes
   useEffect(() => {
@@ -3204,7 +3263,7 @@ function TouristDashboard({
       }
     }
     if (data.boatman_name) setBoatmanName(data.boatman_name)
-    if (data.hindi_quote) setHindiQuote(`“${data.hindi_quote}”`)
+    if (data.hindi_quote) setHindiQuote(data.hindi_quote.replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, ''))
     if (data.english_translation) setTranslation(data.english_translation)
     if (data.water_status_text) setWaterStatusText(data.water_status_text)
     if (data.boatman_audio_url) setBoatmanAudioUrl(data.boatman_audio_url)
@@ -3431,16 +3490,16 @@ function TouristDashboard({
           {/* Card 2: Sector Safety Status Banner (Prominent, High-Contrast & Vibrant) */}
           <div
             style={{
-              background: (status === 'safe' && !isVerifiedSafe)
+              background: status === 'safe'
                 ? 'linear-gradient(135deg, #059669 0%, #047857 55%, #064e3b 100%)'
                 : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 55%, #7f1d1d 100%)',
-              border: (status === 'safe' && !isVerifiedSafe) ? '2.5px solid #34d399' : '2.5px solid #f87171',
+              border: status === 'safe' ? '2.5px solid #34d399' : '2.5px solid #f87171',
               borderRadius: '22px',
               padding: '20px 24px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              boxShadow: (status === 'safe' && !isVerifiedSafe)
+              boxShadow: status === 'safe'
                 ? '0 10px 35px rgba(5, 150, 105, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25)'
                 : '0 12px 45px rgba(220, 38, 38, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
               position: 'relative'
@@ -3448,31 +3507,33 @@ function TouristDashboard({
           >
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '18px', fontWeight: 900, color: '#ffffff', letterSpacing: '-0.01em' }}>
-                {isVerifiedSafe ? (
-                  <AlertTriangle style={{ width: '28px', height: '28px', flexShrink: 0, color: '#ffffff' }} />
-                ) : (
+                {status === 'safe' ? (
                   <ShieldCheck style={{ width: '28px', height: '28px', flexShrink: 0, color: '#ffffff' }} />
+                ) : (
+                  <AlertTriangle style={{ width: '28px', height: '28px', flexShrink: 0, color: '#ffffff' }} />
                 )}
                 <span>
-                  {isVerifiedSafe
-                    ? (lang === 'mr' ? '⚠️ पाण्याच्या काठापासून दूर राहा!' : (lang === 'hi' ? '⚠️ पानी और घाट के किनारे से दूर रहें!' : '⚠️ STAY AWAY FROM WATER BANK!'))
-                    : (status === 'safe'
-                        ? (outOfRangeNotice
+                  {status === 'safe'
+                    ? (isVerifiedSafe
+                        ? (lang === 'mr' ? '🛡️ तुमची सुरक्षा सत्यापित आहे (Verified Safe)' : (lang === 'hi' ? '🛡️ आपकी सुरक्षा सत्यापित है (Verified Safe)' : '🛡️ You are Verified Safe'))
+                        : (outOfRangeNotice
                             ? `🛡️ Safe · Outside Hazard Perimeter (${outOfRangeNotice.distanceKm} km away)`
-                            : t.safeStatusBanner)
-                        : t.dangerStatusBanner)}
+                            : t.safeStatusBanner))
+                    : t.dangerStatusBanner}
                 </span>
               </div>
-              <p style={{ margin: '6px 0 0', fontSize: '13px', color: (status === 'safe' && !isVerifiedSafe) ? '#ecfdf5' : '#fee2e2', lineHeight: '1.45', fontWeight: 600 }}>
-                {isVerifiedSafe
-                  ? (lang === 'mr'
-                      ? 'स्थानिक नाविक व प्रशासनाने जलपातळी वाढल्याचा इशारा दिला आहे. तुम्ही सुरक्षित असल्याची नोंद झाली आहे, कृपया घाटावर किंवा काठावर जाऊ नका.'
-                      : (lang === 'hi'
-                          ? 'नाविकों और प्रशासन ने जल स्तर में अचानक वृद्धि की चेतावनी दी है। आपकी सुरक्षा की पुष्टि हो चुकी है, कृपया किनारे पर न जाएं।'
-                          : 'Local boatmen and officials reported rising water hazards. You are marked safe, but please strictly stay away from the water bank.'))
-                  : (status === 'safe' && outOfRangeNotice
-                      ? `Water surge hazard was reported at ${outOfRangeNotice.location} (${outOfRangeNotice.distanceKm} km from you). You are outside the 2.0 km danger perimeter and completely safe.`
-                      : waterStatusText)}
+              <p style={{ margin: '6px 0 0', fontSize: '13px', color: status === 'safe' ? '#ecfdf5' : '#fee2e2', lineHeight: '1.45', fontWeight: 600 }}>
+                {status === 'safe'
+                  ? (isVerifiedSafe
+                      ? (lang === 'mr'
+                          ? 'तुमची सुरक्षा प्रणालीमध्ये यशस्वीरीत्या नोंदवली गेली आहे. किनारा रक्षक आणि स्थानिक नाविक सतर्क आहेत.'
+                          : (lang === 'hi'
+                              ? 'आपकी सुरक्षा प्रणाली में सफलतापूर्वक दर्ज है। तट रक्षक और नाविक सतर्क निगरानी में हैं।'
+                              : 'Your safety status has been confirmed. CoastGuard and boatmen are actively monitoring the river corridor.'))
+                      : (outOfRangeNotice
+                          ? `Water surge hazard was reported at ${outOfRangeNotice.location} (${outOfRangeNotice.distanceKm} km from you). You are outside the danger perimeter and completely safe.`
+                          : waterStatusText))
+                  : waterStatusText}
               </p>
             </div>
 
@@ -3483,68 +3544,17 @@ function TouristDashboard({
                 padding: '8px 16px',
                 borderRadius: '30px',
                 background: '#ffffff',
-                color: (status === 'safe' && !isVerifiedSafe) ? '#047857' : '#991b1b',
+                color: status === 'safe' ? '#047857' : '#991b1b',
                 boxShadow: '0 4px 14px rgba(0, 0, 0, 0.25)',
                 flexShrink: 0,
                 marginLeft: '16px',
                 letterSpacing: '0.04em'
               }}
             >
-              {isVerifiedSafe ? '⚠️ STAY AWAY' : ((status === 'safe' && !isVerifiedSafe) ? '✅ SAFE TO ROAM' : '⚠️ DANGER ALERT')}
+              {status === 'safe' ? '✅ SAFE TO ROAM' : '⚠️ DANGER ALERT'}
             </span>
           </div>
         </div>
-
-        {/* PROMINENT STAY AWAY WARNING BANNER */}
-        {isVerifiedSafe && status === 'safe' && (
-          <section
-            style={{
-              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(185, 28, 28, 0.25))',
-              border: '2px solid #ef4444',
-              borderRadius: '18px',
-              padding: '16px 20px',
-              marginBottom: '20px',
-              boxShadow: '0 8px 30px rgba(239, 68, 68, 0.25)'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                <AlertTriangle style={{ width: '24px', height: '24px', color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
-                <div>
-                  <h3 style={{ fontSize: '15px', fontWeight: 900, color: '#f87171', margin: '0 0 3px' }}>
-                    {STAY_AWAY_WARNINGS[lang]?.title || STAY_AWAY_WARNINGS.en.title}
-                  </h3>
-                  <p style={{ fontSize: '12px', color: '#fecdd3', margin: '0 0 6px', lineHeight: '1.45', fontWeight: 600 }}>
-                    {STAY_AWAY_WARNINGS[lang]?.desc || STAY_AWAY_WARNINGS.en.desc}
-                  </p>
-                  <span style={{ fontSize: '10.5px', color: '#cbd5e1', fontWeight: 700 }}>
-                    {STAY_AWAY_WARNINGS[lang]?.badge || STAY_AWAY_WARNINGS.en.badge}
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsVerifiedSafe(false)
-                  setStatus('safe')
-                  fetch('/api/emergency/reset', { method: 'POST' }).catch(() => {})
-                }}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  color: '#fff',
-                  borderRadius: '8px',
-                  padding: '4px 10px',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
-                Dismiss
-              </button>
-            </div>
-          </section>
-        )}
 
         {/* MAIN COMMAND DECK: 2-COLUMN DESKTOP GRID */}
         <div className="desktop-main-grid">
@@ -3599,7 +3609,7 @@ function TouristDashboard({
                       lineHeight: '1.5'
                     }}
                   >
-                    &ldquo;{hindiQuote}&rdquo;
+                    &ldquo;{hindiQuote ? hindiQuote.replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, '') : t.quoteSafe.replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, '')}&rdquo;
                   </blockquote>
                   <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 16px', lineHeight: '1.45' }}>
                     {translation}
@@ -4030,6 +4040,8 @@ function BoatmanDashboard({
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
+  const liveTranscriptRef = useRef<string>('')
+  const liveSpeechRecRef = useRef<any>(null)
 
   // Recording timer
   useEffect(() => {
@@ -4208,22 +4220,49 @@ function BoatmanDashboard({
     }
   }, [location.lat, location.lon, activeRescue])
 
-  // Center Mic Toggle (Real MediaRecorder with Hardware Noise Suppression + API Dispatch)
+  // Center Mic Toggle (Real MediaRecorder with Hardware Noise Suppression + Live In-Browser Speech Recognition)
   const toggleMic = async () => {
     if (recording) {
       // STOP recording & dispatch to backend
       setRecording(false)
+      if (liveSpeechRecRef.current) {
+        try { liveSpeechRecRef.current.stop() } catch {}
+      }
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop()
       } else {
-        // Fallback dispatch
-        sendVoiceBroadcast(null, 'Paani shaant hai, sab theek hai ghat pe.')
+        const spoken = liveTranscriptRef.current.trim() || undefined
+        sendVoiceBroadcast(null, spoken)
       }
     } else {
       // START real browser mic recording with HARDWARE NOISE SUPPRESSION & ECHO CANCELLATION
       setSeconds(0)
       setSent(false)
       audioChunksRef.current = []
+      liveTranscriptRef.current = ''
+
+      // Start live speech recognition to capture boatman's exact spoken words
+      const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      if (SpeechRec) {
+        try {
+          const rec = new SpeechRec()
+          rec.continuous = true
+          rec.interimResults = true
+          rec.lang = lang === 'mr' ? 'mr-IN' : (lang === 'hi' ? 'hi-IN' : (lang === 'ta' ? 'ta-IN' : (lang === 'bn' ? 'bn-IN' : 'en-IN')))
+          rec.onresult = (ev: any) => {
+            let tr = ''
+            for (let i = ev.resultIndex; i < ev.results.length; i++) {
+              tr += ev.results[i][0].transcript + ' '
+            }
+            const clean = tr.trim()
+            if (clean) {
+              liveTranscriptRef.current = clean
+            }
+          }
+          rec.start()
+          liveSpeechRecRef.current = rec
+        } catch {}
+      }
 
       try {
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -4245,7 +4284,11 @@ function BoatmanDashboard({
           mr.onstop = async () => {
             const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' })
             stream.getTracks().forEach((track) => track.stop())
-            await sendVoiceBroadcast(audioBlob)
+            if (liveSpeechRecRef.current) {
+              try { liveSpeechRecRef.current.stop() } catch {}
+            }
+            const spoken = liveTranscriptRef.current.trim() || undefined
+            await sendVoiceBroadcast(audioBlob, spoken)
           }
 
           mr.start()
@@ -4290,7 +4333,9 @@ function BoatmanDashboard({
         const data = await res.json()
         const state = data.sector_state
         setSent(true)
-        setSentText(`“${state.hindi_quote || overrideText || t.boatmanSpeakSent}”`)
+        const rawQuote = state.hindi_quote || overrideText || t.boatmanSpeakSent
+        const cleanQuote = rawQuote.replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, '')
+        setSentText(`“${cleanQuote}”`)
         setRecipientsCount(state.recipients_notified || 18)
         onBroadcast(state.status)
       } else {
