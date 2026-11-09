@@ -123,6 +123,35 @@ export interface UiTranslations {
   quoteDanger: string
   advisorySafe: string
   advisoryDanger: string
+  // Status Badges & Banners
+  stayAwayBadge: string
+  safeToRoamBadge: string
+  dangerAlertBadge: string
+  stayAwayBannerTitle: string
+  stayAwayBannerDesc: string
+  safeOutsideHazard: (distKm: string) => string
+  safeOutsideHazardDesc: (location: string, distKm: string) => string
+
+  // Ghat Corridor Telemetry
+  stationMonitorTitle: string
+  streamSafeBadge: string
+  streamAlertBadge: string
+  yourLocationTile: string
+  nearestBoatmanTile: string
+  riverFlowTile: string
+  riverFlowNormal: string
+  riverFlowDanger: string
+  emergencyNumTile: string
+  patrolDirectivesTitle: string
+  directiveLifeJacket: string
+  directiveWhistle: string
+  call112Btn: string
+  satelliteMapBtn: string
+  presetLabel: string
+
+  // Auto-Rescue & Distance
+  autoRescueCountdown: (sec: number) => string
+  formatDistance: (meters: number) => string
 }
 
 export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
@@ -207,7 +236,32 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     quoteSafe: 'जल क्षेत्र से नाविक की आवाज: पानी सामान्य और शांत है, नौका विहार सुरक्षित है।',
     quoteDanger: 'सावधान! जल स्तर में अचानक वृद्धि की चेतावनी दी गई है। कृपया सुरक्षित स्थान पर जाएं।',
     advisorySafe: 'तट रक्षक सूचना: जलस्तर सामान्य है और मौसम शांत है। नौका विहार सुरक्षित है।',
-    advisoryDanger: 'सावधान! नाव चालकों ने नदी में अचानक बहाव की चेतावनी दी है। कृपया तुरंत घाट की ऊपरी सीढ़ियों पर जाएं।'
+    advisoryDanger: 'सावधान! नाव चालकों ने नदी में अचानक बहाव की चेतावनी दी है। कृपया तुरंत घाट की ऊपरी सीढ़ियों पर जाएं।',
+    stayAwayBadge: '⚠️ दूर रहें',
+    safeToRoamBadge: '✅ क्षेत्र सुरक्षित है',
+    dangerAlertBadge: '⚠️ खतरा चेतावनी',
+    stayAwayBannerTitle: '⚠️ पानी और घाट के किनारे से दूर रहें!',
+    stayAwayBannerDesc: 'नाविकों और प्रशासन ने जल स्तर में अचानक वृद्धि की चेतावनी दी है। आपकी सुरक्षा की पुष्टि हो चुकी है, कृपया किनारे पर न जाएं।',
+    safeOutsideHazard: (d) => `🛡️ सुरक्षित · खतरे के दायरे से बाहर (${d} किमी दूर)`,
+    safeOutsideHazardDesc: (loc, d) => `${loc} पर जल स्तर वृद्धि की सूचना थी (${d} किमी दूर)। आप खतरे के दायरे से पूरी तरह बाहर और सुरक्षित हैं।`,
+    stationMonitorTitle: 'लाइव घाट स्टेशन मॉनिटर',
+    streamSafeBadge: 'जलधारा सुरक्षित',
+    streamAlertBadge: 'चेतावनी सक्रिय',
+    yourLocationTile: 'आपका स्थान',
+    nearestBoatmanTile: 'निकटतम नाविक',
+    riverFlowTile: 'नदी बहाव',
+    riverFlowNormal: 'सामान्य',
+    riverFlowDanger: 'तेज़ बहाव',
+    emergencyNumTile: 'आपातकालीन नंबर',
+    patrolDirectivesTitle: 'नाविक व गश्ती दल सुरक्षा निर्देश',
+    directiveLifeJacket: 'नौका विहार करते समय लाइफ जैकेट अनिवार्य है।',
+    directiveWhistle: 'नाविकों की सीटी अथवा ध्वनि चेतावनी पर तुरंत किनारे आएं।',
+    call112Btn: '112 आपातकालीन',
+    satelliteMapBtn: 'उपग्रह मानचित्र',
+    presetLabel: 'प्रीसेट',
+    autoRescueCountdown: (s) => `उत्तर न देने पर ${s}s में स्वतः बचाव`,
+    formatDistance: (m) => m <= 50 ? `बिल्कुल आपके पास (${m} मीटर · लाइव GPS)` : (m < 1000 ? `${m} मीटर दूर (लाइव GPS)` : `${(m / 1000).toFixed(1)} किमी दूर (लाइव GPS)`),
+
   },
 
   en: {
@@ -291,7 +345,32 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     quoteSafe: '“Water is completely calm. Boating permitted.”',
     quoteDanger: '“Severe water current surging! Evacuate river banks immediately!”',
     advisorySafe: 'Coastal advisory: Water levels are normal and waters are calm. Boating permitted.',
-    advisoryDanger: 'Emergency Warning! Local boatmen reported a sudden water surge. Please evacuate the river bank immediately.'
+    advisoryDanger: 'Emergency Warning! Local boatmen reported a sudden water surge. Please evacuate the river bank immediately.',
+    stayAwayBadge: '⚠️ STAY AWAY',
+    safeToRoamBadge: '✅ SAFE TO ROAM',
+    dangerAlertBadge: '⚠️ DANGER ALERT',
+    stayAwayBannerTitle: '⚠️ STAY AWAY FROM WATER BANK & RIVER EDGE!',
+    stayAwayBannerDesc: 'Local boatmen and officials reported rising water hazards. You are marked safe, but please strictly stay away from the water bank.',
+    safeOutsideHazard: (d) => `🛡️ Safe · Outside Hazard Perimeter (${d} km away)`,
+    safeOutsideHazardDesc: (loc, d) => `Water surge hazard was reported at ${loc} (${d} km from you). You are outside the danger perimeter and completely safe.`,
+    stationMonitorTitle: 'Live Ghat Safety Corridor',
+    streamSafeBadge: 'Calm Waterway',
+    streamAlertBadge: 'Surge Alert',
+    yourLocationTile: 'Your Location',
+    nearestBoatmanTile: 'Nearest Boatman',
+    riverFlowTile: 'River Flow',
+    riverFlowNormal: 'Normal',
+    riverFlowDanger: 'Fast / Risky',
+    emergencyNumTile: 'Emergency Number',
+    patrolDirectivesTitle: 'Official Water Safety Directives',
+    directiveLifeJacket: 'Life jackets mandatory for boating beyond the ghat steps.',
+    directiveWhistle: 'Follow whistle signals and vocal instructions from local boatmen.',
+    call112Btn: '112 Emergency',
+    satelliteMapBtn: 'Satellite Map',
+    presetLabel: 'Preset',
+    autoRescueCountdown: (s) => `Auto-rescue in ${s}s if unanswered`,
+    formatDistance: (m) => m <= 50 ? `Right next to you (${m}m · Live GPS)` : (m < 1000 ? `${m} meters from your live GPS` : `${(m / 1000).toFixed(1)} km from your live GPS`),
+
   },
 
   ta: {
@@ -375,7 +454,32 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     quoteSafe: '“தண்ணீர் முற்றிலும் அமைதியாக உள்ளது, படகு சவாரி பாதுகாப்பானது.”',
     quoteDanger: '“திடீரென வெள்ளம் பெருக்கெடுத்து ஓடுகிறது, உடனடியாக அனைவரும் கரையேறுங்கள்!”',
     advisorySafe: 'கடலோர தகவல்: நீர்மட்டம் சாதாரணமாக உள்ளது. படகு சவாரி பாதுகாப்பானது.',
-    advisoryDanger: 'எச்சரிக்கை! படகோட்டிகள் திடீர் நீர்வரத்து குறித்து எச்சரித்துள்ளனர். உடனடியாக படிக்கட்டுகளில் ஏறி பாதுகாப்பான இடத்திற்கு செல்லுங்கள்.'
+    advisoryDanger: 'எச்சரிக்கை! படகோட்டிகள் திடீர் நீர்வரத்து குறித்து எச்சரித்துள்ளனர். உடனடியாக படிக்கட்டுகளில் ஏறி பாதுகாப்பான இடத்திற்கு செல்லுங்கள்.',
+    stayAwayBadge: '⚠️ விலகி இருங்கள்',
+    safeToRoamBadge: '✅ பாதுகாப்பானது',
+    dangerAlertBadge: '⚠️ ஆபத்து எச்சரிக்கை',
+    stayAwayBannerTitle: '⚠️ நீர் கரை மற்றும் படித்துறையிலிருந்து விலகி இருங்கள்!',
+    stayAwayBannerDesc: 'படகோட்டிகளும் அதிகாரிகளும் நீர்மட்டம் திடீரென உயர்வதாக எச்சரித்துள்ளனர். நீங்கள் பாதுகாப்பாக உள்ளீர்கள், ஆனால் தயவுசெய்து கரைக்கு செல்ல வேண்டாம்.',
+    safeOutsideHazard: (d) => `🛡️ பாதுகாப்பானது · ஆபத்து எல்லைக்கு வெளியே (${d} கி.மீ)`,
+    safeOutsideHazardDesc: (loc, d) => `${loc} இல் நீர்மட்டம் உயர்வு பதிவானது (${d} கி.மீ). நீங்கள் ஆபத்து எல்லைக்கு வெளியே முற்றிலும் பாதுகாப்பாக உள்ளீர்கள்.`,
+    stationMonitorTitle: 'நேரலை படித்துறை கண்காணிப்பகம்',
+    streamSafeBadge: 'நீரோட்டம் பாதுகாப்பானது',
+    streamAlertBadge: 'எச்சரிக்கை செயலில்',
+    yourLocationTile: 'உங்கள் இருப்பிடம்',
+    nearestBoatmanTile: 'அருகிலுள்ள படகோட்டி',
+    riverFlowTile: 'நதி நீரோட்டம்',
+    riverFlowNormal: 'சாதாரணமானது',
+    riverFlowDanger: 'வேகமான ஓட்டம்',
+    emergencyNumTile: 'அவசர எண்',
+    patrolDirectivesTitle: 'படகோட்டி மற்றும் ரோந்து பாதுகாப்பு வழிகாட்டுதல்கள்',
+    directiveLifeJacket: 'படகில் செல்லும் போது லைஃப் ஜாக்கெட் கட்டாயமாகும்.',
+    directiveWhistle: 'படகோட்டிகளின் விசில் ஒலி கேட்டால் உடனே கரைக்கு வாருங்கள்.',
+    call112Btn: '112 அவசர உதவி',
+    satelliteMapBtn: 'செயற்கைக்கோள் வரைபடம்',
+    presetLabel: 'முன்னமைவு',
+    autoRescueCountdown: (s) => `பதிலளிக்கவில்லை என்றால் ${s}s இல் தானியங்கி மீட்பு`,
+    formatDistance: (m) => m <= 50 ? `மிக அருகில் (${m} மீ · நேரலை GPS)` : (m < 1000 ? `${m} மீட்டர்கள் தொலைவில் (நேரலை GPS)` : `${(m / 1000).toFixed(1)} கி.மீ தொலைவில் (நேரலை GPS)`),
+
   },
 
   bn: {
@@ -459,7 +563,32 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     quoteSafe: '“নদীর জল সম্পূর্ণ শান্ত, নিরাপদে নৌকাবিহার করা যাবে।”',
     quoteDanger: '“জল খুব দ্রুত বাড়ছে, স্রোত তীব্র, সবাই দ্রুত ওপরে উঠে আসুন!”',
     advisorySafe: 'উপকূলীয় তথ্য: নদীর জল স্বাভাবিক এবং আবহাওয়া শান্ত রয়েছে। নৌকাবিহার নিরাপদ।',
-    advisoryDanger: 'সতর্কতা! মাঝিরা নদীতে দ্রুত জলবৃদ্ধির সতর্কতা জারি করেছে। অবিলম্বে ঘাটের ওপরের সিঁড়িতে উঠে যান।'
+    advisoryDanger: 'সতর্কতা! মাঝিরা নদীতে দ্রুত জলবৃদ্ধির সতর্কতা জারি করেছে। অবিলম্বে ঘাটের ওপরের সিঁড়িতে উঠে যান।',
+    stayAwayBadge: '⚠️ দূরে থাকুন',
+    safeToRoamBadge: '✅ চলাচল নিরাপদ',
+    dangerAlertBadge: '⚠️ বিপদ সতর্কতা',
+    stayAwayBannerTitle: '⚠️ জল ও ঘাটের কিনারা থেকে দূরে থাকুন!',
+    stayAwayBannerDesc: 'মাঝি ও প্রশাসন জলস্তর দ্রুত বৃদ্ধির সতর্কতা জারি করেছে। আপনার সুরক্ষা নিশ্চিত হয়েছে, দয়া করে নদীর কিনারায় যাবেন না।',
+    safeOutsideHazard: (d) => `🛡️ নিরাপদ · বিপদের সীমানার বাইরে (${d} কিমি দূরে)`,
+    safeOutsideHazardDesc: (loc, d) => `${loc} এ জলস্তর বৃদ্ধির খবর পাওয়া গেছে (${d} কিমি দূরে)। আপনি বিপদের সীমানার বাইরে এবং সম্পূর্ণ নিরাপদ।`,
+    stationMonitorTitle: 'লাইভ ঘাট স্টেশন মনিটর',
+    streamSafeBadge: 'জলধারা নিরাপদ',
+    streamAlertBadge: 'সতর্কতা সক্রিয়',
+    yourLocationTile: 'আপনার অবস্থান',
+    nearestBoatmanTile: 'নিকটতম মাঝি',
+    riverFlowTile: 'নদীর প্রবাহ',
+    riverFlowNormal: 'স্বাভাবিক',
+    riverFlowDanger: 'তীব্র স্রোত',
+    emergencyNumTile: 'জরুরি নম্বর',
+    patrolDirectivesTitle: 'মাঝি ও টহল দলের নিরাপত্তা নির্দেশিকা',
+    directiveLifeJacket: 'নৌকাবিহারের সময় লাইফ জ্যাকেট পরা বাধ্যতামূলক।',
+    directiveWhistle: 'মাঝিদের বাঁশি বা শব্দের সংকেত পেলে অবিলম্বে তীরে চলে আসুন।',
+    call112Btn: '112 জরুরি কল',
+    satelliteMapBtn: 'স্যাটেলাইট মানচিত্র',
+    presetLabel: 'প্রিসেট',
+    autoRescueCountdown: (s) => `উত্তর না দিলে ${s}s এ স্বয়ংক্রিয় উদ্ধার`,
+    formatDistance: (m) => m <= 50 ? `একদম আপনার কাছে (${m} মিটার · লাইভ GPS)` : (m < 1000 ? `${m} মিটার দূরে (লাইভ GPS)` : `${(m / 1000).toFixed(1)} কিমি দূরে (লাইভ GPS)`),
+
   },
 
   mr: {
@@ -543,6 +672,31 @@ export const UI_TRANSLATIONS: Record<SupportedLang, UiTranslations> = {
     quoteSafe: '“पाणी पूर्णपणे शांत आहे, सुरक्षितपणे बोटिंग करता येईल.”',
     quoteDanger: '“पाण्याचा प्रवाह अचानक वाढला आहे, बोट उलटण्याचा धोका आहे, सर्वांनी लगेच वर या!”',
     advisorySafe: 'तटरक्षक माहिती: पाण्याची पातळी सामान्य असून हवामान शांत आहे. बोटिंग करणे सुरक्षित आहे.',
-    advisoryDanger: 'सावधान! नाविक मित्रांनी पाण्यात अचानक प्रवाह वाढल्याचा इशारा दिला आहे. कृपया लगेच घाटाच्या वरच्या पायऱ्यांवर जावे.'
+    advisoryDanger: 'सावधान! नाविक मित्रांनी पाण्यात अचानक प्रवाह वाढल्याचा इशारा दिला आहे. कृपया लगेच घाटाच्या वरच्या पायऱ्यांवर जावे.',
+    stayAwayBadge: '⚠️ लांब राहा',
+    safeToRoamBadge: '✅ परिसर सुरक्षित',
+    dangerAlertBadge: '⚠️ धोक्याचा इशारा',
+    stayAwayBannerTitle: '⚠️ पाण्याच्या काठापासून दूर राहा!',
+    stayAwayBannerDesc: 'स्थानिक नाविक व प्रशासनाने जलपातळी वाढल्याचा इशारा दिला आहे. तुम्ही सुरक्षित असल्याची नोंद झाली आहे, कृपया घाटावर किंवा काठावर जाऊ नका.',
+    safeOutsideHazard: (d) => `🛡️ सुरक्षित · धोका क्षेत्राबाहेर (${d} किमी अंतरावर)`,
+    safeOutsideHazardDesc: (loc, d) => `${loc} येथे जलपातळी वाढल्याची नोंद झाली (${d} किमी अंतरावर). तुम्ही धोक्याच्या क्षेत्राबाहेर आणि सुरक्षित आहात.`,
+    stationMonitorTitle: 'थेट घाट स्थान निरीक्षण',
+    streamSafeBadge: 'प्रवाह सुरक्षित',
+    streamAlertBadge: 'धोका इशारा सक्रिय',
+    yourLocationTile: 'तुमचे स्थान',
+    nearestBoatmanTile: 'जवळचा नाविक',
+    riverFlowTile: 'नदी प्रवाह',
+    riverFlowNormal: 'सामान्य',
+    riverFlowDanger: 'वेगवान',
+    emergencyNumTile: 'आपत्कालीन क्रमांक',
+    patrolDirectivesTitle: 'नाविक व गस्ती पथक सुरक्षा नियम',
+    directiveLifeJacket: 'नौकाविहाराच्या वेळी लाइफ जॅकेट अनिवार्य आहे.',
+    directiveWhistle: 'नाविकांच्या शिट्टी किंवा ध्वनी इशाऱ्याकडे दुर्लक्ष करू नका.',
+    call112Btn: '112 आपत्कालीन',
+    satelliteMapBtn: 'उपग्रह नकाशा',
+    presetLabel: 'प्रिसेट',
+    autoRescueCountdown: (s) => `उत्तर न दिल्यास ${s}s मध्ये आपोआप बचाव`,
+    formatDistance: (m) => m <= 50 ? `अगदी तुमच्या जवळ (${m} मीटर · लाइव्ह GPS)` : (m < 1000 ? `${m} मीटर अंतरावर (लाइव्ह GPS)` : `${(m / 1000).toFixed(1)} किमी अंतरावर (लाइव्ह GPS)`),
+
   }
 }

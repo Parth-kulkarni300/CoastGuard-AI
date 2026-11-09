@@ -168,18 +168,38 @@ function useRealTimeLocation() {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const { latitude, longitude, accuracy: acc } = pos.coords
-          setLat(latitude)
-          setLon(longitude)
+          let finalLat = latitude
+          let finalLon = longitude
+
+          // Same-laptop shared anchor sync:
+          // Eliminates Wi-Fi triangulation jitter between tabs opened on the same laptop
+          try {
+            const cached = localStorage.getItem('cg_shared_anchor_coords')
+            if (cached) {
+              const parsed = JSON.parse(cached)
+              if (Date.now() - parsed.time < 30 * 60 * 1000) {
+                const jitterDist = calculateHaversineDistance(latitude, longitude, parsed.lat, parsed.lon)
+                if (jitterDist < 250) {
+                  finalLat = parsed.lat
+                  finalLon = parsed.lon
+                }
+              }
+            }
+            localStorage.setItem('cg_shared_anchor_coords', JSON.stringify({ lat: finalLat, lon: finalLon, time: Date.now() }))
+          } catch {}
+
+          setLat(finalLat)
+          setLon(finalLon)
           setAccuracy(Math.round(acc))
           setIsLiveGPS(true)
           setGeoError(null)
-          reverseGeocode(latitude, longitude)
+          reverseGeocode(finalLat, finalLon)
 
           // Register with backend
           const fd = new FormData()
           fd.append('phone', 'user')
-          fd.append('lat', latitude.toString())
-          fd.append('lon', longitude.toString())
+          fd.append('lat', finalLat.toString())
+          fd.append('lon', finalLon.toString())
           fd.append('accuracy', acc.toString())
           fetch('/api/location/update', { method: 'POST', body: fd }).catch(() => {})
         },
@@ -281,7 +301,7 @@ function MiniVisualRadar({
   // REAL TARGET LOGIC: High-accuracy real GPS distance & proximity
   const hasTarget = !!rescueTarget
   const effectiveDist = hasTarget ? rescueTarget.distMeters : 0
-  const isNear = hasTarget && effectiveDist <= 25
+  const isNear = hasTarget && effectiveDist <= 50
 
   const effectiveBearing = hasTarget
     ? (isNear ? { degrees: 45, compass: 'Immediate Proximity', arrow: '🎯' } : rescueTarget.bearing)
@@ -407,103 +427,167 @@ function MiniVisualRadar({
         </div>
       )}
 
-      {/* High-Resolution Glowing Sonar Scope (Matching User Screenshot) */}
+      {/* High-Resolution Authentic Naval Sonar Scope (Real-Life Marine Chartplotter) */}
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative', margin: '8px 0' }}>
         <svg viewBox="0 0 380 380" width="100%" style={{ maxWidth: '380px', height: 'auto', overflow: 'visible' }}>
           <defs>
             <radialGradient id="sonarWedgeGrad" cx="0%" cy="0%" r="100%">
-              <stop offset="0%" stopColor={hasTarget ? 'rgba(239, 68, 68, 0.55)' : 'rgba(34, 211, 238, 0.55)'} />
-              <stop offset="65%" stopColor={hasTarget ? 'rgba(239, 68, 68, 0.16)' : 'rgba(34, 211, 238, 0.14)'} />
+              <stop offset="0%" stopColor={hasTarget ? 'rgba(239, 68, 68, 0.65)' : 'rgba(34, 211, 238, 0.65)'} />
+              <stop offset="35%" stopColor={hasTarget ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 211, 238, 0.32)'} />
+              <stop offset="75%" stopColor={hasTarget ? 'rgba(239, 68, 68, 0.12)' : 'rgba(34, 211, 238, 0.10)'} />
               <stop offset="100%" stopColor="transparent" />
             </radialGradient>
             <filter id="radarNeonGlow" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feGaussianBlur stdDeviation="3.5" result="blur" />
               <feComposite in="SourceGraphic" in2="blur" operator="over" />
             </filter>
             <filter id="targetRedGlow" x="-40%" y="-40%" width="180%" height="180%">
               <feGaussianBlur stdDeviation="6" result="blur" />
               <feComposite in="SourceGraphic" in2="blur" operator="over" />
             </filter>
+            <radialGradient id="scopeDepthGrad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#040b17" />
+              <stop offset="75%" stopColor="#02070f" />
+              <stop offset="100%" stopColor="#01040a" />
+            </radialGradient>
           </defs>
 
-          {/* Background Scope Tint */}
-          <circle cx="190" cy="190" r="150" fill="rgba(4, 9, 16, 0.92)" />
+          {/* Background Scope Tint with Outer Bezel */}
+          <circle cx="190" cy="190" r="168" fill="#060d19" stroke="rgba(255, 255, 255, 0.08)" strokeWidth="1" />
+          <circle cx="190" cy="190" r="158" fill="none" stroke="rgba(56, 189, 248, 0.18)" strokeWidth="0.8" />
+          <circle cx="190" cy="190" r="150" fill="url(#scopeDepthGrad)" />
+
+          {/* Authentic Marine Azimuth Degree Tick Marks (Every 10° around the 360° rim) */}
+          {Array.from({ length: 36 }).map((_, i) => {
+            const angle = i * 10
+            const rad = (angle * Math.PI) / 180
+            const isMajor = angle % 30 === 0
+            const isCardinal = angle % 90 === 0
+            const innerR = isCardinal ? 139 : (isMajor ? 142 : 145)
+            const x1 = 190 + 150 * Math.sin(rad)
+            const y1 = 190 - 150 * Math.cos(rad)
+            const x2 = 190 + innerR * Math.sin(rad)
+            const y2 = 190 - innerR * Math.cos(rad)
+            return (
+              <line
+                key={`tick-${angle}`}
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
+                stroke={isCardinal ? (hasTarget ? '#ef4444' : '#22d3ee') : (isMajor ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.18)')}
+                strokeWidth={isCardinal ? 1.8 : (isMajor ? 1.2 : 0.8)}
+              />
+            )
+          })}
+
+          {/* Compass Degree Numbers at 30° Increments */}
+          <text x="264" y="66" textAnchor="middle" fill="rgba(148, 163, 184, 0.7)" fontSize="7.5" fontWeight="700" fontFamily="monospace">030°</text>
+          <text x="316" y="128" textAnchor="middle" fill="rgba(148, 163, 184, 0.7)" fontSize="7.5" fontWeight="700" fontFamily="monospace">060°</text>
+          <text x="316" y="258" textAnchor="middle" fill="rgba(148, 163, 184, 0.7)" fontSize="7.5" fontWeight="700" fontFamily="monospace">120°</text>
+          <text x="264" y="322" textAnchor="middle" fill="rgba(148, 163, 184, 0.7)" fontSize="7.5" fontWeight="700" fontFamily="monospace">150°</text>
+          <text x="116" y="322" textAnchor="middle" fill="rgba(148, 163, 184, 0.7)" fontSize="7.5" fontWeight="700" fontFamily="monospace">210°</text>
+          <text x="64" y="258" textAnchor="middle" fill="rgba(148, 163, 184, 0.7)" fontSize="7.5" fontWeight="700" fontFamily="monospace">240°</text>
+          <text x="64" y="128" textAnchor="middle" fill="rgba(148, 163, 184, 0.7)" fontSize="7.5" fontWeight="700" fontFamily="monospace">300°</text>
+          <text x="116" y="66" textAnchor="middle" fill="rgba(148, 163, 184, 0.7)" fontSize="7.5" fontWeight="700" fontFamily="monospace">330°</text>
+
+          {/* Diagonal 45° Tactical Bearing Index Lines */}
+          <line x1="84" y1="84" x2="296" y2="296" stroke="rgba(255, 255, 255, 0.06)" strokeWidth="0.8" strokeDasharray="3 4" />
+          <line x1="296" y1="84" x2="84" y2="296" stroke="rgba(255, 255, 255, 0.06)" strokeWidth="0.8" strokeDasharray="3 4" />
 
           {/* Concentric 3.0 KM Sector Range Rings */}
-          {/* 1.0 km Ring (Dashed) */}
-          <circle
-            cx="190"
-            cy="190"
-            r="50"
-            fill="none"
-            stroke={hasTarget ? 'rgba(239, 68, 68, 0.25)' : 'rgba(34, 211, 238, 0.25)'}
-            strokeWidth="1.2"
-            strokeDasharray="4 4"
-          />
+          {/* 0.5 km Ring (Subtle Dashed) */}
+          <circle cx="190" cy="190" r="25" fill="none" stroke={hasTarget ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 211, 238, 0.15)'} strokeWidth="0.8" strokeDasharray="2 3" />
+          {/* 1.0 km Ring */}
+          <circle cx="190" cy="190" r="50" fill="none" stroke={hasTarget ? 'rgba(239, 68, 68, 0.28)' : 'rgba(34, 211, 238, 0.25)'} strokeWidth="1.1" strokeDasharray="4 4" />
+          {/* 1.5 km Ring (Subtle Dashed) */}
+          <circle cx="190" cy="190" r="75" fill="none" stroke={hasTarget ? 'rgba(239, 68, 68, 0.16)' : 'rgba(34, 211, 238, 0.16)'} strokeWidth="0.8" strokeDasharray="2 3" />
+          {/* 2.0 km Ring */}
+          <circle cx="190" cy="190" r="100" fill="none" stroke={hasTarget ? 'rgba(239, 68, 68, 0.32)' : 'rgba(34, 211, 238, 0.30)'} strokeWidth="1.1" strokeDasharray="4 4" />
+          {/* 2.5 km Ring (Subtle Dashed) */}
+          <circle cx="190" cy="190" r="125" fill="none" stroke={hasTarget ? 'rgba(239, 68, 68, 0.18)' : 'rgba(34, 211, 238, 0.18)'} strokeWidth="0.8" strokeDasharray="2 3" />
 
-          {/* 2.0 km Ring (Dashed) */}
-          <circle
-            cx="190"
-            cy="190"
-            r="100"
-            fill="none"
-            stroke={hasTarget ? 'rgba(239, 68, 68, 0.28)' : 'rgba(34, 211, 238, 0.28)'}
-            strokeWidth="1.2"
-            strokeDasharray="4 4"
-          />
-
-          {/* 3.0 km Outer Sector Ring (Solid Glowing) */}
+          {/* 3.0 km Outer Sector Boundary (Solid High-Contrast Glowing Rim) */}
           <circle
             cx="190"
             cy="190"
             r="150"
             fill="none"
-            stroke={hasTarget ? 'rgba(239, 68, 68, 0.7)' : 'rgba(34, 211, 238, 0.55)'}
+            stroke={hasTarget ? '#ef4444' : '#22d3ee'}
             strokeWidth="1.8"
             filter="url(#radarNeonGlow)"
+            opacity="0.85"
           />
 
-          {/* Crosshair Cardinal Axes */}
-          <line x1="40" y1="190" x2="340" y2="190" stroke={hasTarget ? 'rgba(239, 68, 68, 0.22)' : 'rgba(34, 211, 238, 0.22)'} strokeWidth="1.2" />
-          <line x1="190" y1="40" x2="190" y2="340" stroke={hasTarget ? 'rgba(239, 68, 68, 0.22)' : 'rgba(34, 211, 238, 0.22)'} strokeWidth="1.2" />
+          {/* Primary Crosshair Cardinal Axes with Sub-Division Marks */}
+          <line x1="38" y1="190" x2="342" y2="190" stroke={hasTarget ? 'rgba(239, 68, 68, 0.25)' : 'rgba(34, 211, 238, 0.25)'} strokeWidth="1.2" />
+          <line x1="190" y1="38" x2="190" y2="342" stroke={hasTarget ? 'rgba(239, 68, 68, 0.25)' : 'rgba(34, 211, 238, 0.25)'} strokeWidth="1.2" />
 
-          {/* Distance Labels along North Axis */}
-          <text x="196" y="142" fill="#64748b" fontSize="8.5" fontWeight="700">1.0 km</text>
-          <text x="196" y="92" fill="#64748b" fontSize="8.5" fontWeight="700">2.0 km</text>
-          <text x="196" y="44" fill={hasTarget ? '#f87171' : '#38bdf8'} fontSize="9.5" fontWeight="800">3.0 km</text>
+          {/* Live Expanding Sonar Ping Acoustic Ripple Wave */}
+          <circle
+            cx="190"
+            cy="190"
+            r="150"
+            fill="none"
+            stroke={hasTarget ? '#ef4444' : '#22d3ee'}
+            strokeWidth="1.4"
+            style={{
+              transformOrigin: '190px 190px',
+              animation: 'sonarPingWave 3.4s cubic-bezier(0, 0.2, 0.8, 1) infinite'
+            }}
+          />
 
-          {/* Cardinal Compass Markers */}
-          <text x="190" y="24" textAnchor="middle" fill="#ffffff" fontSize="13" fontWeight="900" letterSpacing="0.05em">N</text>
-          <text x="368" y="195" textAnchor="middle" fill="#ffffff" fontSize="13" fontWeight="900" letterSpacing="0.05em">E</text>
-          <text x="190" y="374" textAnchor="middle" fill="#ffffff" fontSize="13" fontWeight="900" letterSpacing="0.05em">S</text>
-          <text x="12" y="195" textAnchor="middle" fill="#ffffff" fontSize="13" fontWeight="900" letterSpacing="0.05em">W</text>
+          {/* Nautical Range Labels along North Axis */}
+          <text x="196" y="166" fill="#64748b" fontSize="8" fontWeight="700" fontFamily="monospace">0.5k</text>
+          <text x="196" y="142" fill="#64748b" fontSize="8.5" fontWeight="700" fontFamily="monospace">1.0 km</text>
+          <text x="196" y="116" fill="#64748b" fontSize="8" fontWeight="700" fontFamily="monospace">1.5k</text>
+          <text x="196" y="92" fill="#64748b" fontSize="8.5" fontWeight="700" fontFamily="monospace">2.0 km</text>
+          <text x="196" y="44" fill={hasTarget ? '#fca5a5' : '#38bdf8'} fontSize="9.5" fontWeight="900" fontFamily="monospace">3.0 KM PERIMETER</text>
 
-          {/* Glowing Revolving Sonar Sweep Beam */}
-          <g style={{ transformOrigin: '190px 190px', animation: 'radarSweepSmooth 3.8s linear infinite' }}>
+          {/* Cardinal Compass Markers with Degrees */}
+          <g>
+            <text x="190" y="24" textAnchor="middle" fill="#ffffff" fontSize="13.5" fontWeight="900" letterSpacing="0.05em">N (000°)</text>
+            <text x="368" y="195" textAnchor="middle" fill="#ffffff" fontSize="12" fontWeight="900" letterSpacing="0.05em">E (090°)</text>
+            <text x="190" y="374" textAnchor="middle" fill="#ffffff" fontSize="12" fontWeight="900" letterSpacing="0.05em">S (180°)</text>
+            <text x="12" y="195" textAnchor="middle" fill="#ffffff" fontSize="12" fontWeight="900" letterSpacing="0.05em">W (270°)</text>
+          </g>
+
+          {/* Tactical Scope HUD Corner Indicators (Authentic Marine Chartplotter telemetry) */}
+          <g fontSize="7.5" fontWeight="800" fontFamily="monospace" fill="rgba(148, 163, 184, 0.75)">
+            <text x="44" y="56">FREQ: 9.4 GHz (X-BAND)</text>
+            <text x="336" y="56" textAnchor="end">CHIRP: 10Hz · 24 RPM</text>
+            <text x="44" y="332">HDG: 000° REL · GPS ±1M</text>
+            <text x="336" y="332" textAnchor="end" fill={hasTarget ? '#f87171' : '#34d399'}>
+              {hasTarget ? (isNear ? '🎯 PROXIMITY LOCK (0-5m)' : '🚨 1 TARGET ACQUIRED') : 'PERIMETER SCAN OK'}
+            </text>
+          </g>
+
+          {/* Glowing Revolving Sonar Sweep Beam with Trailing Phosphor Wake */}
+          <g style={{ transformOrigin: '190px 190px', animation: 'radarSweepSmooth 3.2s linear infinite' }}>
             <line
               x1="190"
               y1="190"
               x2="190"
               y2="40"
               stroke={hasTarget ? '#ef4444' : '#22d3ee'}
-              strokeWidth="2"
+              strokeWidth="2.2"
               filter="url(#radarNeonGlow)"
             />
-            {/* Trailing wedge ~55 degrees */}
+            {/* Trailing phosphor wedge ~55 degrees */}
             <path d="M190,190 L190,40 A150,150 0 0,1 313,95 Z" fill="url(#sonarWedgeGrad)" />
           </g>
 
           {/* Direct Nautical Rescue Vector Line (ONLY when Target is Active) */}
           {hasTarget && (
             <>
-              {/* Pulsing Target Vector Line */}
+              {/* Pulsing Target Vector Line from Vessel to Target */}
               <line
                 x1="190"
                 y1="190"
                 x2={targetX}
                 y2={targetY}
                 stroke="#ef4444"
-                strokeWidth="2.5"
+                strokeWidth="2.4"
                 strokeDasharray="6 3"
               />
 
@@ -511,70 +595,88 @@ function MiniVisualRadar({
               <circle
                 cx={targetX}
                 cy={targetY}
-                r="24"
+                r={isNear ? 20 : 26}
                 fill="none"
                 stroke="#ef4444"
-                strokeWidth="1.5"
-                opacity="0.8"
-                style={{ animation: 'phoneHaloGlow 1.5s infinite ease-out' }}
+                strokeWidth="1.8"
+                opacity="0.85"
+                style={{ animation: 'phoneHaloGlow 1.4s infinite ease-out' }}
               />
               <circle
                 cx={targetX}
                 cy={targetY}
-                r="16"
-                fill="rgba(239, 68, 68, 0.4)"
+                r={isNear ? 14 : 16}
+                fill={isNear ? 'rgba(239, 68, 68, 0.55)' : 'rgba(239, 68, 68, 0.4)'}
                 filter="url(#targetRedGlow)"
               />
 
               {/* High-Contrast Target Radar Blip */}
-              <circle cx={targetX} cy={targetY} r="9" fill="#ef4444" stroke="#ffffff" strokeWidth="2" />
+              <circle cx={targetX} cy={targetY} r="9" fill="#ef4444" stroke="#ffffff" strokeWidth="2.2" />
               <circle cx={targetX} cy={targetY} r="3.5" fill="#ffffff" />
+
+              {/* Naval Diamond Acquisition Reticle (Target Acquisition HUD) */}
+              {!isNear && (
+                <polygon
+                  points={`${targetX},${targetY - 14} ${targetX + 14},${targetY} ${targetX},${targetY + 14} ${targetX - 14},${targetY}`}
+                  fill="none"
+                  stroke="#ef4444"
+                  strokeWidth="1.4"
+                  strokeDasharray="3 2"
+                />
+              )}
 
               {/* Tactical Callout Pill Badge on Radar */}
               <g>
                 <rect
-                  x={targetX - 60}
-                  y={targetY - 30}
-                  width="120"
-                  height="20"
-                  rx="6"
-                  fill="rgba(153, 27, 27, 0.95)"
+                  x={targetX - 65}
+                  y={targetY - 32}
+                  width="130"
+                  height="22"
+                  rx="7"
+                  fill="rgba(127, 29, 29, 0.95)"
                   stroke="#ef4444"
-                  strokeWidth="1"
+                  strokeWidth="1.2"
                   filter="url(#radarNeonGlow)"
                 />
                 <text
                   x={targetX}
-                  y={targetY - 16}
+                  y={targetY - 17}
                   textAnchor="middle"
                   fill="#ffffff"
                   fontSize="10"
                   fontWeight="900"
                   letterSpacing="0.02em"
                 >
-                  🚨 {rescueTarget.touristName}
+                  {isNear ? `🚨 ${rescueTarget.touristName} (समीप)` : `🚨 ${rescueTarget.touristName}`}
                 </text>
               </g>
             </>
           )}
 
-          {/* Center User Vessel Node with Ambient Pulse */}
-          <circle cx="190" cy="190" r="18" fill={mode === 'tourist' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(34, 211, 238, 0.25)'} filter="url(#radarNeonGlow)" />
-          <circle cx="190" cy="190" r="6" fill={mode === 'tourist' ? '#38bdf8' : '#22d3ee'} />
+          {/* Center User Vessel Node with Directional Vessel Silhouette */}
+          <circle cx="190" cy="190" r="22" fill={mode === 'tourist' ? 'rgba(56, 189, 248, 0.22)' : 'rgba(34, 211, 238, 0.22)'} filter="url(#radarNeonGlow)" />
+          
+          {/* Tactical Naval Vessel Icon (Heading 000° Forward) */}
+          <path
+            d="M 190 176 L 198 198 L 190 193 L 182 198 Z"
+            fill={mode === 'tourist' ? '#38bdf8' : '#22d3ee'}
+            stroke="#ffffff"
+            strokeWidth="1.2"
+          />
 
           {/* Center Label Badge (Matching Screenshot 'आपकी नाव (GPS)') */}
           <g>
             <rect
-              x="135"
-              y="206"
-              width="110"
+              x="130"
+              y="207"
+              width="120"
               height="22"
               rx="11"
-              fill="rgba(6, 11, 20, 0.92)"
-              stroke={mode === 'tourist' ? 'rgba(56, 189, 248, 0.45)' : 'rgba(34, 211, 238, 0.45)'}
+              fill="rgba(6, 11, 20, 0.94)"
+              stroke={mode === 'tourist' ? 'rgba(56, 189, 248, 0.5)' : 'rgba(34, 211, 238, 0.5)'}
               strokeWidth="1"
             />
-            <text x="190" y="221" textAnchor="middle" fill="#e0f2fe" fontSize="10.5" fontWeight="800">
+            <text x="190" y="222" textAnchor="middle" fill="#e0f2fe" fontSize="10.5" fontWeight="800">
               {mode === 'tourist'
                 ? (lang === 'hi' ? 'आप (GPS)' : (lang === 'mr' ? 'तुम्ही (GPS)' : 'You (GPS)'))
                 : (lang === 'hi' ? 'आपकी नाव (GPS)' : (lang === 'mr' ? 'तुमची बोट (GPS)' : 'Your Vessel (GPS)'))}
@@ -2015,6 +2117,8 @@ function EmergencyCallModal({
   const [liveTime, setLiveTime] = useState<string>('22:20')
   const [isListening, setIsListening] = useState(false)
   const [listeningCountdown, setListeningCountdown] = useState<number>(20)
+  const [ringingCountdown, setRingingCountdown] = useState<number>(30)
+  const ringCountdownIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const buzzerAudioRef = useRef<HTMLAudioElement | null>(null)
   const sirenCtxRef = useRef<AudioContext | null>(null)
@@ -2211,6 +2315,10 @@ function EmergencyCallModal({
       clearInterval(countdownIntervalRef.current)
       countdownIntervalRef.current = null
     }
+    if (ringCountdownIntervalRef.current) {
+      clearInterval(ringCountdownIntervalRef.current)
+      ringCountdownIntervalRef.current = null
+    }
     stopEmergencyAudio()
     if (ringTimerRef.current) clearTimeout(ringTimerRef.current)
     if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
@@ -2218,6 +2326,9 @@ function EmergencyCallModal({
       try { recognitionRef.current.stop() } catch {}
     }
     if (audioRef.current) audioRef.current.pause()
+
+    // Declining emergency call during river alert automatically redirects to danger / auto-rescue
+    if (onSos) onSos()
     close()
   }
 
@@ -2228,7 +2339,7 @@ function EmergencyCallModal({
     startAdvisoryFlow()
   }
 
-  // Ringing timeout (20s) if tourist doesn't pick up
+  // Ringing timeout (strict 30s) if tourist doesn't pick up
   useEffect(() => {
     if (autoAccept) {
       startAdvisoryFlow()
@@ -2236,15 +2347,29 @@ function EmergencyCallModal({
     }
 
     startEmergencyRingtone()
+    setRingingCountdown(30)
+
+    // Tick down ringing countdown from 30s to 0s
+    ringCountdownIntervalRef.current = setInterval(() => {
+      setRingingCountdown((prev) => {
+        if (prev <= 1) {
+          if (ringCountdownIntervalRef.current) clearInterval(ringCountdownIntervalRef.current)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
 
     const ringTimeout = setTimeout(() => {
-      handleStuck('unanswered_ringing_20s_timeout')
-    }, 20000)
+      if (ringCountdownIntervalRef.current) clearInterval(ringCountdownIntervalRef.current)
+      handleStuck('unanswered_ringing_30s_timeout')
+    }, 30000)
     ringTimerRef.current = ringTimeout
 
     return () => {
       stopEmergencyAudio()
       if (ringTimeout) clearTimeout(ringTimeout)
+      if (ringCountdownIntervalRef.current) clearInterval(ringCountdownIntervalRef.current)
       if (audioRef.current) audioRef.current.pause()
       if (timeout20sRef.current) clearTimeout(timeout20sRef.current)
       if (recognitionRef.current) {
@@ -2377,7 +2502,7 @@ function EmergencyCallModal({
         audioRef.current.pause()
         audioRef.current = null
       }
-      const audioUrl = `/audio/timbre_advisory_${lang}_danger.mp3`
+      const audioUrl = `/api/tourist/tts?lang=${lang}&status=danger`
       const audio = new Audio(audioUrl)
       audio.volume = 1.0
       audio.playbackRate = 1.05
@@ -2542,6 +2667,9 @@ function EmergencyCallModal({
               </h1>
               <div style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 500 }}>
                 Mobile · River Patrol 112
+              </div>
+              <div style={{ marginTop: '10px', fontSize: '11.5px', color: '#fca5a5', fontWeight: 700, background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.35)', padding: '5px 14px', borderRadius: '20px', display: 'inline-block', letterSpacing: '0.02em' }}>
+                {t.autoRescueCountdown(ringingCountdown)}
               </div>
             </div>
 
@@ -3029,8 +3157,8 @@ function TouristDashboard({
   const [hindiQuote, setHindiQuote] = useState(t.quoteSafe)
   const [translation, setTranslation] = useState(t.advisorySafe)
   const [waterStatusText, setWaterStatusText] = useState(t.safeStatusDesc(location.placeName))
-  const [boatmanAudioUrl, setBoatmanAudioUrl] = useState('/api/audio/boatman_sample_safe.wav')
-  const [boatmanRawAudioUrl, setBoatmanRawAudioUrl] = useState('')
+  const [boatmanAudioUrl, setBoatmanAudioUrl] = useState<string | null>(null)
+  const [boatmanRawAudioUrl, setBoatmanRawAudioUrl] = useState<string | null>(null)
   const [aiAudioUrl, setAiAudioUrl] = useState('/api/audio/ai_advisory_safe.wav')
 
   const boatmanAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -3230,8 +3358,14 @@ function TouristDashboard({
   }, [location.lat, location.lon, phone, lang, isVerifiedSafe])
 
   const applySectorData = (data: any) => {
-    if (data.has_broadcast || (data.dispatch_id && data.dispatch_id !== 'none' && data.dispatch_id !== 'initial_safe')) {
+    if (data.has_broadcast && data.boatman_audio_url) {
       setHasActiveBroadcast(true)
+      setBoatmanAudioUrl(data.boatman_audio_url)
+      if (data.boatman_raw_audio_url) setBoatmanRawAudioUrl(data.boatman_raw_audio_url)
+    } else {
+      setHasActiveBroadcast(false)
+      setBoatmanAudioUrl(null)
+      setBoatmanRawAudioUrl(null)
     }
     let d = distanceMeters
     if (data.lat && data.lon) {
@@ -3294,87 +3428,134 @@ function TouristDashboard({
     }
   }, [location.lat, location.lon, boatmanLat, boatmanLon])
 
-  // Play / Pause Clean Boatman Audio
+  const stopAudio = (audio: HTMLAudioElement | null) => {
+    if (!audio) return
+    try {
+      audio.pause()
+      audio.currentTime = 0
+    } catch {}
+  }
+
+  // Play / Pause Clean Boatman Audio (Real Boatman Recording)
   const toggleBoatmanAudio = () => {
-    if (aiAudioRef.current) {
-      aiAudioRef.current.pause()
+    if (!boatmanAudioUrl) return
+
+    if (playingAi) {
+      stopAudio(aiAudioRef.current)
       setPlayingAi(false)
     }
-    if (rawAudioRef.current) {
-      rawAudioRef.current.pause()
+    if (playingRaw) {
+      stopAudio(rawAudioRef.current)
       setPlayingRaw(false)
-    }
-
-    if (!boatmanAudioRef.current) {
-      boatmanAudioRef.current = new Audio(boatmanAudioUrl)
-      boatmanAudioRef.current.onended = () => setPlayingBoatman(false)
-    } else {
-      boatmanAudioRef.current.src = boatmanAudioUrl
     }
 
     if (playingBoatman) {
-      boatmanAudioRef.current.pause()
+      stopAudio(boatmanAudioRef.current)
       setPlayingBoatman(false)
-    } else {
-      boatmanAudioRef.current.play().catch(() => {})
-      setPlayingBoatman(true)
+      return
     }
+
+    if (boatmanAudioRef.current) {
+      stopAudio(boatmanAudioRef.current)
+    }
+
+    const audio = new Audio(boatmanAudioUrl)
+    boatmanAudioRef.current = audio
+    audio.volume = 1.0
+
+    audio.onended = () => setPlayingBoatman(false)
+    audio.onerror = () => {
+      console.warn('[CoastGuard Audio] Clean audio playback error')
+      setPlayingBoatman(false)
+    }
+
+    audio.play()
+      .then(() => setPlayingBoatman(true))
+      .catch((err) => {
+        console.warn('[CoastGuard Audio] Clean play error:', err)
+        setPlayingBoatman(false)
+      })
   }
 
-  // Play / Pause Raw Audio (Comparison Showcase for Noise Canceller Award)
+  // Play / Pause Raw Audio (Real Boatman Raw Mic Recording)
   const toggleRawAudio = () => {
-    if (boatmanAudioRef.current) {
-      boatmanAudioRef.current.pause()
+    if (!boatmanRawAudioUrl) return
+
+    if (playingBoatman) {
+      stopAudio(boatmanAudioRef.current)
       setPlayingBoatman(false)
     }
-    if (aiAudioRef.current) {
-      aiAudioRef.current.pause()
+    if (playingAi) {
+      stopAudio(aiAudioRef.current)
       setPlayingAi(false)
-    }
-
-    const src = boatmanRawAudioUrl || boatmanAudioUrl
-    if (!rawAudioRef.current) {
-      rawAudioRef.current = new Audio(src)
-      rawAudioRef.current.onended = () => setPlayingRaw(false)
-    } else {
-      rawAudioRef.current.src = src
     }
 
     if (playingRaw) {
-      rawAudioRef.current.pause()
+      stopAudio(rawAudioRef.current)
       setPlayingRaw(false)
-    } else {
-      rawAudioRef.current.play().catch(() => {})
-      setPlayingRaw(true)
+      return
     }
+
+    if (rawAudioRef.current) {
+      stopAudio(rawAudioRef.current)
+    }
+
+    const audio = new Audio(boatmanRawAudioUrl)
+    rawAudioRef.current = audio
+    audio.volume = 1.0
+
+    audio.onended = () => setPlayingRaw(false)
+    audio.onerror = () => {
+      console.warn('[CoastGuard Audio] Raw audio playback error')
+      setPlayingRaw(false)
+    }
+
+    audio.play()
+      .then(() => setPlayingRaw(true))
+      .catch((err) => {
+        console.warn('[CoastGuard Audio] Raw play error:', err)
+        setPlayingRaw(false)
+      })
   }
 
-  // Play / Pause AI Safety Advisory
+  // Play / Pause AI Regional Safety Advisory (Gnani Timbre TTS)
   const toggleAiAudio = () => {
-    if (boatmanAudioRef.current) {
-      boatmanAudioRef.current.pause()
+    if (playingBoatman) {
+      stopAudio(boatmanAudioRef.current)
       setPlayingBoatman(false)
     }
-    if (rawAudioRef.current) {
-      rawAudioRef.current.pause()
+    if (playingRaw) {
+      stopAudio(rawAudioRef.current)
       setPlayingRaw(false)
-    }
-
-    const ttsUrl = `/api/tourist/tts?lang=${lang}&status=${status}`
-    if (!aiAudioRef.current) {
-      aiAudioRef.current = new Audio(ttsUrl)
-      aiAudioRef.current.onended = () => setPlayingAi(false)
-    } else {
-      aiAudioRef.current.src = ttsUrl
     }
 
     if (playingAi) {
-      aiAudioRef.current.pause()
+      stopAudio(aiAudioRef.current)
       setPlayingAi(false)
-    } else {
-      aiAudioRef.current.play().catch(() => {})
-      setPlayingAi(true)
+      return
     }
+
+    const ttsUrl = `/api/tourist/tts?lang=${lang}&status=${status}`
+    if (aiAudioRef.current) {
+      stopAudio(aiAudioRef.current)
+    }
+
+    const audio = new Audio(ttsUrl)
+    aiAudioRef.current = audio
+    audio.volume = 1.0
+
+    audio.onended = () => setPlayingAi(false)
+    audio.onerror = () => {
+      console.warn('[CoastGuard Audio] Gnani Timbre advisory audio playback error')
+      setPlayingAi(false)
+    }
+
+    audio.play()
+      .then(() => setPlayingAi(true))
+      .catch((err) => {
+        console.warn('[CoastGuard Audio] AI TTS play error:', err)
+        setPlayingAi(false)
+      })
   }
 
   return (
@@ -3503,24 +3684,20 @@ function TouristDashboard({
                 ))}
                 <span>
                   {isVerifiedSafe
-                    ? (lang === 'mr' ? '⚠️ पाण्याच्या काठापासून दूर राहा!' : (lang === 'hi' ? '⚠️ पानी और घाट के किनारे से दूर रहें!' : '⚠️ STAY AWAY FROM WATER BANK!'))
+                    ? t.stayAwayBannerTitle
                     : (status === 'safe'
                         ? (outOfRangeNotice
-                            ? `🛡️ Safe · Outside Hazard Perimeter (${outOfRangeNotice.distanceKm} km away)`
+                            ? t.safeOutsideHazard(outOfRangeNotice.distanceKm)
                             : t.safeStatusBanner)
                         : t.dangerStatusBanner)}
                 </span>
               </div>
               <p style={{ margin: '6px 0 0', fontSize: '13px', color: (status === 'safe' && !isVerifiedSafe) ? '#ecfdf5' : '#fee2e2', lineHeight: '1.45', fontWeight: 600 }}>
                 {isVerifiedSafe
-                  ? (lang === 'mr'
-                      ? 'स्थानिक नाविक व प्रशासनाने जलपातळी वाढल्याचा इशारा दिला आहे. तुम्ही सुरक्षित असल्याची नोंद झाली आहे, कृपया घाटावर किंवा काठावर जाऊ नका.'
-                      : (lang === 'hi'
-                          ? 'नाविकों और प्रशासन ने जल स्तर में अचानक वृद्धि की चेतावनी दी है। आपकी सुरक्षा की पुष्टि हो चुकी है, कृपया किनारे पर न जाएं।'
-                          : 'Local boatmen and officials reported rising water hazards. You are marked safe, but please strictly stay away from the water bank.'))
+                  ? t.stayAwayBannerDesc
                   : (status === 'safe' && outOfRangeNotice
-                      ? `Water surge hazard was reported at ${outOfRangeNotice.location} (${outOfRangeNotice.distanceKm} km from you). You are outside the danger perimeter and completely safe.`
-                      : waterStatusText)}
+                      ? t.safeOutsideHazardDesc(outOfRangeNotice.location, outOfRangeNotice.distanceKm)
+                      : (status === 'danger' ? t.advisoryDanger : waterStatusText))}
               </p>
             </div>
 
@@ -3538,7 +3715,7 @@ function TouristDashboard({
                 letterSpacing: '0.04em'
               }}
             >
-              {isVerifiedSafe ? '⚠️ STAY AWAY' : ((status === 'safe' && !isVerifiedSafe) ? '✅ SAFE TO ROAM' : '⚠️ DANGER ALERT')}
+              {isVerifiedSafe ? t.stayAwayBadge : ((status === 'safe' && !isVerifiedSafe) ? t.safeToRoamBadge : t.dangerAlertBadge)}
             </span>
           </div>
         </div>
@@ -3576,12 +3753,12 @@ function TouristDashboard({
                     {t.voiceUpdateHeading}
                   </span>
                   <h2 style={{ fontSize: '16px', fontWeight: 800, margin: '2px 0 0', color: 'var(--ink)' }}>
-                    {hasActiveBroadcast ? `${boatmanName} · ${t.fromYou(distanceText)}` : 'Live River Voice Grid · Standby'}
+                    {hasActiveBroadcast && boatmanAudioUrl ? `${boatmanName} · ${t.formatDistance(distanceMeters)}` : (lang === 'mr' ? 'थेट नदी व्हॉइस ग्रिड · स्टँडबाय' : (lang === 'hi' ? 'लाइव रिवर वॉइस ग्रिड · स्टैंडबाय' : (lang === 'ta' ? 'நேரலை நதி குரல் கட்டமைப்பு · காத்திருப்பு' : (lang === 'bn' ? 'লাইভ নদী ভয়েস গ্রিড · স্ট্যান্ডবাই' : 'Live River Voice Grid · Standby'))))}
                   </h2>
                 </div>
               </div>
 
-              {hasActiveBroadcast ? (
+              {hasActiveBroadcast && boatmanAudioUrl ? (
                 <>
                   <blockquote
                     style={{
@@ -3599,7 +3776,7 @@ function TouristDashboard({
                     &ldquo;{hindiQuote ? hindiQuote.replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, '') : t.quoteSafe.replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, '')}&rdquo;
                   </blockquote>
                   <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '0 0 16px', lineHeight: '1.45' }}>
-                    {translation}
+                    {lang === 'en' ? (translation || (status === 'danger' ? t.advisoryDanger : t.advisorySafe)) : (status === 'danger' ? t.advisoryDanger : t.advisorySafe)}
                   </p>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -3673,7 +3850,7 @@ function TouristDashboard({
                       </span>
                       <div>
                         <strong style={{ fontSize: '13px', color: 'var(--blue)', display: 'block' }}>
-                          {t.listenAiAdvisory(LANGUAGES.find((l) => l.code === lang)?.label || 'Regional')}
+                          {t.listenAiAdvisory(LANGUAGES.find((l) => l.code === lang)?.native || 'Regional')}
                         </strong>
                         <small style={{ fontSize: '10.5px', color: 'var(--muted)' }}>{t.listenAiAdvisorySub}</small>
                       </div>
@@ -3735,7 +3912,11 @@ function TouristDashboard({
                       ? 'इस जल क्षेत्र में अभी कोई नया वॉइस प्रसारण नहीं हुआ है। जब कोई नाविक वॉक-टॉकी पर बोलेगा, तो उनका सत्यापित वॉइस संदेश और ऑडियो विकल्प यहां तुरंत सक्रिय हो जाएगा।'
                       : (lang === 'mr'
                         ? 'या जलक्षेत्रात अद्याप नवीन ऑडिओ संदेश प्रसारित झालेला नाही. नाविक वॉक-टॉकीवर बोलताच, त्यांचे थेट रेकॉर्डिंग आणि ऑडिओ पर्याय येथे सक्रिय होतील.'
-                        : 'No voice broadcast recorded in this water sector yet. When a boatman speaks via the walkie-talkie grid, their live verified voice recording and audio options will appear here in real time.')}
+                        : (lang === 'ta'
+                          ? 'இப்பகுதியில் படகோட்டி நேரலை குரல் செய்தி அனுப்பும்போது மட்டுமே ஆடியோ இங்கே ஒலிக்கும்.'
+                          : (lang === 'bn'
+                            ? 'এই এলাকার মাঝি লাইভ ভয়েস বার্তা পাঠালেই এখানে অডিও উপলব্ধ হবে।'
+                            : 'No voice broadcast recorded in this water sector yet. When a boatman speaks via the walkie-talkie grid, their live verified voice recording and audio options will appear here in real time.')))}
                   </p>
                   <div
                     style={{
@@ -3752,7 +3933,7 @@ function TouristDashboard({
                     }}
                   >
                     <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', animation: 'beaconPulse 1.5s infinite' }} />
-                    {lang === 'hi' ? '3.0 किमी परिधि में लाइव चैनल सक्रिय' : (lang === 'mr' ? '३.० किमी कक्षेत थेट ऑडिओ चॅनेल सक्रिय' : 'Live Channel Active · Listening on 3.0 km Perimeter')}
+                    {lang === 'hi' ? '3.0 किमी परिधि में लाइव चैनल सक्रिय' : (lang === 'mr' ? '३.० किमी कक्षेत थेट ऑडिओ चॅनेल सक्रिय' : (lang === 'ta' ? '3.0 கி.மீ சுற்றளவில் நேரலை அலைவரிசை தயார்' : (lang === 'bn' ? '৩.০ কিমি পরিধিতে লাইভ চ্যানেল সক্রিয়' : 'Live Channel Active · Listening on 3.0 km Perimeter')))}
                   </div>
                 </div>
               )}
@@ -4054,46 +4235,8 @@ function BoatmanDashboard({
       }
     }
 
-    // Fallback: browser SpeechSynthesis repeated twice
     alertAudio.onerror = () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        try {
-          window.speechSynthesis.cancel()
-          const dirHi = compassDirection === 'ahead' ? 'उत्तर-पूर्व (North-East)' : compassDirection
-          const text = targetLang === 'hi'
-            ? (distanceM > 25
-                ? `सावधान! पर्यटक ${touristName} ${place} पर खतरे में हैं। ${dirHi} दिशा में ${distanceM} मीटर आगे बढ़ें।`
-                : `सावधान! पर्यटक ${touristName} ${place} पर खतरे में हैं। वे आपके बिल्कुल समीप हैं, तुरंत सहायता करें!`)
-            : (targetLang === 'mr'
-                ? (distanceM > 25
-                    ? `सावधान! पर्यटक ${touristName} ${place} येथे धोक्यात आहेत. ${dirHi} दिशेला ${distanceM} मीटर पुढे जा.`
-                    : `सावधान! पर्यटक ${touristName} ${place} येथे धोक्यात आहेत. ते तुमच्या अगदी जवळ आहेत, तात्काळ मदत करा!`)
-                : (targetLang === 'ta'
-                    ? (distanceM > 25
-                        ? `எச்சரிக்கை! சுற்றுலாப் பயணி ${touristName} ${place} பகுதியில் ஆபத்தில் உள்ளார். ${compassDirection} திசையில் ${distanceM} மீட்டர் செல்லுங்கள்.`
-                        : `எச்சரிக்கை! சுற்றுலாப் பயணி ${touristName} ${place} பகுதியில் உங்களுக்கு மிக அருகில் உள்ளார், உடனடியாக உதவுங்கள்!`)
-                    : (targetLang === 'bn'
-                        ? (distanceM > 25
-                            ? `সতর্কতা! পর্যটক ${touristName} ${place} ঘাটে বিপদে পড়েছেন। ${compassDirection} দিকে ${distanceM} মিটার এগিয়ে যান।`
-                            : `সতর্কতা! পর্যটক ${touristName} ${place} ঘাটে আপনার খুব কাছেই আছেন, অবিলম্বে সাহায্য করুন!`)
-                        : (distanceM > 25
-                            ? `Alert! Tourist ${touristName} is in danger at ${place}. Head ${compassDirection}, ${distanceM} meters ahead.`
-                            : `Alert! Tourist ${touristName} is in danger at ${place}. They are very near you, provide immediate help!`))))
-
-          const utt1 = new SpeechSynthesisUtterance(text)
-          utt1.lang = targetLang === 'hi' ? 'hi-IN' : (targetLang === 'mr' ? 'mr-IN' : 'en-IN')
-          utt1.rate = 1.05
-          utt1.onend = () => {
-            setTimeout(() => {
-              const utt2 = new SpeechSynthesisUtterance(text)
-              utt2.lang = utt1.lang
-              utt2.rate = 1.05
-              window.speechSynthesis.speak(utt2)
-            }, 1200)
-          }
-          window.speechSynthesis.speak(utt1)
-        } catch {}
-      }
+      console.warn('[CoastGuard Boatman] Gnani Timbre nav alert audio error')
     }
 
     alertAudio.play().catch(() => {
@@ -4173,7 +4316,7 @@ function BoatmanDashboard({
 
             // High-accuracy real GPS distance
             const realDist = Math.max(0, Math.round(d))
-            const isNear = realDist <= 25
+            const isNear = realDist <= 50
             const effectiveBearing = isNear ? { degrees: 0, compass: 'Immediate Proximity', arrow: '🎯' } : b
             const tCompass = isNear ? 'Immediate Proximity' : (effectiveBearing?.compass || 'North-East')
 
@@ -4273,7 +4416,8 @@ function BoatmanDashboard({
           }
 
           mr.onstop = async () => {
-            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' })
+            const mime = mr.mimeType || 'audio/webm'
+            const audioBlob = new Blob(audioChunksRef.current, { type: mime })
             stream.getTracks().forEach((track) => track.stop())
             if (liveSpeechRecRef.current) {
               try { liveSpeechRecRef.current.stop() } catch {}
@@ -4282,7 +4426,7 @@ function BoatmanDashboard({
             await sendVoiceBroadcast(audioBlob, spoken)
           }
 
-          mr.start()
+          mr.start(200)
           setRecording(true)
         } else {
           setRecording(true)
@@ -4302,8 +4446,9 @@ function BoatmanDashboard({
   ) => {
     try {
       const fd = new FormData()
-      if (audioBlob) {
-        fd.append('audio', audioBlob, 'fisherman_call.wav')
+      if (audioBlob && audioBlob.size > 0) {
+        const ext = audioBlob.type.includes('wav') ? 'wav' : 'webm'
+        fd.append('audio', audioBlob, `fisherman_call.${ext}`)
       }
       if (overrideText) {
         fd.append('transcript_override', overrideText)
@@ -4637,7 +4782,7 @@ function BoatmanDashboard({
                       boxShadow: '0 8px 24px rgba(239, 68, 68, 0.35)'
                     }}
                   >
-                    {activeRescue.distMeters <= 25 ? '🎯' : activeRescue.bearing.arrow}
+                    {activeRescue.distMeters <= 50 ? '🎯' : activeRescue.bearing.arrow}
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -4650,13 +4795,13 @@ function BoatmanDashboard({
                     </div>
 
                     <div style={{ fontSize: '13px', color: '#fca5a5', fontWeight: 900, marginTop: '2px' }}>
-                      {activeRescue.distMeters <= 25
+                      {activeRescue.distMeters <= 50
                         ? (lang === 'mr' ? '🎯 अचूक स्थान प्राप्त · पर्यटक अगदी जवळ/तुमच्याच ठिकाणी आहे' : (lang === 'hi' ? '🎯 सटीक स्थान प्राप्त · पर्यटक आपके समीप है' : '🎯 TARGET ACQUIRED · IN IMMEDIATE DOCK PROXIMITY'))
                         : `STEER: ${activeRescue.bearing.compass.toUpperCase()} (${activeRescue.bearing.degrees}°)`}
                     </div>
 
                     <div style={{ fontSize: '11.5px', color: '#cbd5e1', marginTop: '1px' }}>
-                      {activeRescue.distMeters <= 25
+                      {activeRescue.distMeters <= 50
                         ? (lang === 'mr' ? '० मीटर · थेट संपर्क तयार (अचूक GPS सिंक ±1m)' : (lang === 'hi' ? '0 मीटर · संपर्क तैयार (सटीक GPS सिंक ±1m)' : '0m · Direct Contact Ready (Live GPS Lock ±1m)'))
                         : `${activeRescue.distMeters < 1000 ? `${activeRescue.distMeters}m` : `${(activeRescue.distMeters / 1000).toFixed(1)}km`} direct across water · ~${Math.max(1, Math.round(activeRescue.distMeters / 180))} min at 6 knots`}
                     </div>

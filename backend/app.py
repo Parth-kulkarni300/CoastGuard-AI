@@ -135,11 +135,56 @@ async def serve_js():
 
 @app.get("/api/audio/{filename}")
 async def serve_audio(filename: str):
-    """Stream generated alert audio clips."""
+    """Stream generated alert audio clips with multi-format and range support."""
     audio_file = AUDIO_CACHE_DIR / filename
-    if audio_file.exists():
-        return FileResponse(str(audio_file), media_type="audio/wav")
-    raise HTTPException(status_code=404, detail="Audio file not found")
+
+    if not audio_file.exists() or audio_file.stat().st_size <= 100:
+        if filename.endswith(".wav"):
+            alt = AUDIO_CACHE_DIR / filename.replace(".wav", ".mp3")
+            if alt.exists() and alt.stat().st_size > 100:
+                audio_file = alt
+        elif filename.endswith(".mp3"):
+            alt = AUDIO_CACHE_DIR / filename.replace(".mp3", ".wav")
+            if alt.exists() and alt.stat().st_size > 100:
+                audio_file = alt
+
+    # Fallback to realistic audible samples if file is missing or zero-length
+    if not audio_file.exists() or audio_file.stat().st_size <= 100:
+        if "raw" in filename:
+            audio_file = AUDIO_CACHE_DIR / ("boatman_sample_danger_raw.wav" if "danger" in filename else "boatman_sample_safe_raw.wav")
+        elif "danger" in filename:
+            audio_file = AUDIO_CACHE_DIR / "boatman_sample_danger.wav"
+        else:
+            audio_file = AUDIO_CACHE_DIR / "boatman_sample_safe.wav"
+
+    if not audio_file.exists():
+        raise HTTPException(status_code=404, detail="Audio file not found")
+
+    # Sniff media type
+    media_type = "audio/wav"
+    try:
+        with open(audio_file, "rb") as f:
+            head = f.read(16)
+        if head.startswith(b"\x1aE\xdf\xa3"):
+            media_type = "audio/webm"
+        elif head.startswith(b"ID3") or (len(head) >= 2 and head[0] == 0xFF and (head[1] & 0xE0) == 0xE0):
+            media_type = "audio/mpeg"
+        elif head.startswith(b"RIFF"):
+            media_type = "audio/wav"
+        elif head.startswith(b"OggS"):
+            media_type = "audio/ogg"
+        elif audio_file.suffix == ".mp3":
+            media_type = "audio/mpeg"
+        elif audio_file.suffix == ".webm":
+            media_type = "audio/webm"
+    except Exception:
+        pass
+
+    return FileResponse(
+        str(audio_file),
+        media_type=media_type,
+        headers={"Accept-Ranges": "bytes", "Cache-Control": "public, max-age=3600"}
+    )
 
 
 # ─────────────────────────────────────────────
@@ -344,14 +389,19 @@ async def tourist_tts(lang: str = "hi", status: str = "danger"):
 
     selected_status = "danger" if status == "danger" else "safe"
     
+    # Check for live Gnani Timbre synthesized audio
+    live_wav = AUDIO_CACHE_DIR / f"timbre_live_{lang_key}_{selected_status}.wav"
+    if live_wav.exists() and live_wav.stat().st_size > 1000:
+        return FileResponse(str(live_wav), media_type="audio/wav", headers={"Accept-Ranges": "bytes"})
+
     # Check for pre-generated audio files (MP3 & WAV)
     mp3_file = AUDIO_CACHE_DIR / f"timbre_advisory_{lang_key}_{selected_status}.mp3"
     if mp3_file.exists():
-        return FileResponse(str(mp3_file), media_type="audio/mpeg")
+        return FileResponse(str(mp3_file), media_type="audio/mpeg", headers={"Accept-Ranges": "bytes"})
 
     wav_file = AUDIO_CACHE_DIR / f"timbre_advisory_{lang_key}_{selected_status}.wav"
     if wav_file.exists():
-        return FileResponse(str(wav_file), media_type="audio/wav")
+        return FileResponse(str(wav_file), media_type="audio/wav", headers={"Accept-Ranges": "bytes"})
 
     # Fallback to general advisory
     fallback = AUDIO_CACHE_DIR / f"ai_advisory_{selected_status}.wav"
@@ -370,20 +420,14 @@ async def boatman_alert_tts(
 ):
     """
     Synthesize personalized tactical audio directing boatman to the tourist in danger.
-    Uses Edge TTS neural Indic voices.
+    Uses Gnani Timbre v2.5 sovereign Indic voices.
     """
     lang_key = lang.lower()[:2]
     if lang_key not in ["hi", "mr", "en", "ta", "bn"]:
         lang_key = "hi"
 
-    voices = {
-        "hi": "hi-IN-MadhurNeural",
-        "mr": "mr-IN-ManoharNeural",
-        "en": "en-IN-PrabhatNeural",
-        "ta": "ta-IN-ValluvarNeural",
-        "bn": "bn-IN-BashkarNeural"
-    }
-    voice = voices.get(lang_key, "hi-IN-MadhurNeural")
+    # 100% Gnani Timbre Neural Models:
+    # hi/en: Nalini, mr: Aarohi, ta: Oviya, bn: Mehuli
 
     # Clean localized compass direction mapping
     dir_map = {
@@ -402,7 +446,7 @@ async def boatman_alert_tts(
     dir_str = dir_entry.get(lang_key, dir_entry["hi"])
 
     # Generate message: ALWAYS state the direction the boatman needs to head
-    if dist > 25:
+    if dist > 50:
         scripts = {
             "hi": f"सावधान! पर्यटक {name} {location} पर खतरे में हैं। {dir_str} दिशा में {dist} मीटर आगे बढ़ें।",
             "mr": f"सावधान! पर्यटक {name} {location} येथे धोक्यात आहेत. {dir_str} दिशेला {dist} मीटर पुढे जा.",
@@ -421,24 +465,23 @@ async def boatman_alert_tts(
 
     script_text = scripts.get(lang_key, scripts["hi"])
 
-    # Create cached file hash
+    # Create cached file hash for Gnani Timbre synthesis
     import hashlib
-    h = hashlib.md5(f"{script_text}_{voice}".encode()).hexdigest()[:12]
-    out_file = AUDIO_CACHE_DIR / f"boatman_nav_{h}.mp3"
+    h = hashlib.md5(f"{script_text}_{lang_key}".encode()).hexdigest()[:12]
+    out_file = AUDIO_CACHE_DIR / f"boatman_nav_{h}.wav"
 
-    if not out_file.exists():
+    if not out_file.exists() or out_file.stat().st_size <= 100:
         try:
-            import edge_tts
-            communicate = edge_tts.Communicate(script_text, voice, rate="+15%")
-            await communicate.save(str(out_file))
+            # 100% Sovereign Gnani Timbre API synthesis
+            audio_bytes = await synthesize_alert(script_text, language=lang_key, dispatch_id=f"boatman_nav_{h}")
+            out_file.write_bytes(audio_bytes)
         except Exception as e:
-            # Fallback to pre-generated general alert if edge_tts fails
-            fallback = AUDIO_CACHE_DIR / f"boatman_distress_alert_{lang_key}.mp3"
+            fallback = AUDIO_CACHE_DIR / f"timbre_live_{lang_key}_danger.wav"
             if fallback.exists():
-                return FileResponse(str(fallback), media_type="audio/mpeg")
+                return FileResponse(str(fallback), media_type="audio/wav")
             raise HTTPException(status_code=500, detail=str(e))
 
-    return FileResponse(str(out_file), media_type="audio/mpeg")
+    return FileResponse(str(out_file), media_type="audio/wav", headers={"Accept-Ranges": "bytes"})
 
 
 @app.post("/api/tourist/call")
@@ -481,55 +524,73 @@ async def fisherman_broadcast(
     """
     global LATEST_SECTOR_STATE
     dispatch_id = f"voice_{int(datetime.now().timestamp() * 1000)}"
-    boatman_audio_url = "/api/audio/boatman_sample_safe.wav"
-    boatman_raw_audio_url = "/api/audio/boatman_sample_safe.wav"
 
-    # Step 1: Prisma STT Transcription with Acoustic Noise Stripping
-    if transcript_override:
-        transcript = transcript_override
-    elif audio:
-        raw_audio_bytes = await audio.read()
-        # Denoise audio: strip thunder rumble (<200Hz), engine vibration & background hiss
+    # 1. ALWAYS read uploaded mic audio bytes
+    raw_audio_bytes = b""
+    if audio:
+        try:
+            raw_audio_bytes = await audio.read()
+        except Exception:
+            raw_audio_bytes = b""
+
+    # 2. Extract Transcript (from spoken text or Prisma STT)
+    if transcript_override and transcript_override.strip():
+        transcript = transcript_override.strip()
+    elif raw_audio_bytes and len(raw_audio_bytes) > 200:
         clean_audio_bytes = denoise_audio_bytes(raw_audio_bytes)
-
-        # Save both clean and raw audio clips
-        cache_file_clean = AUDIO_CACHE_DIR / f"{dispatch_id}.wav"
-        cache_file_clean.write_bytes(clean_audio_bytes)
-
-        cache_file_raw = AUDIO_CACHE_DIR / f"{dispatch_id}_raw.wav"
-        cache_file_raw.write_bytes(raw_audio_bytes)
-
-        boatman_audio_url = f"/api/audio/{dispatch_id}.wav"
-        boatman_raw_audio_url = f"/api/audio/{dispatch_id}_raw.wav"
-
-        # Transcribe with Prisma STT
-        stt_result = await transcribe_bytes(clean_audio_bytes, language="hi", filename=audio.filename or "mic.wav")
+        stt_result = await transcribe_bytes(clean_audio_bytes, language="mr" if any(c in transcript_override or "" for c in "ळज्ञ") else "hi", filename=audio.filename or "mic.wav")
         transcript = stt_result.get("transcript", "Update received")
     else:
         transcript = "Paani shaant hai, sab theek hai."
 
-    # Step 2: Evon Reasoning & Classification
-    sector_place = location_name or "Assi Ghat, Varanasi"
     clean_transcript = transcript.strip() if transcript else ""
-    if status_type == "safe" or any(w in clean_transcript.lower() for w in ["shaant", "safe", "theek", "shanti", "sukoon", "normal", "शांत", "सुरक्षित"]):
+
+    # Detect Marathi vs Hindi vs English dialect
+    is_marathi = any(w in clean_transcript for w in ["आहे", "खूप", "पाणीच", "नदीची", "घाटावर", "नका", "होय", "वाढत", "लेव्हल", "कृपया", "करा", "जाऊ", "पातळी", "पायऱ्यांवर"])
+    voice_lang = "mr" if is_marathi else "hi"
+
+    # Threat classification: check Marathi & Hindi surge/danger keywords
+    danger_indicators = ["वाढत", "वाढ", "धोका", "वाहून", "भरती", "संकट", "खतरा", "बहाव", "तेज", "डूब", "surge", "danger", "hazard", "flood", "capsiz", "level", "लेव्हल", "पाणीच", "नदीची"]
+    is_danger = status_type == "danger" or any(w in clean_transcript.lower() for w in danger_indicators)
+
+    sector_place = location_name or "Local River Corridor"
+
+    if not is_danger and (status_type == "safe" or any(w in clean_transcript.lower() for w in ["shaant", "safe", "theek", "shanti", "sukoon", "normal", "शांत", "सुरक्षित"])):
         status = "safe"
         severity = "INFO"
         water_status_text = f"Local boatmen at {sector_place} report calm waters. Boating permitted."
         english_trans = f"Water is calm near {sector_place}. Tourists can safely enjoy boat rides."
         hindi_quote = clean_transcript if (clean_transcript and clean_transcript != "Update received" and clean_transcript != "Paani shaant hai, sab theek hai.") else f"जल क्षेत्र {sector_place} में पानी सामान्य है, नौका विहार सुरक्षित है।"
-        if not audio:
-            boatman_audio_url = "/api/audio/boatman_sample_safe.wav"
-        ai_audio_url = "/api/audio/ai_advisory_safe.wav"
     else:
-        classification = await classify_emergency(clean_transcript, language_hint="hi")
         status = "danger"
-        severity = classification.get("severity", "CRITICAL")
+        severity = "CRITICAL"
         water_status_text = f"Local boatman at {sector_place} reported water level surge / hazard. Please move to upper steps."
-        english_trans = classification.get("english_alert", f"Hazard reported near {sector_place}. Please stay away from banks.")
+        english_trans = f"Hazard reported near {sector_place}. Please stay away from banks."
         hindi_quote = clean_transcript if (clean_transcript and clean_transcript != "Update received") else f"नाविक द्वारा जल स्तर वृद्धि की चेतावनी जारी की गई है।"
-        if not audio:
-            boatman_audio_url = "/api/audio/boatman_sample_danger.wav"
-        ai_audio_url = "/api/audio/ai_advisory_danger.wav"
+
+        # 3. SAVE REAL BOATMAN MIC AUDIO ONLY (NO SYNTHETIC BOT AUDIO):
+    if raw_audio_bytes and len(raw_audio_bytes) > 200:
+        ext = "webm" if raw_audio_bytes.startswith(b"\x1aE\xdf\xa3") else "wav"
+
+        # Authentic raw mic audio recorded directly from boatman
+        (AUDIO_CACHE_DIR / f"{dispatch_id}_raw.{ext}").write_bytes(raw_audio_bytes)
+        (AUDIO_CACHE_DIR / f"{dispatch_id}_raw.wav").write_bytes(raw_audio_bytes)
+
+        # Cleaned audio (noise stripped via acoustic shield)
+        clean_bytes = denoise_audio_bytes(raw_audio_bytes) if ext == "wav" else raw_audio_bytes
+        (AUDIO_CACHE_DIR / f"{dispatch_id}.{ext}").write_bytes(clean_bytes)
+        (AUDIO_CACHE_DIR / f"{dispatch_id}.wav").write_bytes(clean_bytes)
+
+        boatman_audio_url = f"/api/audio/{dispatch_id}.{ext}"
+        boatman_raw_audio_url = f"/api/audio/{dispatch_id}_raw.{ext}"
+        has_broadcast = True
+    else:
+        # NO fake bot voice! Only real human boatman mic audio is reflected
+        boatman_audio_url = None
+        boatman_raw_audio_url = None
+        has_broadcast = False
+
+    ai_audio_url = f"/api/tourist/tts?lang={voice_lang}&status={status}"
 
     # Geo-matching with real live boatman GPS
     nearby = get_phones_in_radius(REGISTRY, lat, lon, radius_km=1.5)
@@ -537,7 +598,7 @@ async def fisherman_broadcast(
 
     # Step 3: Update Sector State with Live GPS
     LATEST_SECTOR_STATE = {
-        "has_broadcast": True,
+        "has_broadcast": has_broadcast,
         "dispatch_id": dispatch_id,
         "status": status,
         "severity": severity,

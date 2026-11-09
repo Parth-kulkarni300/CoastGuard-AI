@@ -35,3 +35,8 @@ backend/audio_cache/DISP-*
 backend/audio_cache/timbre_*
 tsconfig.tsbuildinfo
 
+
+backend/audio_cache/boatman_nav_*
+*.mp3
+backend/audio_cache/*.mp3
+

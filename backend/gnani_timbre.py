@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+from pathlib import Path
+load_dotenv(Path(__file__).parent.parent / '.env')
+load_dotenv(Path(__file__).parent / '.env')
 """
 CoastGuard AI — Gnani Timbre v2.5 / v3.0 Integration
 Text-to-Speech: Generates warm, local-dialect warning audio for outbound alerts.
@@ -28,13 +32,13 @@ VOICE_PROFILES = {
         "speed": 1,
     },
     "bn": {
-        "voice": "Ananya",
+        "voice": "Mehuli",
         "language": "bn-IN",
         "speed": 1,
     },
     "or": {
-        "voice": "Subhasree",
-        "language": "or-IN",
+        "voice": "Nalini",
+        "language": "hi-IN",
         "speed": 1,
     },
     "mr": {
@@ -43,7 +47,7 @@ VOICE_PROFILES = {
         "speed": 1,
     },
     "ta": {
-        "voice": "Kavitha",
+        "voice": "Oviya",
         "language": "ta-IN",
         "speed": 1,
     },
