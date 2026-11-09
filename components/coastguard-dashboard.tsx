@@ -35,9 +35,10 @@ import {
   X
 } from 'lucide-react'
 import { SupportedLang, LANGUAGES, UI_TRANSLATIONS } from '@/lib/i18n'
+import LandingPage from '@/components/landing-page'
 
 type Mode = 'boatman' | 'tourist' | 'authority'
-type Screen = 'login' | 'dashboard'
+type Screen = 'landing' | 'login' | 'dashboard'
 type Status = 'safe' | 'danger'
 
 const API_BASE = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000'
@@ -4811,7 +4812,7 @@ function BoatmanDashboard({
 // 6. Main Root Component
 // ─────────────────────────────────────────────
 export default function CoastguardDashboard() {
-  const [screen, setScreen] = useState<Screen>('login')
+  const [screen, setScreen] = useState<Screen>('landing')
   const [mode, setMode] = useState<Mode>('tourist')
   const [phone, setPhone] = useState('9876543210')
   const [userName, setUserName] = useState('रमेश निषाद')
@@ -4880,6 +4881,17 @@ export default function CoastguardDashboard() {
     setPhone(enteredPhone)
     setUserName(enteredName)
     setScreen('dashboard')
+  }
+
+  if (screen === 'landing') {
+    return (
+      <LandingPage
+        lang={lang}
+        onLangChange={changeLang}
+        onGetStarted={() => setScreen('login')}
+        isOnline={isOnline}
+      />
+    )
   }
 
   if (screen === 'login') {
