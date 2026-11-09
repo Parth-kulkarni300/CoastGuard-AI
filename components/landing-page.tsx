@@ -262,12 +262,27 @@ export default function LandingPage({
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div
-            style={{
-              display: 'none'
-            }}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Quick one-tap English switch */}
+          {lang !== 'en' && (
+            <button
+              type="button"
+              onClick={() => onLangChange('en')}
+              style={{
+                background: 'var(--blue-soft)',
+                border: '1px solid var(--blue-border)',
+                color: 'var(--blue)',
+                padding: '6px 10px',
+                borderRadius: '10px',
+                fontSize: '12.5px',
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
+            >
+              English
+            </button>
+          )}
+
           <div
             style={{
               display: 'flex',
