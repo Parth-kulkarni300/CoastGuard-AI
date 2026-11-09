@@ -47,13 +47,13 @@ const WS_URL = typeof window !== 'undefined'
 
 // Pre-defined Indian Coastal & Riverine Water Presets for quick testing
 export const WATER_PRESETS = [
-  { name: 'Live Device GPS (My Location)', lat: 0, lon: 0, isDevice: true },
-  { name: 'Assi Ghat, Varanasi (Ganga)', lat: 25.3176, lon: 83.0060, isDevice: false },
-  { name: 'Marina Beach, Chennai (Bay of Bengal)', lat: 13.0475, lon: 80.2824, isDevice: false },
-  { name: 'Gateway of India, Mumbai (Arabian Sea)', lat: 18.9220, lon: 72.8347, isDevice: false },
-  { name: 'Alleppey Backwaters, Kerala', lat: 9.4981, lon: 76.3388, isDevice: false },
-  { name: 'Hooghly Ferry Ghat, Kolkata', lat: 22.5726, lon: 88.3639, isDevice: false },
-  { name: 'Har Ki Pauri, Haridwar', lat: 29.9457, lon: 78.1642, isDevice: false }
+  { name: 'Live Device GPS (My Location)', lat: 0, lon: 0, isDevice: true, state: '' },
+  { name: 'Assi Ghat, Varanasi (Ganga)', lat: 25.3176, lon: 83.0060, isDevice: false, state: 'Uttar Pradesh' },
+  { name: 'Marina Beach, Chennai (Bay of Bengal)', lat: 13.0475, lon: 80.2824, isDevice: false, state: 'Tamil Nadu' },
+  { name: 'Gateway of India, Mumbai (Arabian Sea)', lat: 18.9220, lon: 72.8347, isDevice: false, state: 'Maharashtra' },
+  { name: 'Alleppey Backwaters, Kerala', lat: 9.4981, lon: 76.3388, isDevice: false, state: 'Kerala' },
+  { name: 'Hooghly Ferry Ghat, Kolkata', lat: 22.5726, lon: 88.3639, isDevice: false, state: 'West Bengal' },
+  { name: 'Har Ki Pauri, Haridwar', lat: 29.9457, lon: 78.1642, isDevice: false, state: 'Uttarakhand' }
 ]
 
 // Haversine distance calculator in meters
@@ -107,6 +107,24 @@ function calculateBearing(
 // ─────────────────────────────────────────────
 // Custom Hook: Real-Time Geolocation
 // ─────────────────────────────────────────────
+// Maps an Indian state/region name (from reverse geocoding) to the closest
+// supported app language. Falls back to English for anything unrecognized
+// (e.g. GPS outside India, or address data without a clear state match).
+function detectLangFromRegion(stateName: string, countryCode?: string): SupportedLang {
+  if (countryCode && countryCode.toLowerCase() !== 'in') return 'en'
+  const s = (stateName || '').toLowerCase()
+  if (!s) return 'en'
+  if (s.includes('maharashtra')) return 'mr'
+  if (s.includes('tamil nadu')) return 'ta'
+  if (s.includes('west bengal')) return 'bn'
+  if (
+    ['uttar pradesh', 'bihar', 'jharkhand', 'madhya pradesh', 'rajasthan', 'delhi', 'haryana', 'uttarakhand', 'chhattisgarh', 'himachal pradesh', 'punjab'].some((x) => s.includes(x))
+  ) {
+    return 'hi'
+  }
+  return 'en'
+}
+
 function useRealTimeLocation() {
   const [lat, setLat] = useState<number>(25.3176)
   const [lon, setLon] = useState<number>(83.0060)
@@ -115,6 +133,7 @@ function useRealTimeLocation() {
   const [isLiveGPS, setIsLiveGPS] = useState<boolean>(false)
   const [geoError, setGeoError] = useState<string | null>(null)
   const [presetIndex, setPresetIndex] = useState<number>(1) // Default to Varanasi preset
+  const [detectedLang, setDetectedLang] = useState<SupportedLang | null>(null)
 
   // Reverse geocode lat, lon to human readable place name
   const reverseGeocode = async (latitude: number, longitude: number) => {
@@ -135,6 +154,7 @@ function useRealTimeLocation() {
           'Coastal Sector'
         const state = addr.state ? `, ${addr.state}` : ''
         setPlaceName(`${name}${state}`)
+        setDetectedLang(detectLangFromRegion(addr.state, addr.country_code))
         return
       }
     } catch {}
@@ -189,6 +209,7 @@ function useRealTimeLocation() {
       setAccuracy(5)
       setPlaceName(selected.name)
       setIsLiveGPS(false)
+      setDetectedLang(detectLangFromRegion(selected.state, 'in'))
     }
   }
 
@@ -198,6 +219,7 @@ function useRealTimeLocation() {
     setAccuracy(5)
     setPlaceName(newPlaceName)
     setIsLiveGPS(false)
+    setDetectedLang(detectLangFromRegion(newPlaceName, 'in'))
 
     // Register with backend
     const fd = new FormData()
@@ -214,6 +236,7 @@ function useRealTimeLocation() {
     lon,
     accuracy,
     placeName,
+    detectedLang,
     isLiveGPS,
     geoError,
     presetIndex,
@@ -307,20 +330,20 @@ function MiniVisualRadar({
             <Compass style={{ width: '20px', height: '20px', color: hasTarget ? '#f87171' : '#22d3ee' }} />
           </div>
           <div>
-            <div style={{ fontSize: '15.5px', fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.01em' }}>
-              {t.radarTitle}
+            <div style={{ fontSize: '16px', fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.01em' }}>
+              {lang === 'hi' ? '3 किमी के आस-पास' : (lang === 'mr' ? '३ किमी आसपास' : 'Nearby 3 km')}
             </div>
-            <div style={{ fontSize: '11.5px', color: '#94a3b8', fontWeight: 500, marginTop: '1px' }}>
-              Sector Focus: {placeName}
+            <div style={{ fontSize: '13px', color: '#a8b8ca', fontWeight: 500, marginTop: '1px' }}>
+              {placeName}
             </div>
           </div>
         </div>
 
         <span
           style={{
-            fontSize: '11px',
+            fontSize: '12.5px',
             fontWeight: 800,
-            padding: '5px 12px',
+            padding: '6px 14px',
             borderRadius: '24px',
             background: hasTarget ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.16)',
             color: hasTarget ? '#fca5a5' : '#34d399',
@@ -341,7 +364,9 @@ function MiniVisualRadar({
               animation: 'beaconPulse 1.8s infinite'
             }}
           />
-          {hasTarget ? 'RESCUE VECTOR ACTIVE' : '3.0 KM PERIMETER CLEAR'}
+          {hasTarget
+            ? (lang === 'hi' ? 'बचाव जारी' : (lang === 'mr' ? 'बचाव सुरू' : 'Rescue in progress'))
+            : (lang === 'hi' ? 'सब सुरक्षित' : (lang === 'mr' ? 'सर्व सुरक्षित' : 'All clear'))}
         </span>
       </div>
 
@@ -363,10 +388,10 @@ function MiniVisualRadar({
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span style={{ fontSize: '26px' }}>{isNear ? '🎯' : effectiveBearing.arrow}</span>
             <div>
-              <div style={{ fontSize: '13px', fontWeight: 900, color: '#fca5a5', letterSpacing: '0.02em' }}>
+              <div style={{ fontSize: '14px', fontWeight: 900, color: '#fca5a5', letterSpacing: '0.02em' }}>
                 {isNear
-                  ? (lang === 'mr' ? 'पर्यटक अत्यंत जवळ आहेत (Immediate Proximity)' : (lang === 'hi' ? 'पर्यटक आपके बिल्कुल समीप हैं (Immediate Proximity)' : 'TARGET IN IMMEDIATE PROXIMITY'))
-                  : `STEER: ${effectiveBearing.compass.toUpperCase()} (${effectiveBearing.degrees}°)`}
+                  ? (lang === 'mr' ? 'पर्यटक अगदी जवळ आहेत' : (lang === 'hi' ? 'पर्यटक आपके बिल्कुल पास हैं' : 'Tourist is right next to you'))
+                  : (lang === 'hi' ? `दिशा: ${effectiveBearing.compass} (${effectiveBearing.degrees}°)` : (lang === 'mr' ? `दिशा: ${effectiveBearing.compass} (${effectiveBearing.degrees}°)` : `Head: ${effectiveBearing.compass} (${effectiveBearing.degrees}°)`))}
               </div>
               <div style={{ fontSize: '11px', color: '#f1f5f9', fontWeight: 600 }}>
                 {isNear
@@ -375,8 +400,8 @@ function MiniVisualRadar({
               </div>
             </div>
           </div>
-          <span style={{ background: '#ef4444', color: '#fff', fontSize: '10px', fontWeight: 900, padding: '4px 10px', borderRadius: '6px' }}>
-            SOS TARGET
+          <span style={{ background: '#ef4444', color: '#fff', fontSize: '11px', fontWeight: 900, padding: '5px 12px', borderRadius: '6px' }}>
+            SOS
           </span>
         </div>
       )}
@@ -947,23 +972,23 @@ function RoleLogin({
 }) {
   const t = UI_TRANSLATIONS[lang]
   const [role, setRole] = useState<Mode>('tourist')
-  const [phone, setPhone] = useState('9876543210')
+  const [phone, setPhone] = useState('')
   const [name, setName] = useState('')
   const [showLocationModal, setShowLocationModal] = useState(false)
 
   return (
     <main className="login-page">
       <section className="login-card">
-        {/* Top Utility Header: Air-Gapped Status & Language Dropdown */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+        {/* Top Utility Header: Status & Language Dropdown */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              fontSize: '10.5px',
+              fontSize: '12.5px',
               fontWeight: 800,
-              padding: '4px 10px',
+              padding: '6px 12px',
               borderRadius: '20px',
               background: isOnline ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.15)',
               color: isOnline ? '#34d399' : '#fbbf24',
@@ -973,48 +998,70 @@ function RoleLogin({
           >
             <span
               style={{
-                width: '6px',
-                height: '6px',
+                width: '7px',
+                height: '7px',
                 borderRadius: '50%',
                 background: isOnline ? '#34d399' : '#fbbf24',
                 boxShadow: isOnline ? '0 0 8px #34d399' : 'none'
               }}
             />
-            <span>{isOnline ? (lang === 'hi' ? '● लाइव ग्रिड सक्रिय' : (lang === 'mr' ? '● थेट ग्रीड सक्रिय' : '● Live Grid Active')) : t.offlineBadge}</span>
+            <span>{isOnline ? (lang === 'hi' ? 'चालू है' : (lang === 'mr' ? 'सुरू आहे' : 'Online')) : t.offlineBadge}</span>
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'rgba(56, 189, 248, 0.08)',
-              border: '1px solid rgba(56, 189, 248, 0.22)',
-              padding: '4px 10px',
-              borderRadius: '20px'
-            }}
-          >
-            <Globe style={{ width: '13px', height: '13px', color: '#38bdf8' }} />
-            <select
-              value={lang}
-              onChange={(e) => onLangChange(e.target.value as SupportedLang)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Quick one-tap English switch (useful for tourists unfamiliar with the detected regional language) */}
+            {lang !== 'en' && (
+              <button
+                type="button"
+                onClick={() => onLangChange('en')}
+                style={{
+                  background: 'var(--blue-soft)',
+                  border: '1px solid var(--blue-border)',
+                  color: 'var(--blue)',
+                  padding: '6px 12px',
+                  borderRadius: '20px',
+                  fontSize: '12.5px',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                English
+              </button>
+            )}
+
+            <div
               style={{
-                background: 'transparent',
-                border: 'none',
-                fontSize: '11.5px',
-                fontWeight: 800,
-                color: '#38bdf8',
-                cursor: 'pointer',
-                outline: 'none'
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'rgba(56, 189, 248, 0.08)',
+                border: '1px solid rgba(56, 189, 248, 0.22)',
+                padding: '6px 12px',
+                borderRadius: '20px'
               }}
-              aria-label="Choose Language"
             >
-              {LANGUAGES.map((l) => (
-                <option key={l.code} value={l.code} style={{ background: '#0c1527', color: '#f8fafc' }}>
-                  {l.native} ({l.label})
-                </option>
-              ))}
-            </select>
+              <Globe style={{ width: '15px', height: '15px', color: '#38bdf8' }} />
+              <select
+                value={lang}
+                onChange={(e) => onLangChange(e.target.value as SupportedLang)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '13.5px',
+                  fontWeight: 800,
+                  color: '#38bdf8',
+                  cursor: 'pointer',
+                  outline: 'none'
+                }}
+                aria-label="Choose Language"
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code} style={{ background: '#ffffff', color: '#0f172a' }}>
+                    {l.native}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -1023,55 +1070,23 @@ function RoleLogin({
           <Waves />
         </div>
 
-        {/* Sovereign Maritime Eyebrow */}
-        <div style={{ textAlign: 'center', marginBottom: '2px' }}>
-          <span
-            style={{
-              fontSize: '10px',
-              fontWeight: 900,
-              color: '#38bdf8',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase'
-            }}
-          >
-            {t.eyebrow}
-          </span>
-        </div>
-
-        {/* App Title & Version Pill */}
+        {/* App Title */}
         <h1 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
           <span>CoastGuard <em>AI</em></span>
-          <span
-            style={{
-              fontSize: '9.5px',
-              fontWeight: 900,
-              background: 'rgba(56, 189, 248, 0.15)',
-              border: '1px solid rgba(56, 189, 248, 0.35)',
-              color: '#7dd3fc',
-              padding: '2px 6px',
-              borderRadius: '6px',
-              letterSpacing: '0.04em'
-            }}
-          >
-            v2.5
-          </span>
         </h1>
 
         <p className="login-intro">
           {lang === 'hi'
-            ? 'भारतीय जलमार्गों और घाटों के लिए ऑफ़लाइन-प्रथम वॉयस आपातकालीन ग्रिड'
+            ? 'नदी और तट पर आपकी सुरक्षा के लिए'
             : (lang === 'mr'
-              ? 'भारतीय जलमार्ग आणि घाटांसाठी ऑफलाइन-प्रथम व्हॉईस आणीबाणी ग्रीड'
-              : 'Sovereign Voice Emergency Network for Indian Waterways & Coastal Docks')}
+              ? 'नदी आणि किनाऱ्यावर तुमच्या सुरक्षेसाठी'
+              : 'Keeping you safe on India’s rivers and coasts')}
         </p>
 
         {/* Role Selector Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '14px 0 6px' }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', letterSpacing: '0.03em', textTransform: 'uppercase' }}>
-            {lang === 'hi' ? 'अपनी भूमिका चुनें' : (lang === 'mr' ? 'आपली भूमिका निवडा' : 'Select Command Role')}
-          </span>
-          <span style={{ fontSize: '10px', color: '#38bdf8', fontWeight: 700 }}>
-            {role === 'boatman' ? 'Patrol Vessel' : (role === 'tourist' ? 'Citizen Safe' : 'Command Center')}
+        <div style={{ margin: '16px 0 8px' }}>
+          <span style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>
+            {lang === 'hi' ? 'आप कौन हैं?' : (lang === 'mr' ? 'तुम्ही कोण आहात?' : 'Who are you?')}
           </span>
         </div>
 
@@ -1081,68 +1096,45 @@ function RoleLogin({
           <button
             type="button"
             className={role === 'boatman' ? 'role-card active' : 'role-card'}
-            onClick={() => {
-              setRole('boatman')
-              if (!name || name === 'Insp. Rajesh Verma (NDRF)' || name === 'राजेश वर्मा (NDRF कमान)') setName('रमेश निषाद')
-            }}
+            onClick={() => setRole('boatman')}
             role="radio"
             aria-checked={role === 'boatman'}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <span>🎣</span>
               {role === 'boatman' && (
-                <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#10b981', display: 'grid', placeItems: 'center' }}>
-                  <Check style={{ width: '10px', height: '10px', color: '#fff' }} />
+                <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#10b981', display: 'grid', placeItems: 'center' }}>
+                  <Check style={{ width: '12px', height: '12px', color: '#fff' }} />
                 </div>
               )}
             </div>
             <strong>{t.boatmanRoleTitle}</strong>
-            <small>{t.boatmanRoleSub}</small>
-            <div style={{ marginTop: 'auto', paddingTop: '4px' }}>
-              <span style={{ fontSize: '9px', fontWeight: 800, color: role === 'boatman' ? '#34d399' : '#64748b', background: 'rgba(0,0,0,0.3)', padding: '2px 5px', borderRadius: '4px' }}>
-                🧭 3.0km Radar
-              </span>
-            </div>
           </button>
 
           {/* Role 2: Tourist / Citizen */}
           <button
             type="button"
             className={role === 'tourist' ? 'role-card active' : 'role-card'}
-            onClick={() => {
-              setRole('tourist')
-              if (!name || name === 'Insp. Rajesh Verma (NDRF)' || name === 'राजेश वर्मा (NDRF कमान)') setName('राहुल शर्मा')
-            }}
+            onClick={() => setRole('tourist')}
             role="radio"
             aria-checked={role === 'tourist'}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <span>🎒</span>
               {role === 'tourist' && (
-                <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#10b981', display: 'grid', placeItems: 'center' }}>
-                  <Check style={{ width: '10px', height: '10px', color: '#fff' }} />
+                <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#10b981', display: 'grid', placeItems: 'center' }}>
+                  <Check style={{ width: '12px', height: '12px', color: '#fff' }} />
                 </div>
               )}
             </div>
             <strong>{t.touristRoleTitle}</strong>
-            <small>{t.touristRoleSub}</small>
-            <div style={{ marginTop: 'auto', paddingTop: '4px' }}>
-              <span style={{ fontSize: '9px', fontWeight: 800, color: role === 'tourist' ? '#34d399' : '#64748b', background: 'rgba(0,0,0,0.3)', padding: '2px 5px', borderRadius: '4px' }}>
-                🚨 Instant SOS
-              </span>
-            </div>
           </button>
 
           {/* Role 3: Port Authority / NDRF Command */}
           <button
             type="button"
             className={role === 'authority' ? 'role-card active' : 'role-card'}
-            onClick={() => {
-              setRole('authority')
-              if (!name || name === 'रमेश निषाद' || name === 'राहुल शर्मा') {
-                setName(lang === 'hi' ? 'राजेश वर्मा (NDRF कमान)' : 'Insp. Rajesh Verma (NDRF)')
-              }
-            }}
+            onClick={() => setRole('authority')}
             role="radio"
             aria-checked={role === 'authority'}
             style={{
@@ -1150,26 +1142,23 @@ function RoleLogin({
               display: 'flex',
               flexDirection: 'row',
               alignItems: 'center',
-              gap: '12px',
-              padding: '12px 14px',
-              borderWidth: '1.5px'
+              gap: '14px',
+              padding: '16px 16px',
+              minHeight: '72px'
             }}
           >
-            <span style={{ fontSize: '24px' }}>🏛️</span>
+            <span style={{ fontSize: '28px' }}>🏛️</span>
             <div style={{ textAlign: 'left', flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <strong style={{ fontSize: '13px', color: role === 'authority' ? '#34d399' : '#f8fafc' }}>
+                <strong style={{ fontSize: '16px', color: role === 'authority' ? '#047857' : '#0f172a' }}>
                   {t.authorityRoleTitle}
                 </strong>
                 {role === 'authority' && (
-                  <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#10b981', display: 'grid', placeItems: 'center' }}>
-                    <Check style={{ width: '10px', height: '10px', color: '#fff' }} />
+                  <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#10b981', display: 'grid', placeItems: 'center' }}>
+                    <Check style={{ width: '12px', height: '12px', color: '#fff' }} />
                   </div>
                 )}
               </div>
-              <small style={{ fontSize: '10.5px', color: '#94a3b8', display: 'block' }}>
-                {t.authorityRoleSub}
-              </small>
             </div>
           </button>
         </div>
@@ -1262,33 +1251,19 @@ function RoleLogin({
           onUseLiveGps={() => location.refreshGPS()}
         />
 
-        {/* Tactical Real-time Location Indicator & Chooser */}
+        {/* Real-time Location Indicator & Chooser */}
         <div
           style={{
-            background: 'rgba(8, 16, 28, 0.85)',
-            border: '1px solid rgba(56, 189, 248, 0.22)',
+            background: '#f8fafc',
+            border: '1px solid var(--line)',
             borderRadius: '16px',
             padding: '12px 14px',
-            margin: '14px 0 4px',
-            boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+            margin: '14px 0 4px'
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '10.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#7dd3fc' }}>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink-secondary)' }}>
               📍 {t.locationLabel}
-            </span>
-            <span
-              style={{
-                fontSize: '9.5px',
-                fontWeight: 800,
-                padding: '2px 8px',
-                borderRadius: '6px',
-                background: location.isLiveGPS ? 'rgba(16, 185, 129, 0.15)' : 'rgba(56, 189, 248, 0.15)',
-                color: location.isLiveGPS ? '#34d399' : '#38bdf8',
-                border: location.isLiveGPS ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(56, 189, 248, 0.35)'
-              }}
-            >
-              {location.isLiveGPS ? t.realGps : '📍 Custom Location'}
             </span>
           </div>
 
@@ -1298,27 +1273,24 @@ function RoleLogin({
                 width: '32px',
                 height: '32px',
                 borderRadius: '10px',
-                background: location.isLiveGPS ? 'rgba(16, 185, 129, 0.18)' : 'rgba(56, 189, 248, 0.18)',
+                background: location.isLiveGPS ? 'var(--green-soft)' : 'var(--blue-soft)',
                 display: 'grid',
                 placeItems: 'center',
                 flexShrink: 0,
-                border: location.isLiveGPS ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(56, 189, 248, 0.4)'
+                border: location.isLiveGPS ? '1px solid var(--green-border)' : '1px solid var(--blue-border)'
               }}
             >
-              <MapPin style={{ width: '16px', height: '16px', color: location.isLiveGPS ? '#34d399' : '#38bdf8' }} />
+              <MapPin style={{ width: '16px', height: '16px', color: location.isLiveGPS ? 'var(--green)' : 'var(--blue)' }} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {location.placeName}
-              </div>
-              <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '1px' }}>
-                Coordinates: {location.lat.toFixed(4)}° N, {location.lon.toFixed(4)}° E (±{location.accuracy}m sync)
               </div>
             </div>
           </div>
 
           {/* Dual Action Buttons: Fetch Live GPS vs Choose Location */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <button
               type="button"
               onClick={() => location.refreshGPS()}
@@ -1327,19 +1299,20 @@ function RoleLogin({
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '6px',
-                padding: '8px 10px',
+                padding: '12px 10px',
+                minHeight: '48px',
                 borderRadius: '10px',
-                border: location.isLiveGPS ? '1.5px solid #10b981' : '1px solid rgba(255, 255, 255, 0.12)',
-                background: location.isLiveGPS ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                color: location.isLiveGPS ? '#34d399' : '#cbd5e1',
-                fontSize: '11px',
+                border: location.isLiveGPS ? '1.5px solid var(--green)' : '1px solid var(--line)',
+                background: location.isLiveGPS ? 'var(--green-soft)' : '#ffffff',
+                color: location.isLiveGPS ? 'var(--green-hover)' : 'var(--ink-secondary)',
+                fontSize: '13.5px',
                 fontWeight: 800,
                 cursor: 'pointer',
                 transition: 'all 0.15s ease'
               }}
             >
-              <Navigation style={{ width: '13px', height: '13px', color: '#34d399' }} />
-              <span>Fetch Live GPS</span>
+              <Navigation style={{ width: '15px', height: '15px', color: 'var(--green)' }} />
+              <span>{lang === 'hi' ? 'मेरा स्थान' : (lang === 'mr' ? 'माझे स्थान' : 'My Location')}</span>
             </button>
 
             <button
@@ -1350,24 +1323,25 @@ function RoleLogin({
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '6px',
-                padding: '8px 10px',
+                padding: '12px 10px',
+                minHeight: '48px',
                 borderRadius: '10px',
-                border: !location.isLiveGPS ? '1.5px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.12)',
-                background: !location.isLiveGPS ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                color: !location.isLiveGPS ? '#7dd3fc' : '#cbd5e1',
-                fontSize: '11px',
+                border: !location.isLiveGPS ? '1.5px solid var(--blue)' : '1px solid var(--line)',
+                background: !location.isLiveGPS ? 'var(--blue-soft)' : '#ffffff',
+                color: !location.isLiveGPS ? 'var(--blue)' : 'var(--ink-secondary)',
+                fontSize: '13.5px',
                 fontWeight: 800,
                 cursor: 'pointer',
                 transition: 'all 0.15s ease'
               }}
             >
-              <Search style={{ width: '13px', height: '13px', color: '#38bdf8' }} />
-              <span>Choose Location 🔍</span>
+              <Search style={{ width: '15px', height: '15px', color: 'var(--blue)' }} />
+              <span>{lang === 'hi' ? 'खोजें' : (lang === 'mr' ? 'शोधा' : 'Search')}</span>
             </button>
           </div>
         </div>
 
-        {/* Primary Command Grid Launch Button */}
+        {/* Primary Continue Button */}
         <button
           type="button"
           className="continue-button"
@@ -1380,18 +1354,12 @@ function RoleLogin({
           <ChevronDown />
         </button>
 
-        {/* Security & Sovereign Trust Badges */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '14px', marginTop: '14px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#64748b', fontWeight: 600 }}>
-            <ShieldCheck style={{ width: '12px', height: '12px', color: '#34d399' }} />
-            <span>256-Bit Sovereign Audio</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#64748b', fontWeight: 600 }}>
-            <span>⚡ Zero Cloud Delay</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#64748b', fontWeight: 600 }}>
-            <span>🔒 No OTP Required</span>
-          </div>
+        {/* Simple Trust Note */}
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', marginTop: '14px' }}>
+          <ShieldCheck style={{ width: '14px', height: '14px', color: 'var(--green)' }} />
+          <span style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 600 }}>
+            {lang === 'hi' ? 'बिना इंटरनेट भी काम करता है' : (lang === 'mr' ? 'इंटरनेटशिवायही काम करते' : 'Works even without internet')}
+          </span>
         </div>
       </section>
     </main>
@@ -1420,7 +1388,7 @@ function TopBar({
 }) {
   const t = UI_TRANSLATIONS[lang]
   const [showLocationModal, setShowLocationModal] = useState(false)
-  const isDark = mode === 'boatman' || mode === 'authority'
+  const isDark = false
 
   return (
     <header
@@ -1549,6 +1517,30 @@ function TopBar({
           <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isOnline ? '#10b981' : '#d97706' }} />
           {isOnline ? t.onlineBadge : t.offlineBadge}
         </span>
+
+        {/* Quick one-tap English switch (most useful for tourists) */}
+        {mode === 'tourist' && lang !== 'en' && (
+          <button
+            type="button"
+            onClick={() => onLangChange('en')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              background: 'var(--blue-soft)',
+              border: '1px solid var(--blue-border)',
+              color: 'var(--blue)',
+              padding: '6px 10px',
+              borderRadius: '10px',
+              fontSize: '11.5px',
+              fontWeight: 800,
+              cursor: 'pointer'
+            }}
+          >
+            <Globe style={{ width: '13px', height: '13px' }} />
+            English
+          </button>
+        )}
 
         {/* Language selector */}
         <div
@@ -3423,14 +3415,14 @@ function TouristDashboard({
           {/* Card 1: Tourist Guardian Identity */}
           <div
             style={{
-              background: 'linear-gradient(135deg, rgba(12, 21, 39, 0.95), rgba(7, 13, 24, 0.98))',
-              border: '1px solid rgba(56, 189, 248, 0.18)',
+              background: '#ffffff',
+              border: '1px solid var(--line)',
               borderRadius: '20px',
               padding: '18px 20px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.45)'
+              boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 24px -12px rgba(15, 23, 42, 0.12)'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -3439,26 +3431,22 @@ function TouristDashboard({
                   width: '46px',
                   height: '46px',
                   borderRadius: '14px',
-                  background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(14, 165, 233, 0.35))',
-                  border: '1.5px solid rgba(56, 189, 248, 0.45)',
+                  background: 'var(--blue-soft)',
+                  border: '1.5px solid var(--blue-border)',
                   display: 'grid',
                   placeItems: 'center',
                   fontSize: '22px',
-                  flexShrink: 0,
-                  boxShadow: '0 0 16px rgba(56, 189, 248, 0.25)'
+                  flexShrink: 0
                 }}
               >
                 🛡️
               </div>
               <div>
-                <div style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '0.08em', color: '#38bdf8', textTransform: 'uppercase' }}>
-                  TOURIST GUARDIAN GRID
-                </div>
-                <h2 style={{ fontSize: '17px', fontWeight: 900, margin: '2px 0 3px', color: '#f8fafc' }}>
+                <h2 style={{ fontSize: '19px', fontWeight: 800, margin: '2px 0 3px', color: 'var(--ink)' }}>
                   {userName}
                 </h2>
-                <div style={{ fontSize: '11.5px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <MapPin style={{ width: '13px', height: '13px', color: '#38bdf8' }} />
+                <div style={{ fontSize: '13.5px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <MapPin style={{ width: '14px', height: '14px', color: 'var(--blue)' }} />
                   <span>{location.placeName}</span>
                 </div>
               </div>
@@ -3467,24 +3455,21 @@ function TouristDashboard({
             <div style={{ textAlign: 'right' }}>
               <span
                 style={{
-                  fontSize: '10.5px',
+                  fontSize: '12.5px',
                   fontWeight: 800,
-                  color: '#34d399',
-                  background: 'rgba(16, 185, 129, 0.12)',
-                  border: '1px solid rgba(16, 185, 129, 0.35)',
-                  padding: '5px 10px',
+                  color: 'var(--green-hover)',
+                  background: 'var(--green-soft)',
+                  border: '1px solid var(--green-border)',
+                  padding: '6px 12px',
                   borderRadius: '20px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px'
                 }}
               >
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', animation: 'beaconPulse 1.8s infinite' }} />
-                OS Emergency Grid: Active
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', animation: 'beaconPulse 1.8s infinite' }} />
+                {lang === 'hi' ? 'सक्रिय' : (lang === 'mr' ? 'सक्रिय' : 'Active')}
               </span>
-              <div style={{ fontSize: '10.5px', color: '#64748b', fontFamily: 'monospace', marginTop: '4px' }}>
-                {location.lat.toFixed(4)}°N, {location.lon.toFixed(4)}°E
-              </div>
             </div>
           </div>
 
@@ -3563,11 +3548,11 @@ function TouristDashboard({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
             <section
               style={{
-                background: 'linear-gradient(180deg, #0c1527 0%, #070d18 100%)',
-                border: '1px solid rgba(56, 189, 248, 0.18)',
+                background: '#ffffff',
+                border: '1px solid var(--line)',
                 borderRadius: '24px',
                 padding: '24px',
-                boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5)'
+                boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 24px -12px rgba(15, 23, 42, 0.1)'
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: hasActiveBroadcast ? '14px' : '0' }}>
@@ -3576,20 +3561,20 @@ function TouristDashboard({
                     width: '42px',
                     height: '42px',
                     borderRadius: '12px',
-                    background: 'rgba(34, 211, 238, 0.15)',
-                    border: '1px solid rgba(34, 211, 238, 0.35)',
+                    background: 'var(--blue-soft)',
+                    border: '1px solid var(--blue-border)',
                     display: 'grid',
                     placeItems: 'center',
-                    color: '#22d3ee'
+                    color: 'var(--blue)'
                   }}
                 >
                   <Radio style={{ width: '20px', height: '20px' }} />
                 </div>
                 <div>
-                  <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  <span style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                     {t.voiceUpdateHeading}
                   </span>
-                  <h2 style={{ fontSize: '16px', fontWeight: 900, margin: '2px 0 0', color: '#f8fafc' }}>
+                  <h2 style={{ fontSize: '16px', fontWeight: 800, margin: '2px 0 0', color: 'var(--ink)' }}>
                     {hasActiveBroadcast ? `${boatmanName} · ${t.fromYou(distanceText)}` : 'Live River Voice Grid · Standby'}
                   </h2>
                 </div>
@@ -3599,20 +3584,20 @@ function TouristDashboard({
                 <>
                   <blockquote
                     style={{
-                      background: 'rgba(255, 255, 255, 0.04)',
-                      borderLeft: '4px solid #22d3ee',
+                      background: 'var(--blue-soft)',
+                      borderLeft: '4px solid var(--blue)',
                       padding: '12px 16px',
                       borderRadius: '0 14px 14px 0',
                       margin: '14px 0 10px',
                       fontSize: '14px',
                       fontWeight: 600,
-                      color: '#f1f5f9',
+                      color: 'var(--ink)',
                       lineHeight: '1.5'
                     }}
                   >
                     &ldquo;{hindiQuote ? hindiQuote.replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, '') : t.quoteSafe.replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, '')}&rdquo;
                   </blockquote>
-                  <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 16px', lineHeight: '1.45' }}>
+                  <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '0 0 16px', lineHeight: '1.45' }}>
                     {translation}
                   </p>
 
@@ -3622,11 +3607,11 @@ function TouristDashboard({
                       type="button"
                       onClick={toggleBoatmanAudio}
                       style={{
-                        background: 'rgba(16, 185, 129, 0.12)',
-                        border: '1.5px solid rgba(16, 185, 129, 0.4)',
+                        background: 'var(--green-soft)',
+                        border: '1.5px solid var(--green-border)',
                         borderRadius: '14px',
                         padding: '12px 16px',
-                        color: '#f8fafc',
+                        color: 'var(--ink)',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -3649,8 +3634,8 @@ function TouristDashboard({
                         {playingBoatman ? <Pause style={{ width: '18px', height: '18px' }} /> : <Play style={{ width: '18px', height: '18px' }} />}
                       </span>
                       <div>
-                        <strong style={{ fontSize: '13px', color: '#34d399', display: 'block' }}>{t.listenCleanVoice}</strong>
-                        <small style={{ fontSize: '10.5px', color: '#94a3b8' }}>{t.listenCleanVoiceSub}</small>
+                        <strong style={{ fontSize: '13px', color: 'var(--green-hover)', display: 'block' }}>{t.listenCleanVoice}</strong>
+                        <small style={{ fontSize: '10.5px', color: 'var(--muted)' }}>{t.listenCleanVoiceSub}</small>
                       </div>
                     </button>
 
@@ -3659,11 +3644,11 @@ function TouristDashboard({
                       type="button"
                       onClick={toggleAiAudio}
                       style={{
-                        background: 'rgba(34, 211, 238, 0.12)',
-                        border: '1.5px solid rgba(34, 211, 238, 0.4)',
+                        background: 'var(--blue-soft)',
+                        border: '1.5px solid var(--blue-border)',
                         borderRadius: '14px',
                         padding: '12px 16px',
-                        color: '#f8fafc',
+                        color: 'var(--ink)',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -3686,10 +3671,10 @@ function TouristDashboard({
                         {playingAi ? <Pause style={{ width: '18px', height: '18px' }} /> : <Volume2 style={{ width: '18px', height: '18px' }} />}
                       </span>
                       <div>
-                        <strong style={{ fontSize: '13px', color: '#38bdf8', display: 'block' }}>
+                        <strong style={{ fontSize: '13px', color: 'var(--blue)', display: 'block' }}>
                           {t.listenAiAdvisory(LANGUAGES.find((l) => l.code === lang)?.label || 'Regional')}
                         </strong>
-                        <small style={{ fontSize: '10.5px', color: '#94a3b8' }}>{t.listenAiAdvisorySub}</small>
+                        <small style={{ fontSize: '10.5px', color: 'var(--muted)' }}>{t.listenAiAdvisorySub}</small>
                       </div>
                     </button>
 
@@ -3699,11 +3684,11 @@ function TouristDashboard({
                         type="button"
                         onClick={toggleRawAudio}
                         style={{
-                          background: 'rgba(255, 170, 0, 0.08)',
-                          border: '1px solid rgba(255, 170, 0, 0.3)',
+                          background: 'var(--amber-soft)',
+                          border: '1px solid var(--amber-border)',
                           borderRadius: '14px',
                           padding: '10px 14px',
-                          color: '#f8fafc',
+                          color: 'var(--ink)',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
@@ -3726,8 +3711,8 @@ function TouristDashboard({
                           {playingRaw ? <Pause style={{ width: '16px', height: '16px' }} /> : <Play style={{ width: '16px', height: '16px' }} />}
                         </span>
                         <div>
-                          <strong style={{ fontSize: '12px', color: '#fbbf24', display: 'block' }}>{t.compareRawAudio}</strong>
-                          <small style={{ fontSize: '10px', color: '#94a3b8' }}>{t.compareRawAudioSub}</small>
+                          <strong style={{ fontSize: '12px', color: 'var(--amber)', display: 'block' }}>{t.compareRawAudio}</strong>
+                          <small style={{ fontSize: '10px', color: 'var(--muted)' }}>{t.compareRawAudioSub}</small>
                         </div>
                       </button>
                     )}
@@ -3736,15 +3721,15 @@ function TouristDashboard({
               ) : (
                 <div
                   style={{
-                    background: 'rgba(255, 255, 255, 0.02)',
-                    border: '1px dashed rgba(56, 189, 248, 0.25)',
+                    background: '#f8fafc',
+                    border: '1px dashed var(--line-strong)',
                     borderRadius: '16px',
                     padding: '24px 18px',
                     marginTop: '14px',
                     textAlign: 'center'
                   }}
                 >
-                  <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 10px', lineHeight: '1.5' }}>
+                  <p style={{ fontSize: '13px', color: 'var(--muted)', margin: '0 0 10px', lineHeight: '1.5' }}>
                     {lang === 'hi'
                       ? 'इस जल क्षेत्र में अभी कोई नया वॉइस प्रसारण नहीं हुआ है। जब कोई नाविक वॉक-टॉकी पर बोलेगा, तो उनका सत्यापित वॉइस संदेश और ऑडियो विकल्प यहां तुरंत सक्रिय हो जाएगा।'
                       : (lang === 'mr'
@@ -3756,12 +3741,12 @@ function TouristDashboard({
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '6px',
-                      background: 'rgba(16, 185, 129, 0.1)',
-                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                      background: 'var(--green-soft)',
+                      border: '1px solid var(--green-border)',
                       borderRadius: '20px',
                       padding: '4px 12px',
                       fontSize: '11px',
-                      color: '#34d399',
+                      color: 'var(--green-hover)',
                       fontWeight: 700
                     }}
                   >
@@ -3796,11 +3781,11 @@ function TouristDashboard({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
             <section
               style={{
-                background: 'linear-gradient(180deg, #0c1527 0%, #070d18 100%)',
-                border: '1px solid rgba(56, 189, 248, 0.18)',
+                background: '#ffffff',
+                border: '1px solid var(--line)',
                 borderRadius: '24px',
                 padding: '24px',
-                boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5)'
+                boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 24px -12px rgba(15, 23, 42, 0.1)'
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
@@ -3810,20 +3795,20 @@ function TouristDashboard({
                       width: '42px',
                       height: '42px',
                       borderRadius: '12px',
-                      background: 'rgba(56, 189, 248, 0.15)',
-                      border: '1px solid rgba(56, 189, 248, 0.35)',
+                      background: 'var(--blue-soft)',
+                      border: '1px solid var(--blue-border)',
                       display: 'grid',
                       placeItems: 'center',
-                      color: '#38bdf8'
+                      color: 'var(--blue)'
                     }}
                   >
                     <Compass style={{ width: '22px', height: '22px' }} />
                   </div>
                   <div>
-                    <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    <span style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                       {lang === 'hi' ? 'लाइव घाट स्टेशन मॉनिटर' : (lang === 'mr' ? 'थेट घाट स्थान निरीक्षण' : 'Live Ghat Safety Corridor')}
                     </span>
-                    <h2 style={{ fontSize: '16px', fontWeight: 900, margin: '2px 0 0', color: '#f8fafc' }}>
+                    <h2 style={{ fontSize: '16px', fontWeight: 800, margin: '2px 0 0', color: 'var(--ink)' }}>
                       {location.placeName}
                     </h2>
                   </div>
@@ -3834,9 +3819,9 @@ function TouristDashboard({
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '6px',
-                    background: status === 'safe' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                    border: status === 'safe' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.4)',
-                    color: status === 'safe' ? '#34d399' : '#f87171',
+                    background: status === 'safe' ? 'var(--green-soft)' : 'var(--red-soft)',
+                    border: status === 'safe' ? '1px solid var(--green-border)' : '1px solid var(--red-border)',
+                    color: status === 'safe' ? 'var(--green-hover)' : 'var(--red)',
                     borderRadius: '20px',
                     padding: '5px 12px',
                     fontSize: '11px',
@@ -3850,67 +3835,57 @@ function TouristDashboard({
 
               {/* 4-Tile Live Telemetry Grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '18px' }}>
-                <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '14px', padding: '12px 14px' }}>
-                  <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                    {lang === 'hi' ? 'सटीक GPS स्थान' : (lang === 'mr' ? 'अचूक GPS स्थान' : 'Exact GPS Anchor')}
+                <div style={{ background: '#f8fafc', border: '1px solid var(--line)', borderRadius: '14px', padding: '14px 16px' }}>
+                  <span style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 700, display: 'block', marginBottom: '5px' }}>
+                    {lang === 'hi' ? 'आपका स्थान' : (lang === 'mr' ? 'तुमचे स्थान' : 'Your Location')}
                   </span>
-                  <strong style={{ fontSize: '13px', color: '#f1f5f9' }}>
+                  <strong style={{ fontSize: '14.5px', color: 'var(--ink)' }}>
                     {location.lat.toFixed(4)}° N, {location.lon.toFixed(4)}° E
                   </strong>
-                  <span style={{ fontSize: '10px', color: '#38bdf8', display: 'block', marginTop: '2px' }}>
-                    ±2m Precision Synced
-                  </span>
                 </div>
 
-                <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '14px', padding: '12px 14px' }}>
-                  <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                    {lang === 'hi' ? 'निकटतम गश्ती नाव' : (lang === 'mr' ? 'जवळची गस्ती नौका' : 'Nearest Patrol Unit')}
+                <div style={{ background: '#f8fafc', border: '1px solid var(--line)', borderRadius: '14px', padding: '14px 16px' }}>
+                  <span style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 700, display: 'block', marginBottom: '5px' }}>
+                    {lang === 'hi' ? 'निकटतम नाविक' : (lang === 'mr' ? 'जवळचा नाविक' : 'Nearest Boatman')}
                   </span>
-                  <strong style={{ fontSize: '13px', color: '#f1f5f9' }}>
+                  <strong style={{ fontSize: '14.5px', color: 'var(--ink)' }}>
                     {boatmanName}
                   </strong>
-                  <span style={{ fontSize: '10px', color: '#34d399', display: 'block', marginTop: '2px' }}>
-                    Patrol Vessel #14 · Standby
-                  </span>
                 </div>
 
-                <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '14px', padding: '12px 14px' }}>
-                  <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                    {lang === 'hi' ? 'नदी बहाव गति' : (lang === 'mr' ? 'नदी प्रवाह वेग' : 'River Current Velocity')}
+                <div style={{ background: '#f8fafc', border: '1px solid var(--line)', borderRadius: '14px', padding: '14px 16px' }}>
+                  <span style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 700, display: 'block', marginBottom: '5px' }}>
+                    {lang === 'hi' ? 'नदी बहाव' : (lang === 'mr' ? 'नदी प्रवाह' : 'River Flow')}
                   </span>
-                  <strong style={{ fontSize: '13px', color: status === 'safe' ? '#34d399' : '#f87171' }}>
-                    {status === 'safe' ? '1.8 km/h (Normal)' : '4.6 km/h (Rapid Surge)'}
+                  <strong style={{ fontSize: '14.5px', color: status === 'safe' ? 'var(--green-hover)' : 'var(--red)' }}>
+                    {status === 'safe'
+                      ? (lang === 'hi' ? 'सामान्य' : (lang === 'mr' ? 'सामान्य' : 'Normal'))
+                      : (lang === 'hi' ? 'तेज़ बहाव' : (lang === 'mr' ? 'वेगवान' : 'Fast / Risky'))}
                   </strong>
-                  <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginTop: '2px' }}>
-                    Sonar Depth: 4.8m Keel
-                  </span>
                 </div>
 
-                <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '14px', padding: '12px 14px' }}>
-                  <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                    {lang === 'hi' ? 'आपातकालीन नेटवर्क' : (lang === 'mr' ? 'आपत्कालीन नेटवर्क' : 'Emergency Telecom')}
+                <div style={{ background: '#f8fafc', border: '1px solid var(--line)', borderRadius: '14px', padding: '14px 16px' }}>
+                  <span style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 700, display: 'block', marginBottom: '5px' }}>
+                    {lang === 'hi' ? 'आपातकालीन नंबर' : (lang === 'mr' ? 'आपत्कालीन क्रमांक' : 'Emergency Number')}
                   </span>
-                  <strong style={{ fontSize: '13px', color: '#38bdf8' }}>
-                    112 Sovereign Grid
+                  <strong style={{ fontSize: '14.5px', color: 'var(--blue)' }}>
+                    112
                   </strong>
-                  <span style={{ fontSize: '10px', color: '#cbd5e1', display: 'block', marginTop: '2px' }}>
-                    Instant Outbound Voice Hook
-                  </span>
                 </div>
               </div>
 
               {/* Safety Protocol Directives */}
-              <div style={{ background: 'rgba(56, 189, 248, 0.05)', border: '1px solid rgba(56, 189, 248, 0.15)', borderRadius: '16px', padding: '14px 16px', marginBottom: '18px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>
+              <div style={{ background: 'var(--blue-soft)', border: '1px solid var(--blue-border)', borderRadius: '16px', padding: '14px 16px', marginBottom: '18px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>
                   {lang === 'hi' ? 'नाविक व गश्ती दल सुरक्षा निर्देश' : (lang === 'mr' ? 'नाविक व गस्ती पथक सुरक्षा नियम' : 'Official Water Safety Directives')}
                 </span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: '#cbd5e1' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--ink-secondary)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <ShieldCheck style={{ width: '15px', height: '15px', color: '#34d399', flexShrink: 0 }} />
+                    <ShieldCheck style={{ width: '15px', height: '15px', color: 'var(--green)', flexShrink: 0 }} />
                     <span>{lang === 'hi' ? 'नौका विहार करते समय लाइफ जैकेट अनिवार्य है।' : (lang === 'mr' ? 'नौकाविहाराच्या वेळी लाइफ जॅकेट अनिवार्य आहे.' : 'Life jackets mandatory for boating beyond the ghat steps.')}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <AlertTriangle style={{ width: '15px', height: '15px', color: '#fbbf24', flexShrink: 0 }} />
+                    <AlertTriangle style={{ width: '15px', height: '15px', color: 'var(--amber)', flexShrink: 0 }} />
                     <span>{lang === 'hi' ? 'नाविकों की सीटी अथवा ध्वनि चेतावनी पर तुरंत किनारे आएं।' : (lang === 'mr' ? 'नाविकांच्या शिट्टी किंवा ध्वनी इशाऱ्याकडे दुर्लक्ष करू नका.' : 'Follow whistle signals and vocal instructions from local boatmen.')}</span>
                   </div>
                 </div>
@@ -3921,11 +3896,11 @@ function TouristDashboard({
                 <a
                   href="tel:112"
                   style={{
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    border: '1.5px solid rgba(239, 68, 68, 0.4)',
+                    background: 'var(--red-soft)',
+                    border: '1.5px solid var(--red-border)',
                     borderRadius: '12px',
                     padding: '11px',
-                    color: '#fca5a5',
+                    color: 'var(--red)',
                     fontSize: '12.5px',
                     fontWeight: 800,
                     textDecoration: 'none',
@@ -3944,11 +3919,11 @@ function TouristDashboard({
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
-                    background: 'rgba(56, 189, 248, 0.15)',
-                    border: '1.5px solid rgba(56, 189, 248, 0.4)',
+                    background: 'var(--blue-soft)',
+                    border: '1.5px solid var(--blue-border)',
                     borderRadius: '12px',
                     padding: '11px',
-                    color: '#7dd3fc',
+                    color: 'var(--blue)',
                     fontSize: '12.5px',
                     fontWeight: 800,
                     textDecoration: 'none',
@@ -4420,17 +4395,17 @@ function BoatmanDashboard({
 
         {/* TOP DECK ROW: 2 Sleek Cards (Matching User's Desktop Screenshot) */}
         <div className="desktop-top-grid">
-          {/* Card 1: Sovereign Vessel Station */}
+          {/* Card 1: Boatman / Authority Identity */}
           <div
             style={{
-              background: 'linear-gradient(135deg, rgba(12, 21, 39, 0.95), rgba(7, 13, 24, 0.98))',
-              border: '1px solid rgba(56, 189, 248, 0.18)',
+              background: '#ffffff',
+              border: '1px solid var(--line)',
               borderRadius: '20px',
               padding: '18px 20px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.45)'
+              boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 24px -12px rgba(15, 23, 42, 0.12)'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -4439,29 +4414,23 @@ function BoatmanDashboard({
                   width: '46px',
                   height: '46px',
                   borderRadius: '14px',
-                  background: role === 'authority'
-                    ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.22), rgba(185, 28, 28, 0.4))'
-                    : 'linear-gradient(135deg, rgba(34, 211, 238, 0.2), rgba(14, 165, 233, 0.35))',
-                  border: role === 'authority' ? '1.5px solid rgba(239, 68, 68, 0.5)' : '1.5px solid rgba(34, 211, 238, 0.45)',
+                  background: role === 'authority' ? 'var(--red-soft)' : 'var(--blue-soft)',
+                  border: role === 'authority' ? '1.5px solid var(--red-border)' : '1.5px solid var(--blue-border)',
                   display: 'grid',
                   placeItems: 'center',
                   fontSize: '22px',
-                  flexShrink: 0,
-                  boxShadow: role === 'authority' ? '0 0 16px rgba(239, 68, 68, 0.3)' : '0 0 16px rgba(34, 211, 238, 0.25)'
+                  flexShrink: 0
                 }}
               >
                 {role === 'authority' ? '🏛️' : '🚢'}
               </div>
               <div>
-                <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.08em', color: '#38bdf8', textTransform: 'uppercase' }}>
-                  {role === 'authority' ? 'NATIONAL DISASTER RESPONSE FORCE' : 'SOVEREIGN VESSEL STATION'}
-                </div>
-                <h2 style={{ fontSize: '17px', fontWeight: 900, margin: '2px 0 3px', color: '#f8fafc', textTransform: 'capitalize' }}>
+                <h2 style={{ fontSize: '19px', fontWeight: 800, margin: '2px 0 3px', color: 'var(--ink)', textTransform: 'capitalize' }}>
                   {userName || (role === 'authority' ? 'Insp. Rajesh Verma' : 'रमेश निषाद')}
                 </h2>
-                <div style={{ fontSize: '11.5px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <MapPin style={{ width: '13px', height: '13px', color: '#38bdf8' }} />
-                  <span>{role === 'authority' ? `NDRF Sector 01 · ${location.placeName}` : `Patrol Vessel #14 · ${location.placeName}`}</span>
+                <div style={{ fontSize: '13.5px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <MapPin style={{ width: '14px', height: '14px', color: 'var(--blue)' }} />
+                  <span>{location.placeName}</span>
                 </div>
               </div>
             </div>
@@ -4469,63 +4438,57 @@ function BoatmanDashboard({
             <div style={{ textAlign: 'right' }}>
               <span
                 style={{
-                  fontSize: '10.5px',
+                  fontSize: '12.5px',
                   fontWeight: 800,
-                  color: '#34d399',
-                  background: 'rgba(16, 185, 129, 0.12)',
-                  border: '1px solid rgba(16, 185, 129, 0.35)',
-                  padding: '5px 10px',
+                  color: 'var(--green-hover)',
+                  background: 'var(--green-soft)',
+                  border: '1px solid var(--green-border)',
+                  padding: '6px 12px',
                   borderRadius: '20px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px'
                 }}
               >
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', animation: 'beaconPulse 1.8s infinite' }} />
-                {location.isLiveGPS ? 'LIVE SATELLITE' : 'SECTOR PRESET'}
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', animation: 'beaconPulse 1.8s infinite' }} />
+                {lang === 'hi' ? 'सक्रिय' : (lang === 'mr' ? 'सक्रिय' : 'Active')}
               </span>
-              <div style={{ fontSize: '10.5px', color: '#64748b', fontFamily: 'monospace', marginTop: '4px' }}>
-                {location.lat.toFixed(4)}°N, {location.lon.toFixed(4)}°E
-              </div>
             </div>
           </div>
 
           {/* Card 2: Local River Patrol Live Telemetry & Sector Focus */}
           <div
             style={{
-              background: 'linear-gradient(135deg, rgba(12, 21, 39, 0.95), rgba(7, 13, 24, 0.98))',
-              border: '1px solid rgba(56, 189, 248, 0.18)',
+              background: '#ffffff',
+              border: '1px solid var(--line)',
               borderRadius: '20px',
               padding: '18px 20px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.45)'
+              boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 24px -12px rgba(15, 23, 42, 0.12)'
             }}
           >
             <div>
-              <div style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '0.06em', color: '#94a3b8', textTransform: 'uppercase' }}>
+              <h2 style={{ fontSize: '16.5px', fontWeight: 800, margin: '2px 0 3px', color: 'var(--ink)' }}>
                 {t.voiceUpdateHeading}
-              </div>
-              <h2 style={{ fontSize: '16.5px', fontWeight: 900, margin: '2px 0 3px', color: '#ffffff' }}>
-                Local River Patrol · Grid Sector
               </h2>
-              <div style={{ fontSize: '11.5px', color: '#38bdf8', fontWeight: 600 }}>
-                {t.fromYou('0 meters')} · Scanning 3.0 km Blast Radius
+              <div style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600 }}>
+                {lang === 'hi' ? 'आपके आस-पास 3 किमी में' : (lang === 'mr' ? 'तुमच्या आसपास ३ किमीमध्ये' : 'Within 3 km of you')}
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div
                 style={{
-                  background: 'rgba(56, 189, 248, 0.12)',
-                  border: '1px solid rgba(56, 189, 248, 0.35)',
+                  background: 'var(--blue-soft)',
+                  border: '1px solid var(--blue-border)',
                   borderRadius: '20px',
                   padding: '6px 14px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  color: '#38bdf8',
+                  color: 'var(--blue)',
                   fontSize: '11.5px',
                   fontWeight: 800
                 }}
@@ -4589,11 +4552,11 @@ function BoatmanDashboard({
                   : t.boatmanSpeakIdle}
               </h1>
 
-              <p style={{ margin: '0 0 14px', color: recording ? '#34d399' : '#fb7185', fontSize: '12.5px', fontWeight: 600 }}>
+              <p style={{ margin: '0 0 14px', color: recording ? '#34d399' : '#fb7185', fontSize: '14px', fontWeight: 600 }}>
                 {sent
-                  ? `Broadcast active · Tourists in 3.0 km sector notified!`
+                  ? (lang === 'hi' ? 'भेज दिया! आस-पास के सभी पर्यटकों को सूचना मिल गई।' : (lang === 'mr' ? 'पाठवले! जवळच्या सर्व पर्यटकांना सूचना मिळाली.' : 'Sent! Nearby tourists have been notified.'))
                   : recording
-                  ? 'Prisma v2.5 live noise stripping active · Speaking…'
+                  ? (lang === 'hi' ? 'सुन रहे हैं, शोर हटाया जा रहा है…' : (lang === 'mr' ? 'ऐकत आहे, आवाज साफ केला जात आहे…' : 'Listening, cleaning up the noise…'))
                   : t.boatmanHoldInstruction}
               </p>
 
@@ -4605,13 +4568,13 @@ function BoatmanDashboard({
                   background: 'rgba(255, 255, 255, 0.05)',
                   border: '1px solid rgba(255, 255, 255, 0.1)',
                   borderRadius: '24px',
-                  padding: '6px 14px',
-                  fontSize: '11px',
-                  color: '#94a3b8'
+                  padding: '7px 16px',
+                  fontSize: '12.5px',
+                  color: '#cbd5e1'
                 }}
               >
-                <ShieldCheck style={{ width: '14px', height: '14px', color: '#38bdf8' }} />
-                <span>Hardware Noise Suppression Active · 3.0 km Blast Radius</span>
+                <ShieldCheck style={{ width: '15px', height: '15px', color: '#38bdf8' }} />
+                <span>{lang === 'hi' ? 'आस-पास के 3 किमी तक पहुँचेगा' : (lang === 'mr' ? 'जवळच्या ३ किमी पर्यंत पोहोचेल' : 'Reaches boats within 3 km')}</span>
               </div>
             </section>
 
@@ -4648,7 +4611,7 @@ function BoatmanDashboard({
                       }}
                     >
                       <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ffffff', animation: 'beaconPulse 1.2s infinite' }} />
-                      🚨 PRIORITY 1: LIVE RESCUE DISPATCH
+                      {lang === 'hi' ? '🚨 आपातकालीन बचाव' : (lang === 'mr' ? '🚨 आणीबाणी बचाव' : '🚨 Emergency Rescue')}
                     </span>
                   </div>
                   <span style={{ fontSize: '11.5px', color: '#fca5a5', fontWeight: 800, background: 'rgba(0,0,0,0.3)', padding: '3px 10px', borderRadius: '12px' }}>
@@ -4696,22 +4659,6 @@ function BoatmanDashboard({
                         ? (lang === 'mr' ? '० मीटर · थेट संपर्क तयार (अचूक GPS सिंक ±1m)' : (lang === 'hi' ? '0 मीटर · संपर्क तैयार (सटीक GPS सिंक ±1m)' : '0m · Direct Contact Ready (Live GPS Lock ±1m)'))
                         : `${activeRescue.distMeters < 1000 ? `${activeRescue.distMeters}m` : `${(activeRescue.distMeters / 1000).toFixed(1)}km`} direct across water · ~${Math.max(1, Math.round(activeRescue.distMeters / 180))} min at 6 knots`}
                     </div>
-                  </div>
-                </div>
-
-                {/* 3-Tile Tactical Telemetry Row */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '12px' }}>
-                  <div style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '8px 10px', textAlign: 'center' }}>
-                    <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', fontWeight: 700 }}>GPS Sync</span>
-                    <strong style={{ fontSize: '12px', color: '#34d399' }}>±1m Precision</strong>
-                  </div>
-                  <div style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '8px 10px', textAlign: 'center' }}>
-                    <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', fontWeight: 700 }}>Sonar Keel</span>
-                    <strong style={{ fontSize: '12px', color: '#38bdf8' }}>4.8m Safe Depth</strong>
-                  </div>
-                  <div style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '8px 10px', textAlign: 'center' }}>
-                    <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', fontWeight: 700 }}>Vessel Status</span>
-                    <strong style={{ fontSize: '12px', color: '#fbbf24' }}>Direct Standby</strong>
                   </div>
                 </div>
 
@@ -4785,7 +4732,7 @@ function BoatmanDashboard({
                       boxShadow: '0 4px 14px rgba(56, 189, 248, 0.25)'
                     }}
                   >
-                    <ExternalLink style={{ width: '13px', height: '13px' }} /> Satellite Pin
+                    <ExternalLink style={{ width: '13px', height: '13px' }} /> {lang === 'hi' ? 'नक्शा' : (lang === 'mr' ? 'नकाशा' : 'Map')}
                   </a>
                   <a
                     href={`tel:${activeRescue.phone}`}
@@ -4805,7 +4752,7 @@ function BoatmanDashboard({
                       boxShadow: '0 4px 14px rgba(34, 197, 94, 0.25)'
                     }}
                   >
-                    <Phone style={{ width: '13px', height: '13px' }} /> Call Tourist
+                    <Phone style={{ width: '13px', height: '13px' }} /> {lang === 'hi' ? 'कॉल करें' : (lang === 'mr' ? 'कॉल करा' : 'Call')}
                   </a>
                   <button
                     type="button"
@@ -4821,7 +4768,7 @@ function BoatmanDashboard({
                       cursor: 'pointer'
                     }}
                   >
-                    Clear Target
+                    {lang === 'hi' ? 'बंद करें' : (lang === 'mr' ? 'बंद करा' : 'Close')}
                   </button>
                 </div>
               </section>
@@ -4829,11 +4776,13 @@ function BoatmanDashboard({
 
             {/* Last Sent Broadcast Card */}
             {sent && (
-              <section className="last-broadcast" style={{ borderRadius: '18px', padding: '16px 20px', background: 'rgba(6, 78, 59, 0.35)', border: '1px solid rgba(16, 185, 129, 0.35)' }}>
-                <span className="eyebrow" style={{ color: '#34d399', fontSize: '10.5px' }}>{t.boatmanHeader} · {userName}</span>
-                <p style={{ fontSize: '14px', margin: '6px 0 4px', color: '#f8fafc' }}>{sentText}</p>
-                <strong style={{ fontSize: '11.5px', color: '#a7f3d0' }}>
-                  Broadcasted by {userName} from {location.placeName} ({location.lat.toFixed(4)}°, {location.lon.toFixed(4)}°) to nearby tourists ({recipientsCount} notified).
+              <section className="last-broadcast" style={{ borderRadius: '18px', padding: '16px 20px', background: 'var(--green-soft)', border: '1px solid var(--green-border)' }}>
+                <span className="eyebrow" style={{ color: 'var(--green-hover)', fontSize: '12.5px' }}>{userName}</span>
+                <p style={{ fontSize: '15px', margin: '6px 0 4px', color: 'var(--ink)' }}>{sentText}</p>
+                <strong style={{ fontSize: '13px', color: 'var(--green-hover)' }}>
+                  {lang === 'hi'
+                    ? `${recipientsCount} पर्यटकों को सूचना मिली`
+                    : (lang === 'mr' ? `${recipientsCount} पर्यटकांना सूचना मिळाली` : `${recipientsCount} tourists notified`)}
                 </strong>
               </section>
             )}
@@ -4869,9 +4818,23 @@ export default function CoastguardDashboard() {
   const [currentStatus, setCurrentStatus] = useState<Status>('safe')
   const [lang, setLang] = useState<SupportedLang>('hi')
   const [isOnline, setIsOnline] = useState<boolean>(true)
+  const userPickedLangRef = useRef(false)
 
   // Real-time Geolocation Hook
   const location = useRealTimeLocation()
+
+  // Auto-set the UI language from the fetched location, unless the user has
+  // already picked a language themselves (their choice always wins).
+  useEffect(() => {
+    if (location.detectedLang && !userPickedLangRef.current) {
+      setLang(location.detectedLang)
+    }
+  }, [location.detectedLang])
+
+  const changeLang = (l: SupportedLang) => {
+    userPickedLangRef.current = true
+    setLang(l)
+  }
 
   // Service Worker Registration & Online/Offline Listener
   useEffect(() => {
@@ -4925,7 +4888,7 @@ export default function CoastguardDashboard() {
         location={location}
         onContinue={enter}
         lang={lang}
-        onLangChange={setLang}
+        onLangChange={changeLang}
         isOnline={isOnline}
       />
     )
@@ -4941,7 +4904,7 @@ export default function CoastguardDashboard() {
           location={location}
           onSwitch={() => setScreen('login')}
           lang={lang}
-          onLangChange={setLang}
+          onLangChange={changeLang}
           isOnline={isOnline}
         />
       ) : (
@@ -4955,7 +4918,7 @@ export default function CoastguardDashboard() {
           }}
           onSwitch={() => setScreen('login')}
           lang={lang}
-          onLangChange={setLang}
+          onLangChange={changeLang}
           isOnline={isOnline}
         />
       )}

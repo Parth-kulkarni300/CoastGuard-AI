@@ -4,7 +4,7 @@
 // 2. Hardware Satellite GPS remains active via browser navigator.geolocation
 // 3. Fallback mock API responses for /api/tourist/status when offline
 
-const CACHE_NAME = 'coastguard-ai-v1';
+const CACHE_NAME = 'coastguard-ai-v2';
 
 const PRECACHE_URLS = [
   '/',
@@ -44,6 +44,14 @@ self.addEventListener('fetch', (event) => {
 
   // Ignore non-GET requests for caching (broadcasts will be queued by frontend)
   if (request.method !== 'GET') {
+    return;
+  }
+
+  // Never intercept Next.js build assets (JS/CSS chunks, HMR, source maps).
+  // These are versioned by the dev/build server itself; caching them here
+  // can serve a stale JS bundle alongside freshly server-rendered HTML,
+  // which causes hydration mismatches after every code change.
+  if (url.pathname.startsWith('/_next/')) {
     return;
   }
 
