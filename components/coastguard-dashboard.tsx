@@ -43,9 +43,12 @@ type Screen = 'landing' | 'login' | 'dashboard'
 type Status = 'safe' | 'danger'
 
 const API_BASE = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000'
-const WS_URL = typeof window !== 'undefined'
-  ? (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + 'localhost:8000/ws'
-  : 'ws://localhost:8000/ws'
+// In production the frontend (Vercel) and backend (Railway/Render, etc.) are
+// separate hosts, so the WebSocket has to connect to the backend directly —
+// it can't ride along on the /api rewrite proxy. Set NEXT_PUBLIC_BACKEND_URL
+// to the deployed backend's URL; falls back to localhost for local dev.
+const BACKEND_HOST = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+const WS_URL = BACKEND_HOST.replace(/^http/, 'ws') + '/ws'
 
 // Pre-defined Indian Coastal & Riverine Water Presets for quick testing
 export const WATER_PRESETS = [

@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: coastguard-ai-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.13
+      - key: GNANI_API_KEY
+        sync: false
+      - key: GNANI_STT_URL
+        value: https://app.gnani.ai/api/v1/transcribe
+      - key: GNANI_TTS_URL
+        value: https://app.gnani.ai/api/v1/synthesize
+      - key: ALERT_RADIUS_KM
+        value: "2.0"
