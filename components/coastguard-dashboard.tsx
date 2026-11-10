@@ -36,6 +36,7 @@ import {
 } from 'lucide-react'
 import { SupportedLang, LANGUAGES, UI_TRANSLATIONS } from '@/lib/i18n'
 import LandingPage from '@/components/landing-page'
+import { queueAction, flushQueue, getQueueCount, onQueueChange } from '@/lib/offline-queue'
 
 type Mode = 'boatman' | 'tourist' | 'authority'
 type Screen = 'landing' | 'login' | 'dashboard'
@@ -1479,7 +1480,8 @@ function TopBar({
   lang,
   onLangChange,
   userName,
-  isOnline = true
+  isOnline = true,
+  pendingCount = 0
 }: {
   mode: Mode
   location: ReturnType<typeof useRealTimeLocation>
@@ -1488,6 +1490,7 @@ function TopBar({
   onLangChange: (l: SupportedLang) => void
   userName?: string
   isOnline?: boolean
+  pendingCount?: number
 }) {
   const t = UI_TRANSLATIONS[lang]
   const [showLocationModal, setShowLocationModal] = useState(false)
@@ -1619,6 +1622,7 @@ function TopBar({
         >
           <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isOnline ? '#10b981' : '#d97706' }} />
           {isOnline ? t.onlineBadge : t.offlineBadge}
+          {pendingCount > 0 && ` · ${pendingCount} ${lang === 'hi' ? 'भेजे जाने बाकी' : (lang === 'mr' ? 'पाठवायचे आहेत' : 'queued')}`}
         </span>
 
         {/* Quick one-tap English switch (most useful for tourists) */}
@@ -1724,20 +1728,28 @@ function SosModal({
   const mapsUrl = `https://www.google.com/maps?q=${location.lat},${location.lon}`
 
   const sendSos = async (type: string) => {
+    const fields = {
+      phone,
+      tourist_name: userName,
+      incident_type: type,
+      lat: location.lat.toString(),
+      lon: location.lon.toString(),
+      location_name: location.placeName
+    }
     try {
       const fd = new FormData()
-      fd.append('phone', phone)
-      fd.append('tourist_name', userName)
-      fd.append('incident_type', type)
-      fd.append('lat', location.lat.toString())
-      fd.append('lon', location.lon.toString())
-      fd.append('location_name', location.placeName)
-      await fetch('/api/tourist/sos', { method: 'POST', body: fd })
+      Object.entries(fields).forEach(([k, v]) => fd.append(k, v))
+      const res = await fetch('/api/tourist/sos', { method: 'POST', body: fd })
+      if (!res.ok) throw new Error('sos failed')
       setDispatched(true)
       setTimeout(() => {
         close()
       }, 2500)
     } catch {
+      // No signal right now — queue it, it will send automatically the
+      // instant connectivity returns. Still show "dispatched" so the
+      // tourist isn't left thinking nothing happened.
+      queueAction('/api/tourist/sos', fields)
       setDispatched(true)
       setTimeout(() => {
         close()
@@ -2272,18 +2284,23 @@ function EmergencyCallModal({
 
     playHelpComingVoice()
 
+    const sosFields = {
+      phone,
+      tourist_name: userName,
+      incident_type: reason === 'unanswered_ringing_20s_timeout'
+        ? 'Unanswered Tourist (20s Ringing Timeout Auto-Rescue)'
+        : (reason === 'unanswered_20s_timeout'
+          ? 'Unanswered Tourist (20s Verbal Response Timeout Auto-Rescue)'
+          : 'Tourist Unsafe / Needs Immediate Rescue'),
+      lat: (location?.lat || 25.3176).toString(),
+      lon: (location?.lon || 83.0060).toString(),
+      location_name: location?.placeName || placeName
+    }
     const fd = new FormData()
-    fd.append('phone', phone)
-    fd.append('tourist_name', userName)
-    fd.append('incident_type', reason === 'unanswered_ringing_20s_timeout'
-      ? 'Unanswered Tourist (20s Ringing Timeout Auto-Rescue)'
-      : (reason === 'unanswered_20s_timeout'
-        ? 'Unanswered Tourist (20s Verbal Response Timeout Auto-Rescue)'
-        : 'Tourist Unsafe / Needs Immediate Rescue'))
-    fd.append('lat', (location?.lat || 25.3176).toString())
-    fd.append('lon', (location?.lon || 83.0060).toString())
-    fd.append('location_name', location?.placeName || placeName)
-    fetch('/api/tourist/sos', { method: 'POST', body: fd }).catch(() => {})
+    Object.entries(sosFields).forEach(([k, v]) => fd.append(k, v))
+    fetch('/api/tourist/sos', { method: 'POST', body: fd }).then((res) => {
+      if (!res.ok) queueAction('/api/tourist/sos', sosFields)
+    }).catch(() => queueAction('/api/tourist/sos', sosFields))
 
     if (onSos) onSos()
     close()
@@ -3122,7 +3139,8 @@ function TouristDashboard({
   initialStatus,
   lang,
   onLangChange,
-  isOnline = true
+  isOnline = true,
+  pendingCount = 0
 }: {
   onSwitch: () => void
   phone: string
@@ -3132,6 +3150,7 @@ function TouristDashboard({
   lang: SupportedLang
   onLangChange: (l: SupportedLang) => void
   isOnline?: boolean
+  pendingCount?: number
 }) {
   const t = UI_TRANSLATIONS[lang]
   const [status, setStatus] = useState<Status>(initialStatus || 'safe')
@@ -3568,6 +3587,7 @@ function TouristDashboard({
         onLangChange={onLangChange}
         userName={userName}
         isOnline={isOnline}
+        pendingCount={pendingCount}
       />
       <main className="tourist-app desktop-dashboard-container">
         {/* Offline Banner when disconnected */}
@@ -4166,7 +4186,8 @@ function BoatmanDashboard({
   onBroadcast,
   lang,
   onLangChange,
-  isOnline = true
+  isOnline = true,
+  pendingCount = 0
 }: {
   role?: Mode
   onSwitch: () => void
@@ -4177,6 +4198,7 @@ function BoatmanDashboard({
   lang: SupportedLang
   onLangChange: (l: SupportedLang) => void
   isOnline?: boolean
+  pendingCount?: number
 }) {
   const t = UI_TRANSLATIONS[lang]
   const [recording, setRecording] = useState(false)
@@ -4479,23 +4501,18 @@ function BoatmanDashboard({
         onBroadcast('safe')
       }
     } catch {
-      // Save to offline queue for automatic sync when internet resumes
-      try {
-        const raw = localStorage.getItem('cg_offline_queue')
-        const queue = raw ? JSON.parse(raw) : []
-        queue.push({
-          type: 'broadcast',
-          fisherman_name: userName,
-          phone,
-          text: overrideText || 'Offline Voice Broadcast',
-          status: forcedStatus || 'safe',
-          lat: location.lat,
-          lon: location.lon,
-          location_name: location.placeName,
-          timestamp: new Date().toISOString()
-        })
-        localStorage.setItem('cg_offline_queue', JSON.stringify(queue))
-      } catch {}
+      // No signal right now — queue it for automatic sync once back online.
+      // (The recorded audio blob itself isn't persisted; the transcript
+      // text/status is enough to notify tourists when the broadcast syncs.)
+      queueAction('/api/fisherman/broadcast', {
+        fisherman_phone: phone,
+        fisherman_name: userName,
+        status_type: forcedStatus || 'auto',
+        transcript_override: overrideText || 'Offline Voice Broadcast',
+        lat: location.lat.toString(),
+        lon: location.lon.toString(),
+        location_name: location.placeName
+      })
 
       setSent(true)
       if (overrideText) setSentText(`“${overrideText}”`)
@@ -4515,6 +4532,7 @@ function BoatmanDashboard({
         onLangChange={onLangChange}
         userName={userName}
         isOnline={isOnline}
+        pendingCount={pendingCount}
       />
       <main className="boatman-app desktop-dashboard-container">
         {/* Offline Banner when disconnected */}
@@ -4964,6 +4982,7 @@ export default function CoastguardDashboard() {
   const [currentStatus, setCurrentStatus] = useState<Status>('safe')
   const [lang, setLang] = useState<SupportedLang>('hi')
   const [isOnline, setIsOnline] = useState<boolean>(true)
+  const [pendingCount, setPendingCount] = useState<number>(0)
   const userPickedLangRef = useRef(false)
 
   // Real-time Geolocation Hook
@@ -4986,25 +5005,27 @@ export default function CoastguardDashboard() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setIsOnline(navigator.onLine)
+      setPendingCount(getQueueCount())
 
       const handleOnline = () => {
         setIsOnline(true)
-        try {
-          const raw = localStorage.getItem('cg_offline_queue')
-          if (raw) {
-            const queue = JSON.parse(raw)
-            if (Array.isArray(queue) && queue.length > 0) {
-              console.log('Online restored! Processing cached offline actions:', queue.length)
-              localStorage.removeItem('cg_offline_queue')
-            }
-          }
-        } catch {}
+        flushQueue().then((sent) => {
+          if (sent > 0) console.log('Back online — synced queued alerts:', sent)
+          setPendingCount(getQueueCount())
+        })
       }
 
       const handleOffline = () => setIsOnline(false)
 
       window.addEventListener('online', handleOnline)
       window.addEventListener('offline', handleOffline)
+      const unsubscribeQueue = onQueueChange(setPendingCount)
+
+      // In case the app was closed with queued alerts and reopened while
+      // already online, try syncing once on load too.
+      if (navigator.onLine) {
+        flushQueue().then(() => setPendingCount(getQueueCount()))
+      }
 
       // Register PWA service worker
       if ('serviceWorker' in navigator) {
@@ -5017,6 +5038,7 @@ export default function CoastguardDashboard() {
       return () => {
         window.removeEventListener('online', handleOnline)
         window.removeEventListener('offline', handleOffline)
+        unsubscribeQueue()
       }
     }
   }, [])
@@ -5063,6 +5085,7 @@ export default function CoastguardDashboard() {
           lang={lang}
           onLangChange={changeLang}
           isOnline={isOnline}
+          pendingCount={pendingCount}
         />
       ) : (
         <BoatmanDashboard
@@ -5077,6 +5100,7 @@ export default function CoastguardDashboard() {
           lang={lang}
           onLangChange={changeLang}
           isOnline={isOnline}
+          pendingCount={pendingCount}
         />
       )}
     </div>
