@@ -6,6 +6,19 @@
 
 ---
 
+## 🔗 Live Demo
+
+**App:** [coastguard-ai-tau.vercel.app](https://coastguard-ai-tau.vercel.app)
+**Backend API:** [coastguard-ai-backend.onrender.com](https://coastguard-ai-backend.onrender.com)
+
+Scan to open the app directly on your phone — no install, no login:
+
+<img src="docs/qr-code.png" alt="Scan to open CoastGuard AI" width="220" />
+
+> Note: the backend is on Render's free tier, which sleeps after ~15 minutes of inactivity. The first request after that can take 30–50s to wake up — subsequent requests are fast.
+
+---
+
 ## 🌊 Problem Statement
 
 According to the National Crime Records Bureau (NCRB), **more than 28,000 people lose their lives annually in India to accidental drowning, flash floods, and sudden water level surges** — an average of **nearly 80 preventable deaths every single day** across river ghats, pilgrimage waters, and coastal corridors.
@@ -169,6 +182,15 @@ cd CoastGuard-AI
    ```
    http://localhost:3000
    ```
+
+---
+
+### Deploying Your Own Copy
+
+The frontend and backend deploy separately and are wired together with two env vars:
+
+* **Backend** (e.g. Render): deploy `backend/` as a Python web service — `render.yaml` in the repo root is a ready-to-use Blueprint. Start command: `uvicorn backend.app:app --host 0.0.0.0 --port $PORT`.
+* **Frontend** (e.g. Vercel): set `BACKEND_URL` and `NEXT_PUBLIC_BACKEND_URL` to your deployed backend's URL (e.g. `https://your-backend.onrender.com`) before building — these drive the `/api/*` proxy and the live WebSocket connection respectively.
 
 ---
 

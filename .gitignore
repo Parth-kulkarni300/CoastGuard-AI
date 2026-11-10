@@ -40,3 +40,5 @@ backend/audio_cache/boatman_nav_*
 *.mp3
 backend/audio_cache/*.mp3
 
+.vercel
+.env*
