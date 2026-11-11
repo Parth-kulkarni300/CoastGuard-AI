@@ -37,6 +37,18 @@ async def transcribe_audio(audio_path: str, language: str = "hi") -> Dict[str, A
     return await transcribe_bytes(audio_bytes, language=language, filename=audio_file.name)
 
 
+def _detect_audio_mime(filename: str) -> str:
+    """Return the MIME type matching an uploaded audio filename."""
+    fname = (filename or "").lower()
+    if fname.endswith(".webm"):
+        return "audio/webm"
+    if fname.endswith((".mp4", ".m4a")):
+        return "audio/mp4"
+    if fname.endswith(".ogg"):
+        return "audio/ogg"
+    return "audio/wav"
+
+
 async def transcribe_bytes(audio_bytes: bytes, language: str = "hi", filename: str = "call.wav") -> Dict[str, Any]:
     """
     Transcribe raw audio bytes via Prisma ASR.
@@ -52,7 +64,7 @@ async def transcribe_bytes(audio_bytes: bytes, language: str = "hi", filename: s
         }
         lang_code = LANGUAGE_CODE_MAP.get(language, "indic-auto")
         files = {
-            "audio_file": (filename or "audio.wav", audio_bytes, "audio/wav")
+            "audio_file": (filename or "audio.wav", audio_bytes, _detect_audio_mime(filename))
         }
         data = {
             "model": "prisma-v3.0",

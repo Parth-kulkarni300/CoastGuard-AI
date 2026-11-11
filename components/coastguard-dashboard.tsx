@@ -48,7 +48,50 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : 'http:
 // it can't ride along on the /api rewrite proxy. Set NEXT_PUBLIC_BACKEND_URL
 // to the deployed backend's URL; falls back to localhost for local dev.
 const BACKEND_HOST = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
-const WS_URL = BACKEND_HOST.replace(/^http/, 'ws') + '/ws'
+const getWsUrl = () => {
+  if (process.env.NEXT_PUBLIC_BACKEND_URL) {
+    return process.env.NEXT_PUBLIC_BACKEND_URL.replace(/^http/, 'ws') + '/ws'
+  }
+  if (typeof window !== 'undefined') {
+    const proto = window.location.protocol === 'https:' ? 'wss://' : 'ws://'
+    return `${proto}${window.location.hostname}:8000/ws`
+  }
+  return 'ws://localhost:8000/ws'
+}
+const WS_URL = getWsUrl()
+
+function startReconnectingWs(getHandler: () => ((event: MessageEvent) => void) | null): () => void {
+  let ws: WebSocket | null = null
+  let timer: ReturnType<typeof setTimeout> | null = null
+  let disposed = false
+
+  const connect = () => {
+    if (disposed) return
+    try {
+      ws = new WebSocket(getWsUrl())
+      ws.onmessage = (event) => getHandler()?.(event)
+      ws.onclose = () => {
+        if (!disposed) timer = setTimeout(connect, 3000)
+      }
+      ws.onerror = () => {
+        try { ws?.close() } catch {}
+      }
+    } catch {
+      if (!disposed) timer = setTimeout(connect, 3000)
+    }
+  }
+
+  connect()
+
+  return () => {
+    disposed = true
+    if (timer) clearTimeout(timer)
+    if (ws) {
+      ws.onclose = null
+      ws.close()
+    }
+  }
+}
 
 // Pre-defined Indian Coastal & Riverine Water Presets for quick testing
 export const WATER_PRESETS = [
@@ -1625,7 +1668,7 @@ function TopBar({
         >
           <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isOnline ? '#10b981' : '#d97706' }} />
           {isOnline ? t.onlineBadge : t.offlineBadge}
-          {pendingCount > 0 && ` · ${pendingCount} ${lang === 'hi' ? 'भेजे जाने बाकी' : (lang === 'mr' ? 'पाठवायचे आहेत' : 'queued')}`}
+          {pendingCount > 0 && ` · ${pendingCount} ${lang === 'hi' ? 'भेजे जाने बाकी' : (lang === 'mr' ? 'पाठवायचे आहेत' : (lang === 'ta' ? 'வரிசையில்' : (lang === 'bn' ? 'অপেক্ষমাণ' : 'queued')))}`}
         </span>
 
         {/* Quick one-tap English switch (most useful for tourists) */}
@@ -3166,6 +3209,10 @@ function TouristDashboard({
   const [callAutoAccept, setCallAutoAccept] = useState(false)
   const [notificationPerm, setNotificationPerm] = useState<string>('default')
   const lastHandledDispatchIdRef = useRef<string>('')
+  const isVerifiedSafeRef = useRef(false)
+  useEffect(() => {
+    isVerifiedSafeRef.current = isVerifiedSafe
+  }, [isVerifiedSafe])
   const [playingBoatman, setPlayingBoatman] = useState(false)
   const [playingAi, setPlayingAi] = useState(false)
   const [playingRaw, setPlayingRaw] = useState(false)
@@ -3299,6 +3346,29 @@ function TouristDashboard({
     }
   }, [location.lat, location.lon, boatmanLat, boatmanLon])
 
+  const pollStatusRef = useRef<(() => void) | null>(null)
+  const shouldOpenEmergencyCall = (data: any, allowCallModal: boolean): boolean => {
+    const dispatchId = typeof data?.dispatch_id === 'string' ? data.dispatch_id : ''
+    const isUnseen = Boolean(dispatchId && dispatchId !== 'none' && dispatchId !== lastHandledDispatchIdRef.current)
+    if (isUnseen) {
+      lastHandledDispatchIdRef.current = dispatchId
+      isVerifiedSafeRef.current = false
+      setIsVerifiedSafe(false)
+    }
+    const shouldOpen = allowCallModal && (!isVerifiedSafeRef.current || isUnseen) && (isUnseen || !dispatchId)
+    if (shouldOpen) {
+      triggerOsEmergencyAlert()
+    }
+    return shouldOpen
+  }
+
+  useEffect(() => {
+    const pollTimer = setInterval(() => {
+      pollStatusRef.current?.()
+    }, 4000)
+    return () => clearInterval(pollTimer)
+  }, [])
+
   // Fetch current status on mount & connect to live WebSocket
   useEffect(() => {
     // Register tourist device with real phone number for automated telephony dispatch
@@ -3323,6 +3393,15 @@ function TouristDashboard({
           if (data.has_broadcast && data.in_radius) {
             applySectorData(data)
             if (data.status === 'danger') {
+              const ts = data.timestamp ? Date.parse(data.timestamp) : 0
+              const isRecent = ts > 0 && Date.now() - ts < 120000
+              if (shouldOpenEmergencyCall(data, isRecent)) {
+                setShowCallModal(true)
+              }
+            } else if (data.status === 'safe') {
+              setShowCallModal(false)
+            }
+            if (data.status === 'danger') {
               setStatus('danger')
             }
           } else {
@@ -3334,13 +3413,15 @@ function TouristDashboard({
         console.log('Using initial sector status:', err)
       }
     }
+    pollStatusRef.current = fetchStatus
     fetchStatus()
 
     // WebSocket listener for real-time boatman broadcasts
-    let ws: WebSocket | null = null
+    let onWsMessage: ((event: MessageEvent) => void) | null = null
+    let stopWs: (() => void) | null = null
     try {
-      ws = new WebSocket(WS_URL)
-      ws.onmessage = (event) => {
+      stopWs = startReconnectingWs(() => onWsMessage)
+      onWsMessage = (event) => {
         try {
           const msg = JSON.parse(event.data)
           if (msg.type === 'sector_update' && msg.data) {
@@ -3357,7 +3438,7 @@ function TouristDashboard({
             applySectorData(msg.data)
             if (msg.data.status === 'danger') {
               setStatus('danger')
-              if (!isVerifiedSafe) {
+              if (shouldOpenEmergencyCall(msg.data, true)) {
                 setShowCallModal(true)
                 const fd = new FormData()
                 fd.append('phone', phone)
@@ -3375,9 +3456,9 @@ function TouristDashboard({
     } catch {}
 
     return () => {
-      if (ws) ws.close()
+      if (stopWs) stopWs()
     }
-  }, [location.lat, location.lon, phone, lang, isVerifiedSafe])
+  }, [location.lat, location.lon, phone, lang])
 
   const applySectorData = (data: any) => {
     if (data.has_broadcast && data.boatman_audio_url) {
@@ -3398,7 +3479,7 @@ function TouristDashboard({
       setDistanceText(d < 1000 ? `${d} meters from your live GPS` : `${(d / 1000).toFixed(1)} km from your live GPS`)
     }
     if (data.status) {
-      if (data.status === 'danger' && d > 2000) {
+      if (data.status === 'danger' && d > 3000) {
         setStatus('safe')
         setOutOfRangeNotice({
           location: data.location || 'Assi Ghat Sector',
@@ -3438,7 +3519,7 @@ function TouristDashboard({
       } else {
         setDistanceMeters(d)
         setDistanceText(d < 1000 ? `${d} meters from your live GPS` : `${(d / 1000).toFixed(1)} km from your live GPS`)
-        if (d > 2000 && status === 'danger') {
+        if (d > 3000 && status === 'danger') {
           setStatus('safe')
           setOutOfRangeNotice({
             location: 'Nearby Sector',
@@ -4162,9 +4243,10 @@ function TouristDashboard({
             phone={phone}
             location={location}
             onConfirmedSafe={() => {
+              isVerifiedSafeRef.current = true
               setIsVerifiedSafe(true)
               setStatus('safe')
-              fetch('/api/emergency/reset', { method: 'POST' }).catch(() => {})
+              // Leave global river hazard active for other tourists within 3.0 km
             }}
             onSos={() => {
               setSosAutoDispatched(true)
@@ -4220,6 +4302,7 @@ function BoatmanDashboard({
   const [sent, setSent] = useState(false)
   const [sentText, setSentText] = useState(t.quoteSafe)
   const [recipientsCount, setRecipientsCount] = useState(18)
+  const [broadcastError, setBroadcastError] = useState<string | null>(null)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
@@ -4317,10 +4400,11 @@ function BoatmanDashboard({
 
   // WebSocket listener for live SOS rescue dispatches from tourists
   useEffect(() => {
-    let ws: WebSocket | null = null
+    let onWsMessage: ((event: MessageEvent) => void) | null = null
+    let stopWs: (() => void) | null = null
     try {
-      ws = new WebSocket(WS_URL)
-      ws.onmessage = (event) => {
+      stopWs = startReconnectingWs(() => onWsMessage)
+      onWsMessage = (event) => {
         try {
           const msg = JSON.parse(event.data)
           if (msg.type === 'sos_alert' && msg.data) {
@@ -4364,7 +4448,7 @@ function BoatmanDashboard({
     } catch {}
 
     return () => {
-      if (ws) ws.close()
+      if (stopWs) stopWs()
     }
   }, [location.lat, location.lon, location.placeName, lang])
 
@@ -4391,13 +4475,24 @@ function BoatmanDashboard({
         mediaRecorderRef.current.stop()
       } else {
         const spoken = liveTranscriptRef.current.trim() || undefined
-        sendVoiceBroadcast(null, spoken)
+        if (spoken) {
+          sendVoiceBroadcast(null, spoken)
+        } else {
+          setBroadcastError(
+            lang === 'hi'
+              ? 'माइक की अनुमति दें या कुछ बोलें ताकि अलर्ट भेजा जा सके।'
+              : (lang === 'mr'
+                ? 'अलर्ट पाठवण्यासाठी माइकची परवानगी द्या किंवा बोला.'
+                : 'Please allow microphone access or speak clearly to send an alert.')
+          )
+        }
       }
     } else {
       // START real browser mic recording with HARDWARE NOISE SUPPRESSION & ECHO CANCELLATION
       setSeconds(0)
       setSent(false)
       audioChunksRef.current = []
+      setBroadcastError(null)
       liveTranscriptRef.current = ''
 
       // Start live speech recognition to capture boatman's exact spoken words
@@ -4448,7 +4543,9 @@ function BoatmanDashboard({
               try { liveSpeechRecRef.current.stop() } catch {}
             }
             const spoken = liveTranscriptRef.current.trim() || undefined
-            await sendVoiceBroadcast(audioBlob, spoken)
+            await new Promise((resolve) => setTimeout(resolve, 150))
+            const finalSpoken = liveTranscriptRef.current.trim() || spoken
+            await sendVoiceBroadcast(audioBlob, finalSpoken)
           }
 
           mr.start(200)
@@ -4472,7 +4569,12 @@ function BoatmanDashboard({
     try {
       const fd = new FormData()
       if (audioBlob && audioBlob.size > 0) {
-        const ext = audioBlob.type.includes('wav') ? 'wav' : 'webm'
+        const mimeLower = audioBlob.type.toLowerCase()
+        const ext = mimeLower.includes('wav')
+          ? 'wav'
+          : (mimeLower.includes('mp4') || mimeLower.includes('m4a')
+            ? 'mp4'
+            : (mimeLower.includes('ogg') ? 'ogg' : 'webm'))
         fd.append('audio', audioBlob, `fisherman_call.${ext}`)
       }
       if (overrideText) {
@@ -4484,6 +4586,8 @@ function BoatmanDashboard({
       fd.append('lat', location.lat.toString())
       fd.append('lon', location.lon.toString())
       fd.append('location_name', location.placeName)
+      fd.append('language', lang)
+      setBroadcastError(null)
 
       const res = await fetch('/api/fisherman/broadcast', {
         method: 'POST',
@@ -4501,7 +4605,17 @@ function BoatmanDashboard({
         onBroadcast(state.status)
       } else {
         setSent(true)
-        onBroadcast('safe')
+        if (res.status === 502 || res.status === 503 || res.status === 504) {
+          throw new Error('Backend sleeping or unreachable')
+        }
+        setSent(false)
+        setBroadcastError(
+          lang === 'hi'
+            ? 'संदेश नहीं भेजा जा सका। कृपया फिर प्रयास करें।'
+            : (lang === 'mr'
+              ? 'संदेश पाठवता आला नाही. कृपया पुन्हा प्रयत्न करा.'
+              : 'Could not send alert to server. Please try again.')
+        )
       }
     } catch {
       // No signal right now — queue it for automatic sync once back online.
@@ -4512,6 +4626,7 @@ function BoatmanDashboard({
         fisherman_name: userName,
         status_type: forcedStatus || 'auto',
         transcript_override: overrideText || 'Offline Voice Broadcast',
+        language: lang,
         lat: location.lat.toString(),
         lon: location.lon.toString(),
         location_name: location.placeName
@@ -4942,6 +5057,11 @@ function BoatmanDashboard({
             )}
 
             {/* Last Sent Broadcast Card */}
+            {broadcastError && (
+              <section style={{ borderRadius: '18px', padding: '14px 18px', background: 'var(--red-soft)', border: '1px solid var(--red-border)', color: '#b91c1c', fontSize: '13.5px', fontWeight: 700 }}>
+                {broadcastError}
+              </section>
+            )}
             {sent && (
               <section className="last-broadcast" style={{ borderRadius: '18px', padding: '16px 20px', background: 'var(--green-soft)', border: '1px solid var(--green-border)' }}>
                 <span className="eyebrow" style={{ color: 'var(--green-hover)', fontSize: '12.5px' }}>{userName}</span>

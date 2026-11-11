@@ -173,6 +173,12 @@ async def serve_audio(filename: str):
             media_type = "audio/wav"
         elif head.startswith(b"OggS"):
             media_type = "audio/ogg"
+        elif len(head) >= 8 and head[4:8] == b"ftyp":
+            media_type = "audio/mp4"
+        elif audio_file.suffix in (".mp4", ".m4a"):
+            media_type = "audio/mp4"
+        elif audio_file.suffix == ".ogg":
+            media_type = "audio/ogg"
         elif audio_file.suffix == ".mp3":
             media_type = "audio/mpeg"
         elif audio_file.suffix == ".webm":
@@ -516,7 +522,8 @@ async def fisherman_broadcast(
     status_type: str = Form("auto"),
     lat: float = Form(25.3176),
     lon: float = Form(83.0060),
-    location_name: Optional[str] = Form(None)
+    location_name: Optional[str] = Form(None),
+    language: Optional[str] = Form(None)
 ):
     """
     Fisherman Voice Broadcast:
@@ -537,8 +544,10 @@ async def fisherman_broadcast(
     if transcript_override and transcript_override.strip():
         transcript = transcript_override.strip()
     elif raw_audio_bytes and len(raw_audio_bytes) > 200:
-        clean_audio_bytes = denoise_audio_bytes(raw_audio_bytes)
-        stt_result = await transcribe_bytes(clean_audio_bytes, language="mr" if any(c in transcript_override or "" for c in "ळज्ञ") else "hi", filename=audio.filename or "mic.wav")
+        clean_audio_bytes = denoise_audio_bytes(raw_audio_bytes) if raw_audio_bytes.startswith(b"RIFF") else raw_audio_bytes
+        req_lang = (language or "").strip().lower()[:2]
+        stt_lang = req_lang if req_lang in ("hi", "mr", "ta", "bn", "en") else "hi"
+        stt_result = await transcribe_bytes(clean_audio_bytes, language=stt_lang, filename=audio.filename or "mic.wav")
         transcript = stt_result.get("transcript", "Update received")
     else:
         transcript = "Paani shaant hai, sab theek hai."
@@ -547,10 +556,21 @@ async def fisherman_broadcast(
 
     # Detect Marathi vs Hindi vs English dialect
     is_marathi = any(w in clean_transcript for w in ["आहे", "खूप", "पाणीच", "नदीची", "घाटावर", "नका", "होय", "वाढत", "लेव्हल", "कृपया", "करा", "जाऊ", "पातळी", "पायऱ्यांवर"])
-    voice_lang = "mr" if is_marathi else "hi"
+    req_lang = (language or "").strip().lower()[:2]
+    if is_marathi or req_lang == "mr":
+        voice_lang = "mr"
+    elif req_lang in ("hi", "ta", "bn", "en"):
+        voice_lang = req_lang
+    else:
+        voice_lang = "hi"
 
     # Threat classification: check Marathi & Hindi surge/danger keywords
-    danger_indicators = ["वाढत", "वाढ", "धोका", "वाहून", "भरती", "संकट", "खतरा", "बहाव", "तेज", "डूब", "surge", "danger", "hazard", "flood", "capsiz", "level", "लेव्हल", "पाणीच", "नदीची"]
+    danger_indicators = [
+        "वाढत", "वाढ", "वाढतोय", "धोका", "वाहून", "भरती", "संकट", "खतरा", "बहाव", "तेज", "डूब",
+        "बचाओ", "मदत", "सावधान", "चेतावनी", "इशारा", "तूफान", "बाढ़", "पूर",
+        "surge", "danger", "hazard", "flood", "capsiz", "level", "लेव्हल", "पाणीच", "नदीची",
+        "bachao", "madad", "bahav", "toofan", "baadh", "emergency", "help", "alert", "rising", "drown"
+    ]
     is_danger = status_type == "danger" or any(w in clean_transcript.lower() for w in danger_indicators)
 
     sector_place = location_name or "Local River Corridor"
@@ -570,7 +590,14 @@ async def fisherman_broadcast(
 
         # 3. SAVE REAL BOATMAN MIC AUDIO ONLY (NO SYNTHETIC BOT AUDIO):
     if raw_audio_bytes and len(raw_audio_bytes) > 200:
-        ext = "webm" if raw_audio_bytes.startswith(b"\x1aE\xdf\xa3") else "wav"
+        if raw_audio_bytes.startswith(b"\x1aE\xdf\xa3"):
+            ext = "webm"
+        elif len(raw_audio_bytes) >= 8 and raw_audio_bytes[4:8] == b"ftyp":
+            ext = "mp4"
+        elif raw_audio_bytes.startswith(b"OggS"):
+            ext = "ogg"
+        else:
+            ext = "wav"
 
         # Authentic raw mic audio recorded directly from boatman
         (AUDIO_CACHE_DIR / f"{dispatch_id}_raw.{ext}").write_bytes(raw_audio_bytes)
@@ -588,7 +615,7 @@ async def fisherman_broadcast(
         # NO fake bot voice! Only real human boatman mic audio is reflected
         boatman_audio_url = None
         boatman_raw_audio_url = None
-        has_broadcast = False
+        has_broadcast = bool((transcript_override and transcript_override.strip()) or status_type in ("danger", "safe"))
 
     ai_audio_url = f"/api/tourist/tts?lang={voice_lang}&status={status}"
 

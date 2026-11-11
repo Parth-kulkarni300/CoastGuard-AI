@@ -16,7 +16,12 @@ function readQueue(): QueuedAction[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     const parsed = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? parsed : []
+    return Array.isArray(parsed)
+      ? parsed.filter(
+          (item): item is QueuedAction =>
+            Boolean(item && typeof item.endpoint === 'string' && item.fields && typeof item.fields === 'object')
+        )
+      : []
   } catch {
     return []
   }
