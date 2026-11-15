@@ -4,7 +4,7 @@
 // 2. Hardware Satellite GPS remains active via browser navigator.geolocation
 // 3. Fallback mock API responses for /api/tourist/status when offline
 
-const CACHE_NAME = 'coastguard-ai-v2';
+const CACHE_NAME = 'coastguard-ai-v3';
 
 const PRECACHE_URLS = [
   '/',
