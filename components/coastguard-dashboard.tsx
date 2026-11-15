@@ -23,6 +23,7 @@ import {
   PhoneOff,
   Play,
   Plus,
+  QrCode,
   Radio,
   Search,
   Share2,
@@ -43,6 +44,7 @@ type Screen = 'landing' | 'login' | 'dashboard'
 type Status = 'safe' | 'danger'
 
 const API_BASE = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000'
+const QR_CODE_DATA_URI = 'data:image/png;base64,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'
 // In production the frontend (Vercel) and backend (Railway/Render, etc.) are
 // separate hosts, so the WebSocket has to connect to the backend directly —
 // it can't ride along on the /api rewrite proxy. Set NEXT_PUBLIC_BACKEND_URL
@@ -1153,6 +1155,7 @@ function RoleLogin({
   const [phone, setPhone] = useState('')
   const [name, setName] = useState('')
   const [showLocationModal, setShowLocationModal] = useState(false)
+  const [showQrModal, setShowQrModal] = useState(false)
 
   return (
     <main className="login-page">
@@ -1187,6 +1190,16 @@ function RoleLogin({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Show QR Code button in top header */}
+            <button
+              type="button"
+              onClick={() => setShowQrModal(true)}
+              style={{ background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)', color: '#0284c7', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+              title="Show QR Code"
+            >
+              <QrCode style={{ width: '13px', height: '13px' }} />
+              <span>{lang === 'hi' ? 'QR कोड' : (lang === 'mr' ? 'QR कोड' : 'Show QR')}</span>
+            </button>
             {/* Quick one-tap English switch (useful for tourists unfamiliar with the detected regional language) */}
             {lang !== 'en' && (
               <button
@@ -1531,6 +1544,71 @@ function RoleLogin({
           <span>{t.loginContinue}</span>
           <ChevronDown />
         </button>
+
+        {/* Prominent Show QR Code Button */}
+        <button
+          type="button"
+          onClick={() => setShowQrModal(true)}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '12px 16px', borderRadius: '14px', border: '1.5px dashed rgba(56, 189, 248, 0.55)', background: 'rgba(56, 189, 248, 0.06)', color: '#0284c7', fontSize: '13.5px', fontWeight: 800, cursor: 'pointer', marginTop: '10px', transition: 'all 0.15s ease' }}
+        >
+          <QrCode style={{ width: '17px', height: '17px' }} />
+          <span>{lang === 'hi' ? '📱 मोबाइल पर खोलें (QR कोड)' : (lang === 'mr' ? '📱 मोबाईलवर उघडा (QR कोड)' : '📱 Open on Mobile (Show QR)')}</span>
+        </button>
+
+        {/* QR Code Popup Modal */}
+        {showQrModal && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setShowQrModal(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.78)', backdropFilter: 'blur(8px)', display: 'grid', placeItems: 'center', zIndex: 9999, padding: '20px' }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ background: '#ffffff', borderRadius: '24px', padding: '24px 22px 20px', maxWidth: '340px', width: '100%', boxShadow: '0 25px 60px rgba(0, 0, 0, 0.35)', textAlign: 'center', position: 'relative', border: '1.5px solid rgba(56, 189, 248, 0.3)' }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowQrModal(false)}
+                aria-label="Close QR Modal"
+                style={{ position: 'absolute', top: '14px', right: '14px', width: '32px', height: '32px', borderRadius: '50%', border: '1px solid #e2e8f0', background: '#f8fafc', display: 'grid', placeItems: 'center', cursor: 'pointer', color: '#64748b' }}
+              >
+                <X style={{ width: '18px', height: '18px' }} />
+              </button>
+
+              <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.12)', border: '1px solid rgba(56, 189, 248, 0.3)', display: 'grid', placeItems: 'center', margin: '0 auto 10px', color: '#0284c7' }}>
+                <QrCode style={{ width: '22px', height: '22px' }} />
+              </div>
+
+              <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a', margin: '0 0 4px' }}>
+                {lang === 'hi' ? 'मोबाइल पर खोलें' : (lang === 'mr' ? 'मोबाईलवर उघडा' : 'Scan to Open on Mobile')}
+              </h3>
+              <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 16px', lineHeight: '1.4' }}>
+                {lang === 'hi'
+                  ? 'कैमरा या Google Lens से स्कैन करें — बिना इंस्टॉल किए तुरंत लाइव GPS और वॉक़ी-टॉकी का अनुभव लें।'
+                  : (lang === 'mr'
+                    ? 'कॅमेरा किंवा Google Lens ने स्कॅन करा — इन्स्टॉल न करता थेट लाईव्ह GPS आणि वॉकी-टॉकीचा अनुभव घ्या.'
+                    : 'Scan with your camera or Google Lens to experience real-time mobile GPS & the two-way walkie-talkie.')}
+              </p>
+
+              <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '14px', border: '1.5px solid #e2e8f0', display: 'inline-block', boxShadow: '0 4px 16px rgba(15, 23, 42, 0.06)' }}>
+                <img src={QR_CODE_DATA_URI} alt="CoastGuard AI QR Code" style={{ width: '210px', height: '210px', display: 'block', borderRadius: '8px' }} />
+              </div>
+
+              <div style={{ marginTop: '12px', fontSize: '11.5px', color: '#0284c7', fontWeight: 700 }}>
+                coastguard-ai-tau.vercel.app
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowQrModal(false)}
+                style={{ marginTop: '16px', width: '100%', padding: '11px', borderRadius: '12px', border: 'none', background: '#0f172a', color: '#ffffff', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
+              >
+                {lang === 'hi' ? 'बंद करें' : (lang === 'mr' ? 'बंद करा' : 'Close')}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Simple Trust Note */}
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', marginTop: '14px' }}>
