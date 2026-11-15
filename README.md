@@ -43,7 +43,7 @@ They desperately try to shout, wave, and blow whistles to warn people. **However
 4. **Evon Cognitive Reasoning (30B MoE):** Decodes regional dialects and triages emergency severity (`CRITICAL`, `WARNING`, `INFO`).
 5. **Timbre Regional Neural Broadcast:** Dispatches synthesized regional warning advisories to tourists, and tactical directional rescue cues to nearby boat patrols.
 6. **30-Second Auto-Rescue Telephony Failsafe:** Rings nearby tourists; if unanswered after 30 seconds or declined, the system automatically marks them for rescue and alerts the nearest patrol boat.
-7. **Hotspot-Aware Pan-India Geolocation:** Automatically anchors cellular hotspot and laptop browser sessions to Pune (`18.5204° N, 73.8567° E`) to prevent misleading ISP gateway jumps, while seamlessly routing high-precision GPS on smartphones.
+7. **Pan-India Sovereign Geolocation & Sector Detection:** Automatically detects device GPS coordinates and reverse-geocodes to the nearest maritime sector, waterfront ghat, or coastal corridor with sub-50m precision.
 8. **Progressive Web App (PWA):** **Works 100% offline without cellular network connectivity** using satellite GPS and service worker caching (`sw.js`).
 
 ---
@@ -105,7 +105,7 @@ They desperately try to shout, wave, and blow whistles to warn people. **However
 * **100% Real Frontline Microphone Audio:** Unlike systems that fabricate fake bot voices, CoastGuard AI captures genuine frontline human microphone recordings. Tourists can toggle between **Clean Voice** (noise stripped) and **Raw Voice** (unfiltered mic with engine ambience) alongside the **AI Regional Advisory**. Boatmen can play back the tourist's distress clip directly from their radar view.
 * **Authentic Naval Sonar Radar:** Interactive marine chartplotter radar with high-visibility target sweeps, compass bearings, and real-time proximity lock for targets within 50 meters.
 * **30-Second Unattended Ringing Auto-Rescue:** Tourists in the danger sector receive an automated emergency phone call. If unanswered for 30 seconds or declined, auto-rescue triggers automatically and dispatches their live GPS pin to rescue teams.
-* **Hotspot-Aware Pan-India Geolocation Engine:** Desktop and laptop environments running on cellular hotspots auto-resolve to Pune (`18.5204° N, 73.8567° E`, `mr`) to avoid erratic ISP IP triangulation (e.g. coarse Goa gateways), while genuine high-accuracy mobile GPS is passed through without alteration.
+* **Real-Time Sovereign Geospatial Geofencing:** Continuous device GPS tracking and instant reverse geocoding to the nearest waterfront, beach sector, or river corridor, pairing frontline rescue vessels and tourists within a strict 3.0 km perimeter.
 * **Full 5-Language Zero-Leakage Localization:** Complete UI, radar telemetry, alerts, and audio in **Hindi (`hi`)**, **Marathi (`mr`)**, **Tamil (`ta`)**, **Bengali (`bn`)**, and **English (`en`)**.
 * **PWA Offline Resilience:** Equipped with Service Worker caching (`sw.js`). Operates seamlessly during remote river or coastal cellular blackouts using satellite GPS telemetry.
 
