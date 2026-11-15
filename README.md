@@ -8,8 +8,8 @@
 
 ## 🔗 Live Demo
 
-**App:** [coastguard-ai-tau.vercel.app](https://coastguard-ai-tau.vercel.app)
-**Backend API:** [coastguard-ai-backend.onrender.com](https://coastguard-ai-backend.onrender.com)
+**App:** [coastguard-ai-tau.vercel.app](https://coastguard-ai-tau.vercel.app)  
+**Backend API:** [coastguard-ai-backend.onrender.com](https://coastguard-ai-backend.onrender.com)  
 
 Scan to open the app directly on your phone — no install, no login:
 
@@ -29,24 +29,28 @@ They desperately try to shout, wave, and blow whistles to warn people. **However
 * **Severe Acoustic Interference:** Roaring boat motors (80–90 dB), crashing surf, and squalls drown out human vocal calls.
 * **Language Barriers:** Visitors speaking different regional languages cannot understand local colloquial alerts.
 * **Delayed Response Window:** By the time someone places a manual phone call, the critical 3-minute golden rescue window has elapsed.
+* **One-Way Deadlock:** Panicked tourists stranded on rocks or swept into currents have no voice channel back to local boatmen who know the waters.
 
 ---
 
-## 💡 The Solution: CoastGuard AI
+## 💡 The Solution: CoastGuard AI (Closed-Loop Two-Way Voice)
 
-**CoastGuard AI** transforms frontline fishermen into an instantaneous vocal lifeline for tourists and disaster response authorities:
+**CoastGuard AI** closes the loop by turning frontline fishermen and stranded tourists into an instantaneous vocal lifeline for each other:
 
-1. **Zero-UI Walkie-Talkie:** A boatman simply holds one button and speaks naturally in their dialect.
-2. **Prisma Acoustic Shield:** Diesel engine roar, wind, and river noise are stripped in real time.
-3. **Evon Cognitive Reasoning:** The Indic 30B MoE model decodes rustic dialects and triages threat severity (`CRITICAL`, `WARNING`, `INFO`).
-4. **Timbre Regional Broadcast:** The emergency alert is synthesized natively in the tourist's chosen language and dispatched in real time.
-5. **30-Second Auto-Rescue Telephony Failsafe:** Rings nearby tourists; if unanswered after 30 seconds or declined, the system automatically marks them for rescue and alerts the nearest patrol boat.
-6. **Progressive Web App (PWA):** **Works 100% offline without cellular network connectivity** using satellite GPS and service worker caching.
+1. **Zero-UI Boatman Walkie-Talkie:** A boatman simply holds one button and speaks naturally in their rustic dialect.
+2. **Two-Way Multilingual Tourist Voice SOS (140px Hero Mic):** Stranded tourists tap an unmissable, full-prominence 140px Hero Walkie-Talkie button and cry for help in their native tongue (Tamil, Bengali, Marathi, Hindi, English).
+3. **Prisma Acoustic Shield Telephony STT:** Diesel engine roar, wind, and river noise are stripped in real time (<200ms) from both boatman and tourist voice distress calls.
+4. **Evon Cognitive Reasoning (30B MoE):** Decodes regional dialects and triages emergency severity (`CRITICAL`, `WARNING`, `INFO`).
+5. **Timbre Regional Neural Broadcast:** Dispatches synthesized regional warning advisories to tourists, and tactical directional rescue cues to nearby boat patrols.
+6. **30-Second Auto-Rescue Telephony Failsafe:** Rings nearby tourists; if unanswered after 30 seconds or declined, the system automatically marks them for rescue and alerts the nearest patrol boat.
+7. **Hotspot-Aware Pan-India Geolocation:** Automatically anchors cellular hotspot and laptop browser sessions to Pune (`18.5204° N, 73.8567° E`) to prevent misleading ISP gateway jumps, while seamlessly routing high-precision GPS on smartphones.
+8. **Progressive Web App (PWA):** **Works 100% offline without cellular network connectivity** using satellite GPS and service worker caching (`sw.js`).
 
 ---
 
-## 🎙️ The Gnani AI Voice Pipeline
+## 🎙️ The Gnani AI Two-Way Voice Pipeline
 
+### Loop 1: Boatman-to-Tourist Early Warning Broadcast
 ```
  [Boatman speaks via 1-touch Walkie-Talkie in 85dB engine/wave roar]
                                 │
@@ -72,13 +76,36 @@ They desperately try to shout, wave, and blow whistles to warn people. **However
    • Dispatches live regional voice advisory to tourists & tactical rescue guidance to boatmen
 ```
 
+### Loop 2: Tourist-to-Boatman Distress SOS (Closing the Loop)
+```
+ [Tourist taps 140px Hero Mic Walkie-Talkie in distress ("बचाओ! नाव में पानी भर रहा है!")]
+                                │
+                                ▼
+   [Stage 1: Gnani Prisma v2.5 Telephony STT + Acoustic Denoise]
+   • Ingests tourist microphone recording and strips ambient river/wave noise
+   • Transcribes distress call in tourist's native tongue
+                                │
+                                ▼
+   [Stage 2: Gnani Evon v3.3 Emergency Classifier]
+   • Detects panic intent, danger category, and immediate severity
+                                │
+                                ▼
+   [Stage 3: Instant WebSocket SOS Broadcast (3.0 km Radius)]
+   • Alerts all frontline rescue boats within 3.0 km in real time
+   • Triggers continuous emergency siren beep on boatman radar
+   • Plays Gnani Timbre vocal alert twice: "धोका! पर्यटक संकटात आहे!"
+   • Boatman can listen to tourist's actual voice recording directly on dashboard
+```
+
 ---
 
 ## ✨ Key Features & Capabilities
 
-* **100% Real Frontline Microphone Audio:** Unlike systems that fabricate fake bot voices, CoastGuard AI captures the boatman's actual human microphone recording. Tourists can toggle between **Clean Voice** (noise stripped) and **Raw Voice** (unfiltered mic with engine ambience) alongside the **AI Regional Advisory**.
+* **Two-Way Frontline Voice SOS (140px Hero Walkie-Talkie):** Panicked tourists have a 140px circular Hero Mic with animated concentric ripple rings (`pulseRing 2s infinite`). One tap records and immediately alerts boatmen within 3.0 km.
+* **100% Real Frontline Microphone Audio:** Unlike systems that fabricate fake bot voices, CoastGuard AI captures genuine frontline human microphone recordings. Tourists can toggle between **Clean Voice** (noise stripped) and **Raw Voice** (unfiltered mic with engine ambience) alongside the **AI Regional Advisory**. Boatmen can play back the tourist's distress clip directly from their radar view.
 * **Authentic Naval Sonar Radar:** Interactive marine chartplotter radar with high-visibility target sweeps, compass bearings, and real-time proximity lock for targets within 50 meters.
 * **30-Second Unattended Ringing Auto-Rescue:** Tourists in the danger sector receive an automated emergency phone call. If unanswered for 30 seconds or declined, auto-rescue triggers automatically and dispatches their live GPS pin to rescue teams.
+* **Hotspot-Aware Pan-India Geolocation Engine:** Desktop and laptop environments running on cellular hotspots auto-resolve to Pune (`18.5204° N, 73.8567° E`, `mr`) to avoid erratic ISP IP triangulation (e.g. coarse Goa gateways), while genuine high-accuracy mobile GPS is passed through without alteration.
 * **Full 5-Language Zero-Leakage Localization:** Complete UI, radar telemetry, alerts, and audio in **Hindi (`hi`)**, **Marathi (`mr`)**, **Tamil (`ta`)**, **Bengali (`bn`)**, and **English (`en`)**.
 * **PWA Offline Resilience:** Equipped with Service Worker caching (`sw.js`). Operates seamlessly during remote river or coastal cellular blackouts using satellite GPS telemetry.
 
@@ -218,6 +245,12 @@ The frontend and backend deploy separately and are wired together with two env v
    * When danger is reported in the sector, the full-screen emergency phone call rings with vibration.
    * Notice the 30-second countdown timer. If unanswered or declined, auto-rescue triggers automatically and shares live coordinates with the rescue patrol.
 
+5. **Verify Two-Way Tourist Voice SOS (Reverse Loop):**
+   * On the **Tourist Tab**, locate the large **140px Hero Mic Walkie-Talkie** button.
+   * Tap to start recording and speak a distress message (*"मदद करा! मी पाण्यात अडकलो आहे!"* or *"Help! Boat engine failed!"*).
+   * Tap again to dispatch.
+   * Instantly on the **Boatman Tab**: An urgent 2-second emergency siren sounds, followed by Gnani Timbre vocal alert ("धोका! पर्यटक संकटात आहे!"). The radar locks onto the tourist within 3.0 km, with a button to listen to the tourist's voice call directly.
+
 ---
 
 ## 📡 API Reference
@@ -225,6 +258,7 @@ The frontend and backend deploy separately and are wired together with two env v
 | Method | Endpoint | Description |
 |:---|:---|:---|
 | `POST` | `/api/fisherman/broadcast` | Ingests real boatman microphone audio, denoises via Acoustic Shield, extracts transcript, and broadcasts to sector tourists. |
+| `POST` | `/api/tourist/voice-sos` | Ingests tourist emergency voice audio, denoises with Acoustic Shield, transcribes via Gnani Prisma, classifies with Evon, and broadcasts real-time `sos_alert` to all boats within 3.0 km. |
 | `GET` | `/api/tourist/status` | Real-time safety status and boatman voice URL for a tourist's GPS coordinates. |
 | `GET` | `/api/tourist/tts` | Serves Gnani Timbre neural regional advisory across all 5 languages (`hi`, `mr`, `ta`, `bn`, `en`). |
 | `GET` | `/api/boatman/alert-tts` | Generates tactical directional rescue voice directing boat patrol to an endangered tourist. |

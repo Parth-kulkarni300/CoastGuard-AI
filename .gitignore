@@ -42,3 +42,5 @@ backend/audio_cache/*.mp3
 
 .vercel
 .env*
+backend/audio_cache/tourist_sos_*
+backend/audio_cache/*.webm

@@ -222,10 +222,10 @@ async def reset_emergency_grid():
 async def update_location(
     phone: str = Form(...),
     role: str = Form("tourist"),
-    lat: float = Form(25.3176),
-    lon: float = Form(83.0060),
+    lat: float = Form(18.5204),
+    lon: float = Form(73.8567),
     accuracy: float = Form(10.0),
-    place_name: str = Form("Assi Ghat, Varanasi")
+    place_name: str = Form("Pune, Maharashtra")
 ):
     """Register and track real-time device GPS coordinates."""
     ACTIVE_DEVICES[phone] = {
@@ -326,7 +326,7 @@ async def search_locations(q: str = ""):
 
 
 @app.get("/api/tourist/status")
-async def get_tourist_status(lat: float = 25.3176, lon: float = 83.0060):
+async def get_tourist_status(lat: float = 18.5204, lon: float = 73.8567):
     """Fetch real-time safety status for tourist's current GPS location."""
     global LATEST_SECTOR_STATE
 
@@ -520,9 +520,9 @@ async def fisherman_broadcast(
     fisherman_name: str = Form("Ramesh Nishad"),
     fisherman_phone: str = Form("9876543210"),
     status_type: str = Form("auto"),
-    lat: float = Form(25.3176),
-    lon: float = Form(83.0060),
-    location_name: Optional[str] = Form(None),
+    lat: float = Form(18.5204),
+    lon: float = Form(73.8567),
+    location_name: Optional[str] = Form("Pune, Maharashtra"),
     language: Optional[str] = Form(None)
 ):
     """
@@ -673,9 +673,9 @@ async def tourist_sos(
     phone: str = Form("9876543210"),
     tourist_name: Optional[str] = Form("Rahul Sharma"),
     incident_type: str = Form("Emergency SOS"),
-    lat: float = Form(25.3176),
-    lon: float = Form(83.0060),
-    location_name: Optional[str] = Form("Assi Ghat Sector, Varanasi")
+    lat: float = Form(18.5204),
+    lon: float = Form(73.8567),
+    location_name: Optional[str] = Form("Pune, Maharashtra")
 ):
     sos_data = {
         "type": "tourist_sos",
@@ -697,6 +697,109 @@ async def tourist_sos(
         "status": "dispatched",
         "data": sos_data,
         "message": "Nearest boat patrol within 3.0 km alerted with your live GPS location."
+    })
+
+
+@app.post("/api/tourist/voice-sos")
+async def tourist_voice_sos(
+    audio: Optional[UploadFile] = File(None),
+    transcript_override: Optional[str] = Form(None),
+    phone: str = Form("9876543210"),
+    tourist_name: Optional[str] = Form("Rahul Sharma"),
+    lat: float = Form(18.5204),
+    lon: float = Form(73.8567),
+    location_name: Optional[str] = Form("Pune, Maharashtra"),
+    language: Optional[str] = Form("hi"),
+):
+    """
+    Tourist Mic Distress Dispatch:
+    Captures tourist voice -> Acoustic Shield + Gnani Prisma STT -> Gnani Evon classification
+    -> Broadcasts sos_alert over /ws so boatmen within 3.0 km get beep + Gnani Timbre danger announcement.
+    """
+    dispatch_id = f"tourist_sos_{int(datetime.now().timestamp() * 1000)}"
+    raw_audio_bytes = b""
+    if audio:
+        try:
+            raw_audio_bytes = await audio.read()
+        except Exception:
+            raw_audio_bytes = b""
+
+    req_lang = (language or "hi").strip().lower()[:2]
+    if req_lang not in ("hi", "mr", "ta", "bn", "en"):
+        req_lang = "hi"
+
+    if transcript_override and transcript_override.strip():
+        transcript = transcript_override.strip()
+    elif raw_audio_bytes and len(raw_audio_bytes) > 200:
+        clean_audio = denoise_audio_bytes(raw_audio_bytes) if raw_audio_bytes.startswith(b"RIFF") else raw_audio_bytes
+        stt_res = await transcribe_bytes(
+            clean_audio,
+            language=req_lang,
+            filename=f"tourist_{audio.filename or 'sos.wav'}",
+        )
+        transcript = (stt_res.get("transcript") or "").strip()
+    else:
+        transcript = ""
+
+    if not transcript:
+        transcript = {
+            "mr": "मदत करा! मी पाण्यात अडकलो आहे, कृपया तात्काळ नाव पाठवा!",
+            "ta": "உதவி! நான் தண்ணீரில் சிக்கியுள்ளேன், உடனே படகு அனுப்புங்கள்!",
+            "bn": "বাঁচাও! আমি জলে আটকে গেছি, অবিলম্বে নৌকা পাঠান!",
+            "en": "Help! Tourist in danger in the water, send a rescue boat immediately!",
+        }.get(req_lang, "मदद करो! मैं पानी में फंस गया हूँ, कृपया तुरंत बचाव नाव भेजें!")
+
+    tourist_audio_url = None
+    if raw_audio_bytes and len(raw_audio_bytes) > 200:
+        if raw_audio_bytes.startswith(b"\x1aE\xdf\xa3"):
+            ext = "webm"
+        elif len(raw_audio_bytes) >= 8 and raw_audio_bytes[4:8] == b"ftyp":
+            ext = "mp4"
+        elif raw_audio_bytes.startswith(b"OggS"):
+            ext = "ogg"
+        else:
+            ext = "wav"
+        (AUDIO_CACHE_DIR / f"{dispatch_id}_raw.{ext}").write_bytes(raw_audio_bytes)
+        clean_audio = denoise_audio_bytes(raw_audio_bytes) if ext == "wav" else raw_audio_bytes
+        (AUDIO_CACHE_DIR / f"{dispatch_id}.{ext}").write_bytes(clean_audio)
+        tourist_audio_url = f"/api/audio/{dispatch_id}.{ext}"
+
+    evon_res = await classify_emergency(transcript, language_hint=req_lang)
+    resolved_loc = location_name or "Assi Ghat Sector, Varanasi"
+    ACTIVE_DEVICES[phone] = {
+        "phone": phone,
+        "role": "tourist",
+        "lat": lat,
+        "lon": lon,
+        "accuracy": 10,
+        "place_name": resolved_loc,
+        "last_seen": datetime.now().isoformat(),
+    }
+
+    sos_data = {
+        "type": "tourist_sos",
+        "dispatch_id": dispatch_id,
+        "phone": phone,
+        "tourist_name": tourist_name or "Rahul Sharma",
+        "incident": f'Voice SOS: "{transcript}"',
+        "transcript": transcript,
+        "english_summary": evon_res.get("english_alert") or transcript,
+        "severity": evon_res.get("severity") or "CRITICAL",
+        "threat_type": evon_res.get("threat_type") or "distress",
+        "tourist_audio_url": tourist_audio_url,
+        "lat": lat,
+        "lon": lon,
+        "max_radius_km": 3.0,
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "location": resolved_loc,
+    }
+
+    await manager.broadcast({"type": "sos_alert", "data": sos_data})
+    print(f"[CoastGuard Voice SOS] {tourist_name or 'Rahul Sharma'} at {lat}, {lon} ({resolved_loc}): {transcript[:60]}")
+    return JSONResponse(content={
+        "status": "dispatched",
+        "data": sos_data,
+        "message": "Tourist voice distress broadcast to nearby patrols within 3.0 km."
     })
 
 

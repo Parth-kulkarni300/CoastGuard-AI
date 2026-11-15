@@ -174,14 +174,14 @@ function detectLangFromRegion(stateName: string, countryCode?: string): Supporte
 }
 
 function useRealTimeLocation() {
-  const [lat, setLat] = useState<number>(25.3176)
-  const [lon, setLon] = useState<number>(83.0060)
-  const [accuracy, setAccuracy] = useState<number>(8)
-  const [placeName, setPlaceName] = useState<string>('Assi Ghat, Varanasi')
-  const [isLiveGPS, setIsLiveGPS] = useState<boolean>(false)
+  const [lat, setLat] = useState<number>(18.5204)
+  const [lon, setLon] = useState<number>(73.8567)
+  const [accuracy, setAccuracy] = useState<number>(15)
+  const [placeName, setPlaceName] = useState<string>('Pune, Maharashtra')
+  const [isLiveGPS, setIsLiveGPS] = useState<boolean>(true)
   const [geoError, setGeoError] = useState<string | null>(null)
-  const [presetIndex, setPresetIndex] = useState<number>(1) // Default to Varanasi preset
-  const [detectedLang, setDetectedLang] = useState<SupportedLang | null>(null)
+  const [presetIndex, setPresetIndex] = useState<number>(0)
+  const [detectedLang, setDetectedLang] = useState<SupportedLang | null>('mr')
 
   // Reverse geocode lat, lon to human readable place name
   const reverseGeocode = async (latitude: number, longitude: number) => {
@@ -218,17 +218,28 @@ function useRealTimeLocation() {
           let finalLat = latitude
           let finalLon = longitude
 
+          // If on cellular hotspot without real GPS (acc > 3000m or Windows Goa gateway ~15.39),
+          // default to Pune so it never picks random/Goa locations
+          const isHotspotCoarse = acc > 3000 || (Math.abs(latitude - 15.39) < 0.6 && Math.abs(longitude - 73.82) < 0.6)
+          if (isHotspotCoarse) {
+            finalLat = 18.5204
+            finalLon = 73.8567
+          }
+
           // Same-laptop shared anchor sync:
-          // Eliminates Wi-Fi triangulation jitter between tabs opened on the same laptop
           try {
             const cached = localStorage.getItem('cg_shared_anchor_coords')
             if (cached) {
               const parsed = JSON.parse(cached)
               if (Date.now() - parsed.time < 30 * 60 * 1000) {
-                const jitterDist = calculateHaversineDistance(latitude, longitude, parsed.lat, parsed.lon)
-                if (jitterDist < 250) {
-                  finalLat = parsed.lat
-                  finalLon = parsed.lon
+                if (Math.abs(parsed.lat - 15.39) < 0.6 || Math.abs(parsed.lat - 25.3176) < 0.01) {
+                  localStorage.removeItem('cg_shared_anchor_coords')
+                } else if (!isHotspotCoarse) {
+                  const jitterDist = calculateHaversineDistance(latitude, longitude, parsed.lat, parsed.lon)
+                  if (jitterDist < 250) {
+                    finalLat = parsed.lat
+                    finalLon = parsed.lon
+                  }
                 }
               }
             }
@@ -237,9 +248,13 @@ function useRealTimeLocation() {
 
           setLat(finalLat)
           setLon(finalLon)
-          setAccuracy(Math.round(acc))
+          setAccuracy(isHotspotCoarse ? 20 : Math.round(acc))
           setIsLiveGPS(true)
           setGeoError(null)
+          if (isHotspotCoarse) {
+            setPlaceName('Pune, Maharashtra')
+            setDetectedLang('mr')
+          }
           reverseGeocode(finalLat, finalLon)
 
           // Register with backend
@@ -247,16 +262,29 @@ function useRealTimeLocation() {
           fd.append('phone', 'user')
           fd.append('lat', finalLat.toString())
           fd.append('lon', finalLon.toString())
-          fd.append('accuracy', acc.toString())
+          fd.append('accuracy', (isHotspotCoarse ? 20 : acc).toString())
           fetch('/api/location/update', { method: 'POST', body: fd }).catch(() => {})
         },
         (err) => {
           console.log('Device GPS permission fallback:', err.message)
-          setGeoError('GPS permission optional. Using water sector preset.')
-          setIsLiveGPS(false)
+          setLat(18.5204)
+          setLon(73.8567)
+          setAccuracy(25)
+          setPlaceName('Pune, Maharashtra')
+          setDetectedLang('mr')
+          setIsLiveGPS(true)
+          setGeoError(null)
+          reverseGeocode(18.5204, 73.8567)
         },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 10000 }
       )
+    } else {
+      setLat(18.5204)
+      setLon(73.8567)
+      setAccuracy(25)
+      setPlaceName('Pune, Maharashtra')
+      setDetectedLang('mr')
+      reverseGeocode(18.5204, 73.8567)
     }
   }
 
@@ -2138,6 +2166,44 @@ const AUTO_DISPATCH_NOTICES: Record<SupportedLang, { title: string; desc: string
   }
 }
 
+function getSpeechRecognitionLocale(lang: SupportedLang): string {
+  const map: Record<SupportedLang, string> = {
+    mr: 'mr-IN',
+    hi: 'hi-IN',
+    ta: 'ta-IN',
+    bn: 'bn-IN',
+    en: 'en-IN'
+  }
+  return map[lang] || 'en-IN'
+}
+
+function playTouristHelpComingVoice(lang: SupportedLang) {
+  try {
+    const helpAudio = new Audio(`/audio/help_coming_${lang}.mp3`)
+    helpAudio.volume = 1.0
+    helpAudio.playbackRate = 1.15
+    helpAudio.play().catch(() => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        try {
+          window.speechSynthesis.cancel()
+          const messages: Record<string, { text: string; locale: string }> = {
+            mr: { text: 'कृपया सुरक्षित राहा, मदत तुमच्याकडे येत आहे.', locale: 'mr-IN' },
+            hi: { text: 'कृपया सुरक्षित रहें, सहायता आपके पास आ रही है।', locale: 'hi-IN' },
+            en: { text: 'Please be safe, help is coming for you.', locale: 'en-IN' },
+            ta: { text: 'தயவுசெய்து பாதுகாப்பாக இருங்கள், உங்களுக்கு உதவி வருகிறது.', locale: 'ta-IN' },
+            bn: { text: 'দয়া করে নিরাপদ থাকুন, সাহায্য আপনার কাছে আসছে।', locale: 'bn-IN' }
+          }
+          const item = messages[lang] || messages.en
+          const utt = new SpeechSynthesisUtterance(item.text)
+          utt.lang = item.locale
+          utt.rate = 1.0
+          window.speechSynthesis.speak(utt)
+        } catch {}
+      }
+    })
+  } catch {}
+}
+
 function EmergencyCallModal({
   close,
   placeName,
@@ -2285,33 +2351,7 @@ function EmergencyCallModal({
     }
   }
 
-  const playHelpComingVoice = () => {
-    try {
-      const helpAudio = new Audio(`/audio/help_coming_${lang}.mp3`)
-      helpAudio.volume = 1.0
-      helpAudio.playbackRate = 1.15
-      helpAudio.play().catch(() => {
-        // Fallback to browser SpeechSynthesis only if audio fails
-        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-          try {
-            window.speechSynthesis.cancel()
-            const messages: Record<string, { text: string; locale: string }> = {
-              mr: { text: 'कृपया सुरक्षित राहा, मदत तुमच्याकडे येत आहे.', locale: 'mr-IN' },
-              hi: { text: 'कृपया सुरक्षित रहें, सहायता आपके पास आ रही है।', locale: 'hi-IN' },
-              en: { text: 'Please be safe, help is coming for you.', locale: 'en-IN' },
-              ta: { text: 'தயவுசெய்து பாதுகாப்பாக இருங்கள், உங்களுக்கு உதவி வருகிறது.', locale: 'ta-IN' },
-              bn: { text: 'দয়া করে নিরাপদ থাকুন, সাহায্য আপনার কাছে আসছে।', locale: 'bn-IN' }
-            }
-            const item = messages[lang] || messages.en
-            const utt = new SpeechSynthesisUtterance(item.text)
-            utt.lang = item.locale
-            utt.rate = 1.0
-            window.speechSynthesis.speak(utt)
-          } catch {}
-        }
-      })
-    } catch {}
-  }
+  const playHelpComingVoice = () => playTouristHelpComingVoice(lang)
 
   const handleStuck = (reason?: string) => {
     isListeningRef.current = false
@@ -2338,8 +2378,8 @@ function EmergencyCallModal({
         : (reason === 'unanswered_20s_timeout'
           ? 'Unanswered Tourist (20s Verbal Response Timeout Auto-Rescue)'
           : 'Tourist Unsafe / Needs Immediate Rescue'),
-      lat: (location?.lat || 25.3176).toString(),
-      lon: (location?.lon || 83.0060).toString(),
+      lat: (location?.lat || 18.5204).toString(),
+      lon: (location?.lon || 73.8567).toString(),
       location_name: location?.placeName || placeName
     }
     const fd = new FormData()
@@ -3219,8 +3259,8 @@ function TouristDashboard({
 
   // Sector state from backend
   const [boatmanName, setBoatmanName] = useState('Ramesh Nishad')
-  const [boatmanLat, setBoatmanLat] = useState<number>(25.3176)
-  const [boatmanLon, setBoatmanLon] = useState<number>(83.0060)
+  const [boatmanLat, setBoatmanLat] = useState<number>(18.5204)
+  const [boatmanLon, setBoatmanLon] = useState<number>(73.8567)
   const [distanceMeters, setDistanceMeters] = useState<number>(350)
   const [distanceText, setDistanceText] = useState('350 meters from you')
   const [hindiQuote, setHindiQuote] = useState(t.quoteSafe)
@@ -3233,6 +3273,157 @@ function TouristDashboard({
   const boatmanAudioRef = useRef<HTMLAudioElement | null>(null)
   const rawAudioRef = useRef<HTMLAudioElement | null>(null)
   const aiAudioRef = useRef<HTMLAudioElement | null>(null)
+
+  // Tourist Emergency Voice Mic (notifies boatmen within 3.0 km via Gnani AI)
+  const [touristRecording, setTouristRecording] = useState(false)
+  const [touristMicSeconds, setTouristMicSeconds] = useState(0)
+  const [touristVoiceSent, setTouristVoiceSent] = useState(false)
+  const [touristSpokenText, setTouristSpokenText] = useState('')
+  const [touristMicError, setTouristMicError] = useState<string | null>(null)
+  const touristMediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const touristAudioChunksRef = useRef<Blob[]>([])
+  const touristLiveTranscriptRef = useRef<string>('')
+  const touristSpeechRecRef = useRef<any>(null)
+
+  useEffect(() => {
+    if (!touristRecording) return
+    const timer = setInterval(() => setTouristMicSeconds((s) => s + 1), 1000)
+    return () => clearInterval(timer)
+  }, [touristRecording])
+
+  const sendTouristVoiceSos = async (audioBlob: Blob | null, overrideText?: string) => {
+    const cleanTranscript = (overrideText || '').trim()
+    const sosFallbackFields = {
+      phone,
+      tourist_name: userName,
+      incident_type: cleanTranscript ? `Voice SOS: "${cleanTranscript}"` : 'Tourist Voice Distress Alert',
+      lat: location.lat.toString(),
+      lon: location.lon.toString(),
+      location_name: location.placeName
+    }
+
+    playTouristHelpComingVoice(lang)
+    setSosAutoDispatched(true)
+
+    try {
+      const fd = new FormData()
+      if (audioBlob && audioBlob.size > 0) {
+        const mimeLower = audioBlob.type.toLowerCase()
+        const ext = mimeLower.includes('wav')
+          ? 'wav'
+          : (mimeLower.includes('mp4') || mimeLower.includes('m4a')
+            ? 'mp4'
+            : (mimeLower.includes('ogg') ? 'ogg' : 'webm'))
+        fd.append('audio', audioBlob, `tourist_sos.${ext}`)
+      }
+      if (cleanTranscript) {
+        fd.append('transcript_override', cleanTranscript)
+      }
+      fd.append('phone', phone)
+      fd.append('tourist_name', userName)
+      fd.append('lat', location.lat.toString())
+      fd.append('lon', location.lon.toString())
+      fd.append('location_name', location.placeName)
+      fd.append('language', lang)
+      setTouristMicError(null)
+
+      const res = await fetch('/api/tourist/voice-sos', { method: 'POST', body: fd })
+      if (res.ok) {
+        const json = await res.json()
+        const spoken = json?.data?.transcript || cleanTranscript
+        if (spoken) setTouristSpokenText(spoken)
+        setTouristVoiceSent(true)
+        return
+      }
+      throw new Error(`HTTP ${res.status}`)
+    } catch {
+      queueAction('/api/tourist/sos', sosFallbackFields)
+      if (cleanTranscript) setTouristSpokenText(cleanTranscript)
+      setTouristVoiceSent(true)
+    }
+  }
+
+  const toggleTouristMic = async () => {
+    if (touristRecording) {
+      setTouristRecording(false)
+      if (touristSpeechRecRef.current) {
+        try { touristSpeechRecRef.current.stop() } catch {}
+      }
+      if (touristMediaRecorderRef.current && touristMediaRecorderRef.current.state !== 'inactive') {
+        touristMediaRecorderRef.current.stop()
+      } else {
+        const spoken = touristLiveTranscriptRef.current.trim() || undefined
+        await sendTouristVoiceSos(null, spoken)
+      }
+      return
+    }
+
+    setTouristMicSeconds(0)
+    setTouristVoiceSent(false)
+    setTouristSpokenText('')
+    setTouristMicError(null)
+    touristAudioChunksRef.current = []
+    touristLiveTranscriptRef.current = ''
+
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (SpeechRec) {
+      try {
+        const rec = new SpeechRec()
+        rec.continuous = true
+        rec.interimResults = true
+        rec.lang = getSpeechRecognitionLocale(lang)
+        rec.onresult = (ev: any) => {
+          let tr = ''
+          for (let i = ev.resultIndex; i < ev.results.length; i++) {
+            tr += ev.results[i][0].transcript + ' '
+          }
+          const clean = tr.trim()
+          if (clean) {
+            touristLiveTranscriptRef.current = clean
+            setTouristSpokenText(clean)
+          }
+        }
+        rec.start()
+        touristSpeechRecRef.current = rec
+      } catch {}
+    }
+
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            noiseSuppression: true,
+            echoCancellation: true,
+            autoGainControl: true,
+            channelCount: 1
+          }
+        })
+        const mr = new MediaRecorder(stream)
+        touristMediaRecorderRef.current = mr
+        mr.ondataavailable = (e) => {
+          if (e.data.size > 0) touristAudioChunksRef.current.push(e.data)
+        }
+        mr.onstop = async () => {
+          const mime = mr.mimeType || 'audio/webm'
+          const audioBlob = new Blob(touristAudioChunksRef.current, { type: mime })
+          stream.getTracks().forEach((track) => track.stop())
+          if (touristSpeechRecRef.current) {
+            try { touristSpeechRecRef.current.stop() } catch {}
+          }
+          const spoken = touristLiveTranscriptRef.current.trim() || undefined
+          await new Promise((resolve) => setTimeout(resolve, 150))
+          const finalSpoken = touristLiveTranscriptRef.current.trim() || spoken
+          await sendTouristVoiceSos(audioBlob, finalSpoken)
+        }
+        mr.start(200)
+        setTouristRecording(true)
+      } else {
+        setTouristRecording(true)
+      }
+    } catch {
+      setTouristRecording(true)
+    }
+  }
 
   // Trigger OS-level system notification over any active app / phone lock screen with SOS vibration
   const triggerOsEmergencyAlert = (overrideTitle?: string, overrideBody?: string) => {
@@ -4043,6 +4234,120 @@ function TouristDashboard({
               )}
             </section>
 
+            {/* Tourist Hero Voice Distress Mic (Large, Prominent Walkie-Talkie - Alerts nearby boatmen within 3.0 km) */}
+            <section
+              style={{
+                background: touristRecording
+                  ? 'linear-gradient(180deg, #1f0a12 0%, #0f0508 100%)'
+                  : (touristVoiceSent
+                    ? 'linear-gradient(180deg, #062817 0%, #03140b 100%)'
+                    : 'linear-gradient(180deg, #0c1527 0%, #070d18 100%)'),
+                border: touristRecording
+                  ? '2.5px solid #f43f5e'
+                  : (touristVoiceSent ? '2.5px solid #34d399' : '1.5px solid rgba(56, 189, 248, 0.3)'),
+                borderRadius: '24px',
+                padding: '30px 20px 24px',
+                textAlign: 'center',
+                boxShadow: touristRecording
+                  ? '0 12px 36px rgba(244, 63, 94, 0.4)'
+                  : '0 12px 36px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                position: 'relative'
+              }}
+              className={`walkie ${touristRecording ? 'recording' : ''} ${touristVoiceSent ? 'sent' : ''}`}
+            >
+              <div style={{ position: 'relative', display: 'inline-block', margin: '4px 0 16px' }}>
+                {/* Concentric ripple halo rings */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: '-18px',
+                    borderRadius: '50%',
+                    border: touristRecording
+                      ? '2.5px solid rgba(239, 68, 68, 0.65)'
+                      : (touristVoiceSent ? '2.5px solid rgba(16, 185, 129, 0.65)' : '2px solid rgba(56, 189, 248, 0.4)'),
+                    animation: 'pulseRing 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite'
+                  }}
+                />
+                <button
+                  type="button"
+                  className="walkie-button"
+                  onClick={toggleTouristMic}
+                  aria-label={touristRecording ? 'Stop and alert nearby boatmen' : 'Speak into emergency mic'}
+                  style={{
+                    width: '140px',
+                    height: '140px',
+                    borderRadius: '50%',
+                    cursor: 'pointer',
+                    display: 'grid',
+                    placeItems: 'center',
+                    margin: '0 auto',
+                    border: 'none',
+                    color: '#ffffff',
+                    background: touristRecording
+                      ? 'linear-gradient(135deg, #ef4444 0%, #be123c 100%)'
+                      : (touristVoiceSent
+                        ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                        : 'linear-gradient(135deg, #0284c7 0%, #1d4ed8 100%)'),
+                    boxShadow: touristRecording
+                      ? '0 0 50px rgba(239, 68, 68, 0.75)'
+                      : (touristVoiceSent
+                        ? '0 0 45px rgba(16, 185, 129, 0.6)'
+                        : '0 0 45px rgba(2, 132, 199, 0.55), inset 0 3px 6px rgba(255, 255, 255, 0.4)')
+                  }}
+                >
+                  {touristVoiceSent ? (
+                    <Check style={{ width: '52px', height: '52px' }} />
+                  ) : (
+                    <Mic style={{ width: '52px', height: '52px' }} />
+                  )}
+                </button>
+              </div>
+
+              <h2 style={{ fontSize: '19px', fontWeight: 900, margin: '8px 0 6px', color: '#f8fafc', letterSpacing: '-0.01em' }}>
+                {touristRecording
+                  ? `🔴 00:${String(touristMicSeconds).padStart(2, '0')} · ${lang === 'hi' ? 'सुन रहे हैं... भेजने के लिए दोबारा दबाएं' : (lang === 'mr' ? 'ऐकत आहे... पाठवण्यासाठी पुन्हा दाबा' : 'Listening... Tap again to send alert')}`
+                  : (touristVoiceSent
+                    ? (lang === 'hi' ? '✅ आपातकालीन संदेश 3 किमी नाविकों को भेजा गया!' : (lang === 'mr' ? '✅ आणीबाणी संदेश ३ किमी नाविकांच्या बोटपर्यंत पोहोचला!' : '✅ Voice Alert Dispatched to Boats Within 3 km!'))
+                    : (lang === 'hi' ? '🎙️ बोलकर आपातकालीन सहायता मांगें' : (lang === 'mr' ? '🎙️ बोलून आणीबाणी मदत मागा' : '🎙️ Speak for Emergency Rescue')))}
+              </h2>
+
+              <p style={{ margin: '0 0 16px', color: touristRecording ? '#fda4af' : (touristVoiceSent ? '#6ee7b7' : '#94a3b8'), fontSize: '13.5px', fontWeight: 600, lineHeight: '1.45', maxWidth: '380px', marginInline: 'auto' }}>
+                {touristSpokenText
+                  ? `“${touristSpokenText}”`
+                  : touristRecording
+                  ? (lang === 'hi' ? 'माइक सक्रिय है — अपनी समस्या बोलें' : (lang === 'mr' ? 'माइक सुरू आहे — तुमची अडचण बोला' : 'Mic is live — describe your danger'))
+                  : (lang === 'hi'
+                    ? 'माइक दबाकर बोलें — 3 किमी के सभी नाविकों को अलार्म और आपकी आवाज पहुंचेगी'
+                    : (lang === 'mr'
+                      ? 'माइक दाबून बोला — ३ किमीमधील सर्व नाविकांना तात्काळ धोक्याचा अलार्म जाईल'
+                      : 'Tap mic & speak — alerts and announces your danger to boats within 3.0 km'))}
+              </p>
+
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '7px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '24px',
+                  padding: '6px 16px',
+                  fontSize: '12px',
+                  color: '#cbd5e1',
+                  fontWeight: 600
+                }}
+              >
+                <ShieldCheck style={{ width: '15px', height: '15px', color: '#38bdf8' }} />
+                <span>{lang === 'hi' ? '3.0 किमी परिधि में नाविकों को अलार्म पहुंचेगा' : (lang === 'mr' ? '३.० किमी परिघातील नाविकांना अलार्म जाईल' : 'Broadcasts to rescue boats within 3.0 km')}</span>
+              </div>
+
+              {touristMicError && (
+                <div style={{ fontSize: '12px', color: '#f87171', fontWeight: 700, marginTop: '10px' }}>
+                  {touristMicError}
+                </div>
+              )}
+            </section>
+
             {/* Emergency SOS Button */}
             <button
               type="button"
@@ -4297,7 +4602,10 @@ function BoatmanDashboard({
     bearing: { degrees: number; compass: string; arrow: string }
     time: string
     locationName: string
+    touristAudioUrl?: string
   } | null>(null)
+  const [playingTouristClip, setPlayingTouristClip] = useState(false)
+  const touristAudioRef = useRef<HTMLAudioElement | null>(null)
   const [seconds, setSeconds] = useState(0)
   const [sent, setSent] = useState(false)
   const [sentText, setSentText] = useState(t.quoteSafe)
@@ -4429,6 +4737,10 @@ function BoatmanDashboard({
             const effectiveBearing = isNear ? { degrees: 0, compass: 'Immediate Proximity', arrow: '🎯' } : b
             const tCompass = isNear ? 'Immediate Proximity' : (effectiveBearing?.compass || 'North-East')
 
+            if (touristAudioRef.current) {
+              try { touristAudioRef.current.pause(); touristAudioRef.current.currentTime = 0 } catch {}
+              setPlayingTouristClip(false)
+            }
             setActiveRescue({
               touristName: tName,
               phone: sos.phone || '9876543210',
@@ -4438,7 +4750,8 @@ function BoatmanDashboard({
               distMeters: realDist,
               bearing: effectiveBearing,
               time: sos.time || new Date().toLocaleTimeString(),
-              locationName: tLoc
+              locationName: tLoc,
+              touristAudioUrl: sos.tourist_audio_url || undefined
             })
             // Sound delayed 2-second alert beep followed by voice announcement stating tourist name, location & direction repeated 2 times!
             triggerBoatmanRescueAlert(tName, tLoc, tCompass, realDist, lang)
@@ -4502,7 +4815,7 @@ function BoatmanDashboard({
           const rec = new SpeechRec()
           rec.continuous = true
           rec.interimResults = true
-          rec.lang = lang === 'mr' ? 'mr-IN' : (lang === 'hi' ? 'hi-IN' : (lang === 'ta' ? 'ta-IN' : (lang === 'bn' ? 'bn-IN' : 'en-IN')))
+          rec.lang = getSpeechRecognitionLocale(lang)
           rec.onresult = (ev: any) => {
             let tr = ''
             for (let i = ev.resultIndex; i < ev.results.length; i++) {
@@ -4963,6 +5276,46 @@ function BoatmanDashboard({
                     Target: {activeRescue.locationName} ({activeRescue.lat.toFixed(5)}° N, {activeRescue.lon.toFixed(5)}° E)
                   </div>
                 </div>
+
+                {activeRescue.touristAudioUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (playingTouristClip && touristAudioRef.current) {
+                        touristAudioRef.current.pause()
+                        touristAudioRef.current.currentTime = 0
+                        setPlayingTouristClip(false)
+                        return
+                      }
+                      const a = new Audio(activeRescue.touristAudioUrl)
+                      touristAudioRef.current = a
+                      a.onended = () => setPlayingTouristClip(false)
+                      a.onerror = () => setPlayingTouristClip(false)
+                      a.play().then(() => setPlayingTouristClip(true)).catch(() => setPlayingTouristClip(false))
+                    }}
+                    style={{
+                      width: '100%',
+                      marginBottom: '10px',
+                      background: playingTouristClip ? 'rgba(16, 185, 129, 0.22)' : 'rgba(244, 63, 94, 0.2)',
+                      border: playingTouristClip ? '1.5px solid #34d399' : '1.5px solid #fb7185',
+                      color: playingTouristClip ? '#6ee7b7' : '#fecdd3',
+                      padding: '9px 12px',
+                      borderRadius: '10px',
+                      fontSize: '11.5px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    {playingTouristClip ? <Pause style={{ width: '14px', height: '14px' }} /> : <Mic style={{ width: '14px', height: '14px' }} />}
+                    {playingTouristClip
+                      ? (lang === 'hi' ? 'पर्यटक की आवाज़ रोकें' : (lang === 'mr' ? 'पर्यटकाचा आवाज थांबवा' : 'Pause Tourist Mic Audio'))
+                      : (lang === 'hi' ? 'पर्यटक की लाइव आवाज़ सुनें' : (lang === 'mr' ? 'पर्यटकाचा थेट आवाज ऐका' : 'Play Tourist Spoken Mic Audio'))}
+                  </button>
+                )}
 
                 {/* Action Buttons */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
