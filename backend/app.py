@@ -330,6 +330,15 @@ async def get_tourist_status(lat: float = 18.5204, lon: float = 73.8567):
     """Fetch real-time safety status for tourist's current GPS location."""
     global LATEST_SECTOR_STATE
 
+    # Auto-expire broadcasts older than 60 seconds so refreshed pages start clean in standby
+    if LATEST_SECTOR_STATE and LATEST_SECTOR_STATE.get("timestamp"):
+        try:
+            b_ts = datetime.fromisoformat(LATEST_SECTOR_STATE["timestamp"])
+            if (datetime.now() - b_ts).total_seconds() > 60:
+                LATEST_SECTOR_STATE = None
+        except Exception:
+            pass
+
     if not LATEST_SECTOR_STATE or not LATEST_SECTOR_STATE.get("has_broadcast"):
         return JSONResponse(content={
             "has_broadcast": False,

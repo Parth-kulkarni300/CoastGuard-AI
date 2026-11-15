@@ -3317,7 +3317,7 @@ function TouristDashboard({
   pendingCount?: number
 }) {
   const t = UI_TRANSLATIONS[lang]
-  const [status, setStatus] = useState<Status>(initialStatus || 'safe')
+  const [status, setStatus] = useState<Status>('safe')
   const [outOfRangeNotice, setOutOfRangeNotice] = useState<{ location: string; distanceKm: string } | null>(null)
   const [isVerifiedSafe, setIsVerifiedSafe] = useState(false)
   const [hasActiveBroadcast, setHasActiveBroadcast] = useState(false)
@@ -3573,6 +3573,11 @@ function TouristDashboard({
       // Fresh start on page mount / refresh: session restarts cleanly in standby
       setShowCallModal(false)
       setCallAutoAccept(false)
+      setStatus('safe')
+      setHasActiveBroadcast(false)
+      setBoatmanAudioUrl(null)
+      setBoatmanRawAudioUrl(null)
+      setOutOfRangeNotice(null)
     }
 
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
@@ -3659,23 +3664,28 @@ function TouristDashboard({
         const res = await fetch(`/api/tourist/status?lat=${location.lat}&lon=${location.lon}`)
         if (res.ok) {
           const data = await res.json()
-          if (data.has_broadcast && data.in_radius) {
+          const ts = data.timestamp ? Date.parse(data.timestamp) : 0
+          // Strict 60-second broadcast freshness: on page refresh or after 60s, old alerts are wiped clean
+          const isFresh = ts > 0 && Date.now() - ts < 60000
+          if (data.has_broadcast && data.in_radius && isFresh) {
             applySectorData(data)
             if (data.status === 'danger') {
-              const ts = data.timestamp ? Date.parse(data.timestamp) : 0
-              const isRecent = ts > 0 && Date.now() - ts < 120000
-              if (shouldOpenEmergencyCall(data, isRecent)) {
+              setStatus('danger')
+              if (shouldOpenEmergencyCall(data, isFresh)) {
                 setShowCallModal(true)
               }
             } else if (data.status === 'safe') {
+              setStatus('safe')
               setShowCallModal(false)
             }
-            if (data.status === 'danger') {
-              setStatus('danger')
-            }
           } else {
-            // Out of radius or no broadcast in this tourist's local sector: Keep safe
+            // Out of radius, expired, or clean page refresh: Return to calm standby
             setStatus('safe')
+            setHasActiveBroadcast(false)
+            setBoatmanAudioUrl(null)
+            setBoatmanRawAudioUrl(null)
+            setOutOfRangeNotice(null)
+            setShowCallModal(false)
           }
         }
       } catch (err) {
